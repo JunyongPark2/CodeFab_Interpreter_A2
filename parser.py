@@ -22,6 +22,7 @@ from ast_nodes import (
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
     VariableExpr, AssignExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
+    IfStmt, ForStmt,
 )
 from tokens import Token, TokenType
 
@@ -44,6 +45,10 @@ class Parser:
 
     # ── Statement 파싱 ─────────────────────────────────────
     def _statement(self) -> Stmt:
+        if self._match(TokenType.IF):
+            return self._if_statement()
+        if self._match(TokenType.FOR):
+            return self._for_statement()
         if self._match(TokenType.VAR):
             return self._var_declaration()
         if self._match(TokenType.LEFT_BRACE):
@@ -51,6 +56,42 @@ class Parser:
         if self._match(TokenType.PRINT):
             return self._print_statement()
         return self._expression_statement()
+
+    def _if_statement(self) -> IfStmt:
+        self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
+        condition = self._expression()
+        self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
+        then_branch = self._statement()
+        else_branch = None
+        if self._match(TokenType.ELSE):
+            else_branch = self._statement()
+        return IfStmt(condition, then_branch, else_branch)
+
+    def _for_statement(self) -> ForStmt:
+        self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
+
+        # initializer: var 선언 | 식 문장 | 없음(;)
+        if self._match(TokenType.SEMICOLON):
+            initializer = None
+        elif self._match(TokenType.VAR):
+            initializer = self._var_declaration()
+        else:
+            initializer = self._expression_statement()
+
+        # condition
+        condition = None
+        if not self._check(TokenType.SEMICOLON):
+            condition = self._expression()
+        self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
+
+        # increment
+        increment = None
+        if not self._check(TokenType.RIGHT_PAREN):
+            increment = self._expression()
+        self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
+
+        body = self._statement()
+        return ForStmt(initializer, condition, increment, body)
 
     def _var_declaration(self) -> VarDeclStmt:
         name = self._consume(TokenType.IDENTIFIER, "변수 이름이 필요합니다.")

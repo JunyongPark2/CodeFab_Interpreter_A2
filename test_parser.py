@@ -23,6 +23,7 @@ from ast_nodes import (
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
     VariableExpr, AssignExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
+    IfStmt, ForStmt,
 )
 from parser import Parser
 from tokens import Token, TokenType
@@ -54,6 +55,9 @@ VAR = Token(TokenType.VAR, "var")
 EQUAL = Token(TokenType.EQUAL, "=")
 LBRACE = Token(TokenType.LEFT_BRACE, "{")
 RBRACE = Token(TokenType.RIGHT_BRACE, "}")
+IF_KW = Token(TokenType.IF, "if")
+ELSE_KW = Token(TokenType.ELSE, "else")
+FOR_KW = Token(TokenType.FOR, "for")
 
 
 def ident(name: str) -> Token:
@@ -446,3 +450,137 @@ def test_중첩_스코프():
     assert expr.left.name.text == "outer"
     assert isinstance(expr.right, VariableExpr)
     assert expr.right.name.text == "inner"
+
+
+# ─────────────────────────────────────────────────────────
+# 제어 흐름 — if/else, for
+# ─────────────────────────────────────────────────────────
+
+def test_if_참_단순():
+    # if (true) print "bbq";
+    #
+    # 기대 트리:  IfStmt(condition=true, then=PrintStmt("bbq"), else=None)
+    stmts = parse_stmts(
+        IF_KW, LPAREN, TRUE, RPAREN,
+        PRINT, string("bbq"), SEMI,
+    )
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, IfStmt)
+    assert stmt.condition == LiteralExpr(True)
+    assert isinstance(stmt.then_branch, PrintStmt)
+    assert stmt.then_branch.expression == LiteralExpr("bbq")
+    assert stmt.else_branch is None
+
+
+def test_if_else():
+    # if (false) print "no"; else print "kfc";
+    #
+    # 기대 트리:  IfStmt(condition=false,
+    #                    then=PrintStmt("no"),
+    #                    else=PrintStmt("kfc"))
+    stmts = parse_stmts(
+        IF_KW, LPAREN, FALSE, RPAREN,
+        PRINT, string("no"), SEMI,
+        ELSE_KW,
+        PRINT, string("kfc"), SEMI,
+    )
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, IfStmt)
+    assert stmt.condition == LiteralExpr(False)
+    assert isinstance(stmt.then_branch, PrintStmt)
+    assert stmt.then_branch.expression == LiteralExpr("no")
+    assert isinstance(stmt.else_branch, PrintStmt)
+    assert stmt.else_branch.expression == LiteralExpr("kfc")
+
+
+def test_dangling_else_가장_가까운_if에_결합():
+    # if (true) if (false) print "kfc"; else print "bbq";
+    #
+    # else 는 바깥 if 가 아니라 가장 가까운 if(false) 에 붙어야 한다.
+    #
+    # 기대 트리:  IfStmt(true,
+    #              then=IfStmt(false,
+    #                    then=PrintStmt("kfc"),
+    #                    else=PrintStmt("bbq")),   ← 여기에 결합
+    #              else=None)                      ← 바깥 if 에는 else 없음
+
+    stmts = parse_stmts(
+        IF_KW, LPAREN, TRUE, RPAREN,
+        IF_KW, LPAREN, FALSE, RPAREN,
+        PRINT, string("kfc"), SEMI,
+        ELSE_KW,
+        PRINT, string("bbq"), SEMI,
+    )
+
+    assert len(stmts) == 1
+    outer = stmts[0]
+    assert isinstance(outer, IfStmt)
+    assert outer.condition == LiteralExpr(True)
+    assert outer.else_branch is None  # 바깥 if 에는 else 없음
+
+    inner = outer.then_branch
+    assert isinstance(inner, IfStmt)
+    assert inner.condition == LiteralExpr(False)
+    assert isinstance(inner.then_branch, PrintStmt)
+    assert inner.then_branch.expression == LiteralExpr("kfc")
+    assert isinstance(inner.else_branch, PrintStmt)
+    assert inner.else_branch.expression == LiteralExpr("bbq")
+
+
+def test_for_반복문():
+    # for (var j = 0; j < 3; j = j + 1) { print j; }
+    #
+    # 기대 트리:  ForStmt(
+    #               initializer = VarDeclStmt("j", 0),
+    #               condition   = BinaryExpr(j < 3),
+    #               increment   = AssignExpr("j", j + 1),
+    #               body        = BlockStmt([PrintStmt(j)])
+    #             )
+    stmts = parse_stmts(
+        FOR_KW, LPAREN,
+        VAR, ident("j"), EQUAL, num(0), SEMI,
+        ident("j"), LESS, num(3), SEMI,
+        ident("j"), EQUAL, ident("j"), PLUS, num(1),
+        RPAREN,
+        LBRACE, PRINT, ident("j"), SEMI, RBRACE,
+    )
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ForStmt)
+
+    # initializer: var j = 0
+    assert isinstance(stmt.initializer, VarDeclStmt)
+    assert stmt.initializer.name.text == "j"
+    assert stmt.initializer.initializer == LiteralExpr(0.0)
+
+    # condition: j < 3
+    cond = stmt.condition
+    assert isinstance(cond, BinaryExpr)
+    assert cond.operator.type == TokenType.LESS
+    assert isinstance(cond.left, VariableExpr)
+    assert cond.left.name.text == "j"
+    assert cond.right == LiteralExpr(3.0)
+
+    # increment: j = j + 1
+    inc = stmt.increment
+    assert isinstance(inc, AssignExpr)
+    assert inc.name.text == "j"
+    rhs = inc.value
+    assert isinstance(rhs, BinaryExpr)
+    assert rhs.operator.type == TokenType.PLUS
+    assert isinstance(rhs.left, VariableExpr)
+    assert rhs.left.name.text == "j"
+    assert rhs.right == LiteralExpr(1.0)
+
+    # body: { print j; }
+    assert isinstance(stmt.body, BlockStmt)
+    assert len(stmt.body.statements) == 1
+    print_stmt = stmt.body.statements[0]
+    assert isinstance(print_stmt, PrintStmt)
+    assert isinstance(print_stmt.expression, VariableExpr)
+    assert print_stmt.expression.name.text == "j"
