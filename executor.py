@@ -2,7 +2,7 @@ from temp_implement import *
 # executor.py
 #from ast_nodes import * : Expr, Stmt
 #from environment import Environment
-#from tokens import TokenType
+from tokens import TokenType
 
 class LangRuntimeError(Exception):
     def __init__(self, line: int, msg: str):
@@ -26,7 +26,7 @@ class Executor:
 
         elif isinstance(stmt, VarDeclStmt):
             val = self._eval(stmt.initializer) if stmt.initializer else None
-            self._current.define(stmt.name.origin, val)
+            self._current.define(stmt.name.text, val)
 
         elif isinstance(stmt, ExpressionStmt):
             self._eval(stmt.expression)
@@ -63,11 +63,11 @@ class Executor:
             return expr.value
 
         if isinstance(expr, VariableExpr):
-            return self._current.get(expr.name.origin)
+            return self._current.get(expr.name.text)
 
         if isinstance(expr, AssignExpr):
             val = self._eval(expr.value)
-            self._current.assign(expr.name.origin, val)
+            self._current.assign(expr.name.text, val)
             return val
 
         if isinstance(expr, GroupingExpr):

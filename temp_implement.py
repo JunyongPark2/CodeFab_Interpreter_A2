@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import Any, Optional
-from enum import Enum, auto
     # ── Expr, Statements 구현시 삭제 ─────────────────────────────────────────────
 class Expr:
     pass
@@ -99,66 +98,3 @@ class Environment:
             return
         raise LangRuntimeError(0, f"미정의된 변수 '{name}'")
 
-class TokenType(Enum):
-    # 구분자
-    LEFT_PAREN  = auto()   # (
-    RIGHT_PAREN = auto()   # )
-    LEFT_BRACE  = auto()   # {
-    RIGHT_BRACE = auto()   # }
-    SEMICOLON   = auto()   # ;
-    COMMA       = auto()   # , (필요 시)
-
-    # 산술 연산자
-    PLUS  = auto()   # +
-    MINUS = auto()   # -
-    STAR  = auto()   # *
-    SLASH = auto()   # /
-
-    # 비교 / 대입 연산자
-    EQUAL         = auto()   # =
-    EQUAL_EQUAL   = auto()   # ==
-    GREATER       = auto()   # >
-    LESS          = auto()   # <
-    GREATER_EQUAL = auto()   # >=
-    LESS_EQUAL    = auto()   # <=
-    BANG          = auto()   # !
-    BANG_EQUAL    = auto()   # !=
-
-    # 리터럴
-    IDENTIFIER = auto()   # 변수명, 함수명
-    STRING     = auto()   # "hello"
-    NUMBER     = auto()   # 37, 3.14  (float로 저장)
-
-    # 키워드
-    VAR   = auto()   # var
-    IF    = auto()   # if
-    ELSE  = auto()   # else
-    FOR   = auto()   # for
-    PRINT = auto()   # print
-    TRUE  = auto()   # true
-    FALSE = auto()   # false
-    AND   = auto()   # and
-    OR    = auto()   # or
-
-    EOF = auto()     # 토큰 스트림 끝
-
-
-@dataclass
-class Token:
-    type: TokenType
-    origin: Optional[str] = None   # 렉심(lexeme)/변수명 등 원본 문자열
-    line: int = 1
-
-
-# 키워드 문자열 → TokenType 매핑 (Tokenizer에서 사용)
-KEYWORDS: dict[str, TokenType] = {
-    "var":   TokenType.VAR,
-    "if":    TokenType.IF,
-    "else":  TokenType.ELSE,
-    "for":   TokenType.FOR,
-    "print": TokenType.PRINT,
-    "true":  TokenType.TRUE,
-    "false": TokenType.FALSE,
-    "and":   TokenType.AND,
-    "or":    TokenType.OR,
-}
