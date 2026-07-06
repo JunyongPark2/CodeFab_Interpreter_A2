@@ -231,3 +231,270 @@ class TestLineTracking:
 #     def test_tokenize_error_includes_line_number(self):
 #         with pytest.raises(TokenizeError, match=r"\[1번째줄\]"):
 #             tokenize("@")
+
+
+# ── 변수 선언 / 재할당 / 블록 스코프 스크립트 토큰화 ───────────────────────
+
+class TestVariableDeclarationAndUse:
+    def test_declare_and_use(self):
+        # var a = 10;
+        # var b = 20;
+        # print a + b;            // expect: 30
+        source = (
+            'var a = 10;\n'
+            'var b = 20;\n'
+            'print a + b;            // expect: 30\n'
+        )
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.VAR,        "var",   None),
+            (TokenType.IDENTIFIER, "a",     None),
+            (TokenType.EQUAL,      "=",     None),
+            (TokenType.NUMBER,     "10",    10.0),
+            (TokenType.SEMICOLON,  ";",     None),
+            (TokenType.VAR,        "var",   None),
+            (TokenType.IDENTIFIER, "b",     None),
+            (TokenType.EQUAL,      "=",     None),
+            (TokenType.NUMBER,     "20",    20.0),
+            (TokenType.SEMICOLON,  ";",     None),
+            (TokenType.PRINT,      "print", None),
+            (TokenType.IDENTIFIER, "a",     None),
+            (TokenType.PLUS,       "+",     None),
+            (TokenType.IDENTIFIER, "b",     None),
+            (TokenType.SEMICOLON,  ";",     None),
+            (TokenType.EOF,        "",      None),
+        ]
+
+    def test_line_comment_after_statement_is_ignored(self):
+        # 주석 뒤 내용("expect: 30")이 토큰으로 새어나오면 안 된다.
+        tokens = tokenize("print a + b;            // expect: 30\n")
+        assert TokenType.NUMBER not in [t.type for t in tokens]
+        assert tokens[-1].type == TokenType.EOF
+
+
+class TestReassignment:
+    def test_reassign_and_print(self):
+        # a = a + 5;
+        # print a;                // expect: 15
+        source = (
+            'a = a + 5;\n'
+            'print a;                // expect: 15\n'
+        )
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.IDENTIFIER, "a", None),
+            (TokenType.EQUAL,      "=", None),
+            (TokenType.IDENTIFIER, "a", None),
+            (TokenType.PLUS,       "+", None),
+            (TokenType.NUMBER,     "5", 5.0),
+            (TokenType.SEMICOLON,  ";", None),
+            (TokenType.PRINT,   "print", None),
+            (TokenType.IDENTIFIER, "a", None),
+            (TokenType.SEMICOLON,  ";", None),
+            (TokenType.EOF,        "", None),
+        ]
+
+
+class TestBlockScopeShadowing:
+    def test_shadowed_block_and_outer_access(self):
+        # var x = "global";
+        # {
+        #   var x = "inner";
+        #   print x;              // expect: inner
+        # }
+        # print x;                // expect: global  (블록 밖은 영향 없음)
+        source = (
+            'var x = "global";\n'
+            '{\n'
+            '  var x = "inner";\n'
+            '  print x;              // expect: inner\n'
+            '}\n'
+            'print x;                // expect: global  (블록 밖은 영향 없음)\n'
+        )
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.VAR,         "var",       None),
+            (TokenType.IDENTIFIER,  "x",         None),
+            (TokenType.EQUAL,       "=",         None),
+            (TokenType.STRING,      '"global"',  "global"),
+            (TokenType.SEMICOLON,   ";",         None),
+            (TokenType.LEFT_BRACE,  "{",         None),
+            (TokenType.VAR,         "var",       None),
+            (TokenType.IDENTIFIER,  "x",         None),
+            (TokenType.EQUAL,       "=",         None),
+            (TokenType.STRING,      '"inner"',   "inner"),
+            (TokenType.SEMICOLON,   ";",         None),
+            (TokenType.PRINT,       "print",     None),
+            (TokenType.IDENTIFIER,  "x",         None),
+            (TokenType.SEMICOLON,   ";",         None),
+            (TokenType.RIGHT_BRACE, "}",         None),
+            (TokenType.PRINT,       "print",     None),
+            (TokenType.IDENTIFIER,  "x",         None),
+            (TokenType.SEMICOLON,   ";",         None),
+            (TokenType.EOF,         "",          None),
+        ]
+
+    def test_inner_block_line_numbers(self):
+        source = (
+            'var x = "global";\n'   # line 1
+            '{\n'                   # line 2
+            '  var x = "inner";\n'  # line 3
+            '  print x;\n'          # line 4
+            '}\n'                   # line 5
+            'print x;\n'            # line 6
+        )
+        tokens = tokenize(source)
+        inner_prints = [t for t in tokens if t.type == TokenType.PRINT]
+        assert inner_prints[0].line == 4
+        assert inner_prints[1].line == 6
+
+
+class TestOuterVariableMutationInBlock:
+    def test_mutate_outer_variable_inside_block(self):
+        # var count = 0;
+        # {
+        #   count = count + 1;    // 같은 이름 재선언이 아니라 바깥 변수 수정
+        # }
+        # print count;            // expect: 1
+        source = (
+            'var count = 0;\n'
+            '{\n'
+            '  count = count + 1;    // 같은 이름 재선언이 아니라 바깥 변수 수정\n'
+            '}\n'
+            'print count;            // expect: 1\n'
+        )
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.VAR,         "var",   None),
+            (TokenType.IDENTIFIER,  "count", None),
+            (TokenType.EQUAL,       "=",     None),
+            (TokenType.NUMBER,      "0",     0.0),
+            (TokenType.SEMICOLON,   ";",     None),
+            (TokenType.LEFT_BRACE,  "{",     None),
+            (TokenType.IDENTIFIER,  "count", None),
+            (TokenType.EQUAL,       "=",     None),
+            (TokenType.IDENTIFIER,  "count", None),
+            (TokenType.PLUS,        "+",     None),
+            (TokenType.NUMBER,      "1",     1.0),
+            (TokenType.SEMICOLON,   ";",     None),
+            (TokenType.RIGHT_BRACE, "}",     None),
+            (TokenType.PRINT,       "print", None),
+            (TokenType.IDENTIFIER,  "count", None),
+            (TokenType.SEMICOLON,   ";",     None),
+            (TokenType.EOF,         "",      None),
+        ]
+
+
+class TestNestedScopeResolution:
+    def test_nested_block_variable_concat(self):
+        # var outer = "A";
+        # {
+        #   var inner = "B";
+        #   {
+        #     print outer + inner;  // expect: AB
+        #   }
+        # }
+        source = (
+            'var outer = "A";\n'
+            '{\n'
+            '  var inner = "B";\n'
+            '  {\n'
+            '    print outer + inner;  // expect: AB\n'
+            '  }\n'
+            '}\n'
+        )
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.VAR,         "var",     None),
+            (TokenType.IDENTIFIER,  "outer",   None),
+            (TokenType.EQUAL,       "=",       None),
+            (TokenType.STRING,      '"A"',     "A"),
+            (TokenType.SEMICOLON,   ";",       None),
+            (TokenType.LEFT_BRACE,  "{",       None),
+            (TokenType.VAR,         "var",     None),
+            (TokenType.IDENTIFIER,  "inner",   None),
+            (TokenType.EQUAL,       "=",       None),
+            (TokenType.STRING,      '"B"',     "B"),
+            (TokenType.SEMICOLON,   ";",       None),
+            (TokenType.LEFT_BRACE,  "{",       None),
+            (TokenType.PRINT,       "print",   None),
+            (TokenType.IDENTIFIER,  "outer",   None),
+            (TokenType.PLUS,        "+",       None),
+            (TokenType.IDENTIFIER,  "inner",   None),
+            (TokenType.SEMICOLON,   ";",       None),
+            (TokenType.RIGHT_BRACE, "}",       None),
+            (TokenType.RIGHT_BRACE, "}",       None),
+            (TokenType.EOF,         "",        None),
+        ]
+
+
+class TestFullScriptTokenization:
+    def test_full_script_has_no_leftover_comment_tokens(self):
+        source = '''\
+// --- 선언 & 사용 ---
+var a = 10;
+var b = 20;
+print a + b;            // expect: 30
+
+
+// --- 재할당 ---
+a = a + 5;
+print a;                // expect: 15
+
+// --- 블록 스코프 & 변수 shadowing ---
+
+var x = "global";
+{
+  var x = "inner";
+  print x;              // expect: inner
+}
+print x;                // expect: global  (블록 밖은 영향 없음)
+
+
+// --- 안쪽 블록에서 바깥 변수 수정은 가능 ---
+
+var count = 0;
+{
+  count = count + 1;    // 같은 이름 재선언이 아니라 바깥 변수 수정
+}
+print count;            // expect: 1
+
+
+// 중첩 스코프 해석
+
+var outer = "A";
+{
+  var inner = "B";
+  {
+    print outer + inner;  // expect: AB
+  }
+}
+'''
+        tokens = tokenize(source)
+
+        # 마지막 토큰은 항상 EOF
+        assert tokens[-1].type == TokenType.EOF
+
+        # 주석 내용("선언", "재할당", "expect" 등)이 토큰으로 남아있으면 안 된다.
+        identifiers = {t.text for t in tokens if t.type == TokenType.IDENTIFIER}
+        assert identifiers == {"a", "b", "x", "count", "outer", "inner"}
+
+        # 여는/닫는 중괄호 개수가 일치해야 한다 (블록 4개).
+        left_braces  = [t for t in tokens if t.type == TokenType.LEFT_BRACE]
+        right_braces = [t for t in tokens if t.type == TokenType.RIGHT_BRACE]
+        assert len(left_braces) == len(right_braces) == 4
+
+        # var 선언은 총 6번 (a, b, x, x(inner block), count, outer, inner) → 실제로는 7번
+        var_tokens = [t for t in tokens if t.type == TokenType.VAR]
+        assert len(var_tokens) == 7
+
+    def test_full_script_line_numbers_for_print_statements(self):
+        source = '''\
+// --- 선언 & 사용 ---
+var a = 10;
+var b = 20;
+print a + b;            // expect: 30
+
+
+// --- 재할당 ---
+a = a + 5;
+print a;                // expect: 15
+'''
+        tokens = tokenize(source)
+        print_lines = [t.line for t in tokens if t.type == TokenType.PRINT]
+        assert print_lines == [4, 9]
