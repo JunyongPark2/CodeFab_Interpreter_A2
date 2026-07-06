@@ -1,5 +1,5 @@
 import pytest
-from tokenizer import Tokenizer
+from tokenizer import Tokenizer, TokenizeError
 from tokens import TokenType
 
 
@@ -126,6 +126,30 @@ class TestStringLiterals:
             (TokenType.SEMICOLON, ";",           None),
             (TokenType.EOF,       "",            None),
         ]
+
+    def test_single_quoted_string(self):
+        # print 'a';  — origin은 작은따옴표 포함, value는 따옴표 제외 내용
+        assert as_token_tuples(tokenize("print 'a';")) == [
+            (TokenType.PRINT,     "print", None),
+            (TokenType.STRING,    "'a'",   "a"),
+            (TokenType.SEMICOLON, ";",     None),
+            (TokenType.EOF,       "",      None),
+        ]
+
+    def test_single_and_double_quoted_strings_concatenation(self):
+        # print 'Hello, ' + "CodeFab!";
+        assert as_token_tuples(tokenize("print 'Hello, ' + \"CodeFab!\";")) == [
+            (TokenType.PRINT,     "print",       None),
+            (TokenType.STRING,    "'Hello, '",   "Hello, "),
+            (TokenType.PLUS,      "+",           None),
+            (TokenType.STRING,    '"CodeFab!"',  "CodeFab!"),
+            (TokenType.SEMICOLON, ";",           None),
+            (TokenType.EOF,       "",            None),
+        ]
+
+    def test_unclosed_single_quoted_string_raises(self):
+        with pytest.raises(TokenizeError):
+            tokenize("'unterminated")
 
 
 # ── 숫자 리터럴 포맷 ──────────────────────────────────────────────────
