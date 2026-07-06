@@ -43,6 +43,8 @@ LESS = Token(TokenType.LESS, "<")
 GREATER = Token(TokenType.GREATER, ">")
 LPAREN = Token(TokenType.LEFT_PAREN, "(")
 RPAREN = Token(TokenType.RIGHT_PAREN, ")")
+TRUE = Token(TokenType.TRUE, "true")
+FALSE = Token(TokenType.FALSE, "false")
 PRINT = Token(TokenType.PRINT, "print")
 SEMI = Token(TokenType.SEMICOLON, ";")
 EOF = Token(TokenType.EOF, "")
@@ -210,3 +212,21 @@ def test_문자열_연결():
     assert expr.operator.type == TokenType.PLUS
     assert expr.left == LiteralExpr("Hello, ")
     assert expr.right == LiteralExpr("CodeFab!")
+
+
+def test_불리언_참():
+    # print true;
+    #
+    # 기대 트리:  LiteralExpr(True)
+    expr = parse_print(TRUE)
+
+    assert expr == LiteralExpr(True)
+
+
+def test_불리언_거짓():
+    # print false;
+    #
+    # 기대 트리:  LiteralExpr(False)
+    expr = parse_print(FALSE)
+
+    assert expr == LiteralExpr(False)

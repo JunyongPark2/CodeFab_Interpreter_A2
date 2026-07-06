@@ -93,6 +93,10 @@ class Parser:
             return LiteralExpr(self._previous().value)
         if self._match(TokenType.STRING):
             return LiteralExpr(self._previous().value)
+        if self._match(TokenType.TRUE):
+            return LiteralExpr(True)
+        if self._match(TokenType.FALSE):
+            return LiteralExpr(False)
         if self._match(TokenType.LEFT_PAREN):
             expr = self._expression()
             self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
