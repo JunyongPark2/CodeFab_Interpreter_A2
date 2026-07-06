@@ -4,9 +4,6 @@ from temp_implement import *
 #from environment import Environment
 from tokens import TokenType
 
-class LangRuntimeError(Exception):
-    def __init__(self, line: int, msg: str):
-        super().__init__(f"[{line}번째줄] {msg}")
 
 class Executor:
     def __init__(self, stmts: list[Stmt]):

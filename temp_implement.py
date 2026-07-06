@@ -1,5 +1,11 @@
 from dataclasses import dataclass
 from typing import Any, Optional
+
+
+class LangRuntimeError(Exception):
+    def __init__(self, line: int, msg: str):
+        super().__init__(f"[{line}번째줄] {msg}")
+
     # ── Expr, Statements 구현시 삭제 ─────────────────────────────────────────────
 class Expr:
     pass
