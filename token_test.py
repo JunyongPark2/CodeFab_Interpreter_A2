@@ -498,3 +498,162 @@ print a;                // expect: 15
         tokens = tokenize(source)
         print_lines = [t.line for t in tokens if t.type == TokenType.PRINT]
         assert print_lines == [4, 9]
+
+
+# ── 제어 흐름 (if / else / for) 스크립트 토큰화 ──────────────────────────
+
+class TestIfElse:
+    def test_if_without_else(self):
+        # if (true) print "bbq";
+        source = 'if (true) print "bbq";\n'
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.IF,          "if",     None),
+            (TokenType.LEFT_PAREN,  "(",      None),
+            (TokenType.TRUE,        "true",   None),
+            (TokenType.RIGHT_PAREN, ")",      None),
+            (TokenType.PRINT,       "print",  None),
+            (TokenType.STRING,      '"bbq"',  "bbq"),
+            (TokenType.SEMICOLON,   ";",      None),
+            (TokenType.EOF,         "",       None),
+        ]
+
+    def test_if_else(self):
+        # if (false) print "no"; else print "kfc";
+        source = 'if (false) print "no"; else print "kfc";\n'
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.IF,          "if",     None),
+            (TokenType.LEFT_PAREN,  "(",      None),
+            (TokenType.FALSE,       "false",  None),
+            (TokenType.RIGHT_PAREN, ")",      None),
+            (TokenType.PRINT,       "print",  None),
+            (TokenType.STRING,      '"no"',   "no"),
+            (TokenType.SEMICOLON,   ";",      None),
+            (TokenType.ELSE,        "else",   None),
+            (TokenType.PRINT,       "print",  None),
+            (TokenType.STRING,      '"kfc"',  "kfc"),
+            (TokenType.SEMICOLON,   ";",      None),
+            (TokenType.EOF,         "",       None),
+        ]
+
+
+class TestDanglingElseTokenization:
+    def test_nested_if_else_inside_block(self):
+        # if (true)
+        # {
+        #   if (false) print "kfc";
+        #   else print "bbq";
+        # }
+        source = (
+            'if (true)\n'
+            '{\n'
+            '  if (false) print "kfc";\n'
+            '  else print "bbq";\n'
+            '}\n'
+        )
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.IF,          "if",      None),
+            (TokenType.LEFT_PAREN,  "(",       None),
+            (TokenType.TRUE,        "true",    None),
+            (TokenType.RIGHT_PAREN, ")",       None),
+            (TokenType.LEFT_BRACE,  "{",       None),
+            (TokenType.IF,          "if",      None),
+            (TokenType.LEFT_PAREN,  "(",       None),
+            (TokenType.FALSE,       "false",   None),
+            (TokenType.RIGHT_PAREN, ")",       None),
+            (TokenType.PRINT,       "print",   None),
+            (TokenType.STRING,      '"kfc"',   "kfc"),
+            (TokenType.SEMICOLON,   ";",       None),
+            (TokenType.ELSE,        "else",    None),
+            (TokenType.PRINT,       "print",   None),
+            (TokenType.STRING,      '"bbq"',   "bbq"),
+            (TokenType.SEMICOLON,   ";",       None),
+            (TokenType.RIGHT_BRACE, "}",       None),
+            (TokenType.EOF,         "",        None),
+        ]
+
+    def test_inner_if_and_else_are_on_expected_lines(self):
+        source = (
+            'if (true)\n'           # line 1
+            '{\n'                   # line 2
+            '  if (false) print "kfc";\n'  # line 3
+            '  else print "bbq";\n'        # line 4
+            '}\n'                   # line 5
+        )
+        tokens = tokenize(source)
+        if_tokens = [t for t in tokens if t.type == TokenType.IF]
+        else_tokens = [t for t in tokens if t.type == TokenType.ELSE]
+        assert [t.line for t in if_tokens] == [1, 3]
+        assert [t.line for t in else_tokens] == [4]
+
+
+class TestForLoop:
+    def test_for_loop_tokenization(self):
+        # for (var j = 0; j < 3; j = j + 1) { print j; }
+        source = 'for (var j = 0; j < 3; j = j + 1) { print j; }\n'
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.FOR,          "for",  None),
+            (TokenType.LEFT_PAREN,   "(",    None),
+            (TokenType.VAR,          "var",  None),
+            (TokenType.IDENTIFIER,   "j",    None),
+            (TokenType.EQUAL,        "=",    None),
+            (TokenType.NUMBER,       "0",    0.0),
+            (TokenType.SEMICOLON,    ";",    None),
+            (TokenType.IDENTIFIER,   "j",    None),
+            (TokenType.LESS,         "<",    None),
+            (TokenType.NUMBER,       "3",    3.0),
+            (TokenType.SEMICOLON,    ";",    None),
+            (TokenType.IDENTIFIER,   "j",    None),
+            (TokenType.EQUAL,        "=",    None),
+            (TokenType.IDENTIFIER,   "j",    None),
+            (TokenType.PLUS,         "+",    None),
+            (TokenType.NUMBER,       "1",    1.0),
+            (TokenType.RIGHT_PAREN,  ")",    None),
+            (TokenType.LEFT_BRACE,   "{",    None),
+            (TokenType.PRINT,        "print", None),
+            (TokenType.IDENTIFIER,   "j",    None),
+            (TokenType.SEMICOLON,    ";",    None),
+            (TokenType.RIGHT_BRACE,  "}",    None),
+            (TokenType.EOF,          "",     None),
+        ]
+
+    def test_for_loop_condition_and_increment_use_same_identifier(self):
+        source = 'for (var j = 0; j < 3; j = j + 1) { print j; }\n'
+        tokens = tokenize(source)
+        j_tokens = [t for t in tokens if t.type == TokenType.IDENTIFIER]
+        assert all(t.text == "j" for t in j_tokens)
+        assert len(j_tokens) == 5  # 초기화, 조건, 증감(좌변+우변 2개), 바디
+
+
+class TestControlFlowFullScript:
+    def test_full_control_flow_script(self):
+        source = '''\
+if (true) print "bbq";
+
+if (false) print "no"; else print "kfc";
+
+if (true)
+{
+  if (false) print "kfc";
+  else print "bbq";
+}
+
+for (var j = 0; j < 3; j = j + 1) { print j; }
+'''
+        tokens = tokenize(source)
+
+        assert tokens[-1].type == TokenType.EOF
+
+        # if / else / for 키워드 등장 횟수
+        assert sum(1 for t in tokens if t.type == TokenType.IF) == 4
+        assert sum(1 for t in tokens if t.type == TokenType.ELSE) == 2
+        assert sum(1 for t in tokens if t.type == TokenType.FOR) == 1
+
+        # 괄호와 중괄호 짝이 맞아야 한다.
+        assert sum(1 for t in tokens if t.type == TokenType.LEFT_PAREN) == \
+            sum(1 for t in tokens if t.type == TokenType.RIGHT_PAREN)
+        assert sum(1 for t in tokens if t.type == TokenType.LEFT_BRACE) == \
+            sum(1 for t in tokens if t.type == TokenType.RIGHT_BRACE)
+
+        # 문자열 리터럴 값 집합 확인
+        strings = {t.value for t in tokens if t.type == TokenType.STRING}
+        assert strings == {"bbq", "no", "kfc"}
