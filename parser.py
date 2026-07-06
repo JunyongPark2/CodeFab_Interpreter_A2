@@ -2,23 +2,26 @@
 #
 # list[Token] → list[Stmt] (AST)
 #
-# TDD 진행 상황: 산술/우선순위 + 비교 연산자 + 문자열 리터럴 구현됨.
-#   지원: print 문, 숫자/문자열 리터럴, + - * /, 단항 -, 괄호, < >
-#   미지원 (다음 테스트가 추가되면 구현): var, if, for, 블록, 대입, 논리
-#
-# 문법 (지원 범위, 우선순위 낮음 → 높음):
-#   statement  → "print" expression ";"
-#   expression → comparison
-#   comparison → term ( ( "<" | ">" | "<=" | ">=" | "==" | "!=" ) term )*  ← 비교
-#   term       → factor ( ( "+" | "-" ) factor )*     ← 덧셈/뺄셈
-#   factor     → unary ( ( "*" | "/" ) unary )*       ← 곱셈/나눗셈
-#   unary      → "-" unary | primary                  ← 단항 마이너스
-#   primary    → NUMBER | STRING | "(" expression ")"
+# 문법 (우선순위 낮음 → 높음):
+#   program    → statement* EOF
+#   statement  → varDecl | block | printStmt | exprStmt
+#   varDecl    → "var" IDENTIFIER "=" expression ";"
+#   block      → "{" statement* "}"
+#   printStmt  → "print" expression ";"
+#   exprStmt   → expression ";"
+#   expression → assignment
+#   assignment → IDENTIFIER "=" assignment | comparison
+#   comparison → term ( ( "<" | ">" | "<=" | ">=" | "==" | "!=" ) term )*
+#   term       → factor ( ( "+" | "-" ) factor )*
+#   factor     → unary ( ( "*" | "/" ) unary )*
+#   unary      → "-" unary | primary
+#   primary    → NUMBER | STRING | "true" | "false" | IDENTIFIER | "(" expression ")"
 
 from ast_nodes import (
     Expr, Stmt,
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
-    PrintStmt,
+    VariableExpr, AssignExpr,
+    PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
 )
 from tokens import Token, TokenType
 
@@ -41,18 +44,50 @@ class Parser:
 
     # ── Statement 파싱 ─────────────────────────────────────
     def _statement(self) -> Stmt:
+        if self._match(TokenType.VAR):
+            return self._var_declaration()
+        if self._match(TokenType.LEFT_BRACE):
+            return BlockStmt(self._block())
         if self._match(TokenType.PRINT):
             return self._print_statement()
-        raise ParseError(self._peek().line, "지원하지 않는 문장입니다.")
+        return self._expression_statement()
+
+    def _var_declaration(self) -> VarDeclStmt:
+        name = self._consume(TokenType.IDENTIFIER, "변수 이름이 필요합니다.")
+        initializer = None
+        if self._match(TokenType.EQUAL):
+            initializer = self._expression()
+        self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
+        return VarDeclStmt(name, initializer)
+
+    def _block(self) -> list[Stmt]:
+        """LEFT_BRACE 를 소비한 뒤 호출. RIGHT_BRACE 까지 문장을 수집한다."""
+        statements: list[Stmt] = []
+        while not self._check(TokenType.RIGHT_BRACE) and not self._is_at_end():
+            statements.append(self._statement())
+        self._consume(TokenType.RIGHT_BRACE, "'}' 가 필요합니다.")
+        return statements
 
     def _print_statement(self) -> PrintStmt:
         value = self._expression()
         self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
         return PrintStmt(value)
 
+    def _expression_statement(self) -> ExpressionStmt:
+        expr = self._expression()
+        self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
+        return ExpressionStmt(expr)
+
     # ── Expression 파싱 (우선순위 낮음 → 높음) ──────────────
     def _expression(self) -> Expr:
-        return self._comparison()
+        return self._assignment()
+
+    def _assignment(self) -> Expr:
+        expr = self._comparison()
+        if isinstance(expr, VariableExpr) and self._match(TokenType.EQUAL):
+            value = self._assignment()  # 오른쪽 결합: a = b = 1
+            return AssignExpr(expr.name, value)
+        return expr
 
     def _comparison(self) -> Expr:  # < > <= >= == !=
         expr = self._term()
@@ -67,15 +102,14 @@ class Parser:
         return expr
 
     def _term(self) -> Expr:  # + -
-        # 왼쪽부터 묶는다: 10 - 4 - 3 → (10 - 4) - 3
-        expr = self._factor()  #
+        expr = self._factor()
         while self._match(TokenType.PLUS, TokenType.MINUS):
             operator = self._previous()
             right = self._factor()
             expr = BinaryExpr(expr, operator, right)
         return expr
 
-    def _factor(self) -> Expr:
+    def _factor(self) -> Expr:  # * /
         expr = self._unary()
         while self._match(TokenType.STAR, TokenType.SLASH):
             operator = self._previous()
@@ -97,6 +131,8 @@ class Parser:
             return LiteralExpr(True)
         if self._match(TokenType.FALSE):
             return LiteralExpr(False)
+        if self._match(TokenType.IDENTIFIER):
+            return VariableExpr(self._previous())
         if self._match(TokenType.LEFT_PAREN):
             expr = self._expression()
             self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
@@ -121,7 +157,6 @@ class Parser:
         return self._previous()
 
     def _consume(self, t: TokenType, msg: str) -> Token:
-        """기대한 토큰이면 소비, 아니면 ParseError"""
         if self._check(t):
             return self._advance()
         raise ParseError(self._peek().line, msg)

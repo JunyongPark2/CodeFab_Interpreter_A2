@@ -20,7 +20,9 @@
 # Parser의 책임은 올바른 "모양의 트리"를 만드는 것이므로,
 # 여기서는 트리의 모양(구조)만 검사한다.
 from ast_nodes import (
-    LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr, PrintStmt,
+    LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
+    VariableExpr, AssignExpr,
+    PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
 )
 from parser import Parser
 from tokens import Token, TokenType
@@ -48,6 +50,15 @@ FALSE = Token(TokenType.FALSE, "false")
 PRINT = Token(TokenType.PRINT, "print")
 SEMI = Token(TokenType.SEMICOLON, ";")
 EOF = Token(TokenType.EOF, "")
+VAR = Token(TokenType.VAR, "var")
+EQUAL = Token(TokenType.EQUAL, "=")
+LBRACE = Token(TokenType.LEFT_BRACE, "{")
+RBRACE = Token(TokenType.RIGHT_BRACE, "}")
+
+
+def ident(name: str) -> Token:
+    """식별자(변수명) 토큰. 예: ident("a") → Token(IDENTIFIER, "a")"""
+    return Token(TokenType.IDENTIFIER, name)
 
 
 def string(v):
@@ -230,3 +241,208 @@ def test_불리언_거짓():
     expr = parse_print(FALSE)
 
     assert expr == LiteralExpr(False)
+
+
+# ─────────────────────────────────────────────────────────
+# 변수, 할당, 블록 스코프, 변수 shadowing
+# ─────────────────────────────────────────────────────────
+
+def parse_stmts(*tokens) -> list:
+    """토큰 목록을 파싱해 Stmt 리스트를 반환한다."""
+    return Parser([*tokens, EOF]).parse()
+
+
+def test_var_선언():
+    # var a = 10;
+    #
+    # 기대 트리:  VarDeclStmt(name="a", initializer=LiteralExpr(10.0))
+    stmts = parse_stmts(VAR, ident("a"), EQUAL, num(10), SEMI)
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, VarDeclStmt)
+    assert stmt.name.text == "a"
+    assert stmt.initializer == LiteralExpr(10.0)
+
+
+def test_변수_참조():
+    # var a = 10; var b = 20; print a + b;
+    #
+    # print 문 안의 기대 트리:  +
+    #                           ├── VariableExpr("a")
+    #                           └── VariableExpr("b")
+    stmts = parse_stmts(
+        VAR, ident("a"), EQUAL, num(10), SEMI,
+        VAR, ident("b"), EQUAL, num(20), SEMI,
+        PRINT, ident("a"), PLUS, ident("b"), SEMI,
+    )
+
+    assert len(stmts) == 3
+    print_stmt = stmts[2]
+    assert isinstance(print_stmt, PrintStmt)
+    expr = print_stmt.expression
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.PLUS
+    assert isinstance(expr.left, VariableExpr)
+    assert expr.left.name.text == "a"
+    assert isinstance(expr.right, VariableExpr)
+    assert expr.right.name.text == "b"
+
+
+def test_재할당():
+    # a = a + 5;
+    #
+    # 기대 트리:  ExpressionStmt
+    #              └── AssignExpr(name="a", value= + )
+    #                                               ├── VariableExpr("a")
+    #                                               └── 5
+    stmts = parse_stmts(ident("a"), EQUAL, ident("a"), PLUS, num(5), SEMI)
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ExpressionStmt)
+    expr = stmt.expression
+    assert isinstance(expr, AssignExpr)
+    assert expr.name.text == "a"
+    rhs = expr.value
+    assert isinstance(rhs, BinaryExpr)
+    assert rhs.operator.type == TokenType.PLUS
+    assert isinstance(rhs.left, VariableExpr)
+    assert rhs.left.name.text == "a"
+    assert rhs.right == LiteralExpr(5.0)
+
+
+def test_블록_스코프():
+    # { var x = "inner"; print x; }
+    #
+    # 기대 트리:  BlockStmt
+    #              ├── VarDeclStmt("x", "inner")
+    #              └── PrintStmt(VariableExpr("x"))
+    stmts = parse_stmts(
+        LBRACE,
+        VAR, ident("x"), EQUAL, string("inner"), SEMI,
+        PRINT, ident("x"), SEMI,
+        RBRACE,
+    )
+
+    assert len(stmts) == 1
+    block = stmts[0]
+    assert isinstance(block, BlockStmt)
+    assert len(block.statements) == 2
+    inner_decl = block.statements[0]
+    assert isinstance(inner_decl, VarDeclStmt)
+    assert inner_decl.name.text == "x"
+    assert inner_decl.initializer == LiteralExpr("inner")
+    print_stmt = block.statements[1]
+    assert isinstance(print_stmt, PrintStmt)
+    assert isinstance(print_stmt.expression, VariableExpr)
+    assert print_stmt.expression.name.text == "x"
+
+
+def test_변수_섀도잉():
+    # var x = "global";
+    # { var x = "inner"; print x; }
+    # print x;
+    #
+    # 파서는 섀도잉을 "허용"하기만 하면 된다 (스코프 해석은 Executor 몫).
+    # 구조적으로 바깥과 안쪽에 각각 VarDeclStmt(name="x")가 존재해야 한다.
+    stmts = parse_stmts(
+        VAR, ident("x"), EQUAL, string("global"), SEMI,
+        LBRACE,
+        VAR, ident("x"), EQUAL, string("inner"), SEMI,
+        PRINT, ident("x"), SEMI,
+        RBRACE,
+        PRINT, ident("x"), SEMI,
+    )
+
+    assert len(stmts) == 3
+    outer_decl = stmts[0]
+    assert isinstance(outer_decl, VarDeclStmt)
+    assert outer_decl.name.text == "x"
+    assert outer_decl.initializer == LiteralExpr("global")
+
+    block = stmts[1]
+    assert isinstance(block, BlockStmt)
+    assert len(block.statements) == 2
+    inner_decl = block.statements[0]
+    assert isinstance(inner_decl, VarDeclStmt)
+    assert inner_decl.name.text == "x"
+    assert inner_decl.initializer == LiteralExpr("inner")
+
+    outer_print = stmts[2]
+    assert isinstance(outer_print, PrintStmt)
+    assert isinstance(outer_print.expression, VariableExpr)
+    assert outer_print.expression.name.text == "x"
+
+
+def test_바깥_변수_수정():
+    # var count = 0; { count = count + 1; } print count;
+    #
+    # 블록 안에서 var 재선언 없이 바깥 변수를 AssignExpr로 수정한다.
+    stmts = parse_stmts(
+        VAR, ident("count"), EQUAL, num(0), SEMI,
+        LBRACE,
+        ident("count"), EQUAL, ident("count"), PLUS, num(1), SEMI,
+        RBRACE,
+        PRINT, ident("count"), SEMI,
+    )
+
+    assert len(stmts) == 3
+    assert isinstance(stmts[0], VarDeclStmt)
+
+    block = stmts[1]
+    assert isinstance(block, BlockStmt)
+    assert len(block.statements) == 1
+    assign_stmt = block.statements[0]
+    assert isinstance(assign_stmt, ExpressionStmt)
+    assign = assign_stmt.expression
+    assert isinstance(assign, AssignExpr)
+    assert assign.name.text == "count"
+    assert isinstance(assign.value, BinaryExpr)
+
+    assert isinstance(stmts[2], PrintStmt)
+
+
+def test_중첩_스코프():
+    # var outer = "A";
+    # { var inner = "B"; { print outer + inner; } }
+    #
+    # 기대 트리:  [VarDeclStmt("outer"), BlockStmt([
+    #                VarDeclStmt("inner"),
+    #                BlockStmt([PrintStmt(outer + inner)])
+    #             ])]
+    stmts = parse_stmts(
+        VAR, ident("outer"), EQUAL, string("A"), SEMI,
+        LBRACE,
+        VAR, ident("inner"), EQUAL, string("B"), SEMI,
+        LBRACE,
+        PRINT, ident("outer"), PLUS, ident("inner"), SEMI,
+        RBRACE,
+        RBRACE,
+    )
+
+    assert len(stmts) == 2
+    assert isinstance(stmts[0], VarDeclStmt)
+    assert stmts[0].name.text == "outer"
+
+    outer_block = stmts[1]
+    assert isinstance(outer_block, BlockStmt)
+    assert len(outer_block.statements) == 2
+
+    inner_decl = outer_block.statements[0]
+    assert isinstance(inner_decl, VarDeclStmt)
+    assert inner_decl.name.text == "inner"
+
+    inner_block = outer_block.statements[1]
+    assert isinstance(inner_block, BlockStmt)
+    assert len(inner_block.statements) == 1
+
+    print_stmt = inner_block.statements[0]
+    assert isinstance(print_stmt, PrintStmt)
+    expr = print_stmt.expression
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.PLUS
+    assert isinstance(expr.left, VariableExpr)
+    assert expr.left.name.text == "outer"
+    assert isinstance(expr.right, VariableExpr)
+    assert expr.right.name.text == "inner"
