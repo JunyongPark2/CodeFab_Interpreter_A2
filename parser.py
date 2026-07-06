@@ -2,17 +2,18 @@
 #
 # list[Token] → list[Stmt] (AST)
 #
-# TDD 진행 상황: 현재 테스트(산술/우선순위)를 통과하는 범위만 구현됨.
-#   지원: print 문, 숫자 리터럴, + - * /, 단항 -, 괄호
-#   미지원 (다음 테스트가 추가되면 구현): var, if, for, 블록, 대입, 비교, 논리
+# TDD 진행 상황: 산술/우선순위 + 비교 연산자 + 문자열 리터럴 구현됨.
+#   지원: print 문, 숫자/문자열 리터럴, + - * /, 단항 -, 괄호, < >
+#   미지원 (다음 테스트가 추가되면 구현): var, if, for, 블록, 대입, 논리
 #
 # 문법 (지원 범위, 우선순위 낮음 → 높음):
-#   statement → "print" expression ";"
-#   expression → term
-#   term      → factor ( ( "+" | "-" ) factor )*     ← 덧셈/뺄셈
-#   factor    → unary ( ( "*" | "/" ) unary )*       ← 곱셈/나눗셈 (더 깊음 = 먼저 계산)
-#   unary     → "-" unary | primary                  ← 단항 마이너스
-#   primary   → NUMBER | "(" expression ")"
+#   statement  → "print" expression ";"
+#   expression → comparison
+#   comparison → term ( ( "<" | ">" | "<=" | ">=" | "==" | "!=" ) term )*  ← 비교
+#   term       → factor ( ( "+" | "-" ) factor )*     ← 덧셈/뺄셈
+#   factor     → unary ( ( "*" | "/" ) unary )*       ← 곱셈/나눗셈
+#   unary      → "-" unary | primary                  ← 단항 마이너스
+#   primary    → NUMBER | STRING | "(" expression ")"
 
 from ast_nodes import (
     Expr, Stmt,
@@ -51,7 +52,19 @@ class Parser:
 
     # ── Expression 파싱 (우선순위 낮음 → 높음) ──────────────
     def _expression(self) -> Expr:
-        return self._term()
+        return self._comparison()
+
+    def _comparison(self) -> Expr:  # < > <= >= == !=
+        expr = self._term()
+        while self._match(
+            TokenType.LESS, TokenType.GREATER,
+            TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL,
+            TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL,
+        ):
+            operator = self._previous()
+            right = self._term()
+            expr = BinaryExpr(expr, operator, right)
+        return expr
 
     def _term(self) -> Expr:  # + -
         # 왼쪽부터 묶는다: 10 - 4 - 3 → (10 - 4) - 3
@@ -77,6 +90,8 @@ class Parser:
 
     def _primary(self) -> Expr:
         if self._match(TokenType.NUMBER):
+            return LiteralExpr(self._previous().value)
+        if self._match(TokenType.STRING):
             return LiteralExpr(self._previous().value)
         if self._match(TokenType.LEFT_PAREN):
             expr = self._expression()

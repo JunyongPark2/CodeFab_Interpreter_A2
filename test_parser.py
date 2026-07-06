@@ -9,6 +9,13 @@
 #   print 8 / 2 / 2;        // expect: 2
 #   print -3 + 2;           // expect: -1
 #
+# 비교 / 동등성:
+#   print 1 < 2;            // expect: true
+#   print 3 > 5;            // expect: false
+#
+# 문자열 연결:
+#   print "Hello, " + "CodeFab!";   // expect: Hello, CodeFab!
+#
 # Parser는 "계산"을 하지 않는다. 계산은 Executor의 몫.
 # Parser의 책임은 올바른 "모양의 트리"를 만드는 것이므로,
 # 여기서는 트리의 모양(구조)만 검사한다.
@@ -32,11 +39,18 @@ PLUS = Token(TokenType.PLUS, "+")
 MINUS = Token(TokenType.MINUS, "-")
 STAR = Token(TokenType.STAR, "*")
 SLASH = Token(TokenType.SLASH, "/")
+LESS = Token(TokenType.LESS, "<")
+GREATER = Token(TokenType.GREATER, ">")
 LPAREN = Token(TokenType.LEFT_PAREN, "(")
 RPAREN = Token(TokenType.RIGHT_PAREN, ")")
 PRINT = Token(TokenType.PRINT, "print")
 SEMI = Token(TokenType.SEMICOLON, ";")
 EOF = Token(TokenType.EOF, "")
+
+
+def string(v):
+    """문자열 토큰. 예: string("hello") → Token(STRING, '"hello"', value="hello")"""
+    return Token(TokenType.STRING, f'"{v}"', v)
 
 
 def parse_print(*tokens):
@@ -154,3 +168,45 @@ def test_단항_마이너스는_덧셈보다_먼저():
     assert isinstance(expr.left, UnaryExpr)  # 왼쪽은 -3 (단항)
     assert expr.left.operator.type == TokenType.MINUS
     assert expr.left.right == LiteralExpr(3.0)
+
+
+def test_비교_작다():
+    # print 1 < 2;
+    #
+    # 기대 트리:  <
+    #            ├── 1
+    #            └── 2
+    expr = parse_print(num(1), LESS, num(2))
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.LESS
+    assert expr.left == LiteralExpr(1.0)
+    assert expr.right == LiteralExpr(2.0)
+
+
+def test_비교_크다():
+    # print 3 > 5;
+    #
+    # 기대 트리:  >
+    #            ├── 3
+    #            └── 5
+    expr = parse_print(num(3), GREATER, num(5))
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.GREATER
+    assert expr.left == LiteralExpr(3.0)
+    assert expr.right == LiteralExpr(5.0)
+
+
+def test_문자열_연결():
+    # print "Hello, " + "CodeFab!";
+    #
+    # 기대 트리:  +
+    #            ├── "Hello, "
+    #            └── "CodeFab!"
+    expr = parse_print(string("Hello, "), PLUS, string("CodeFab!"))
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.PLUS
+    assert expr.left == LiteralExpr("Hello, ")
+    assert expr.right == LiteralExpr("CodeFab!")
