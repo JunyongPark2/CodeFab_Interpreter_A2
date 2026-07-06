@@ -64,10 +64,10 @@ KEYWORDS: dict[str, TokenType] = {
 @dataclass
 class Token:
     type: TokenType       # 토큰 종류 (열거형)
-    text: str           # 원본 문자열 (예: "37", "if", "age")
+    origin: str           # 원본 문자열 (예: "37", "if", "age")
     value: Any = None     # 실제 값 (NUMBER → float, STRING → str, 그 외 None)
     line: int = 0         # 소스코드 줄 번호 (오류 메시지 출력용)
     col: int = 0
 
     def __repr__(self):
-        return f"Token({self.type.name}, {self.text}, value={self.value}, line={self.line}, col={self.col})"
+        return f"Token({self.type.name}, {self.origin}, value={self.value}, line={self.line}, col={self.col})"

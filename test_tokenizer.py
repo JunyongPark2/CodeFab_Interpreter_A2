@@ -10,8 +10,8 @@ def tokenize(source: str):
 
 
 def as_token_tuples(tokens):
-    """각 토큰을 (type, text, value) 튜플 목록으로 변환."""
-    return [(t.type, t.text, t.value) for t in tokens]
+    """각 토큰을 (type, origin, value) 튜플 목록으로 변환."""
+    return [(t.type, t.origin, t.value) for t in tokens]
 
 
 
@@ -117,7 +117,7 @@ class TestComparison:
 class TestStringLiterals:
     def test_string_concatenation(self):
         # print "Hello, " + "CodeFab!";
-        # text는 따옴표 포함, value는 따옴표 제외 내용
+        # origin은 따옴표 포함, value는 따옴표 제외 내용
         assert as_token_tuples(tokenize('print "Hello, " + "CodeFab!";')) == [
             (TokenType.PRINT,     "print",       None),
             (TokenType.STRING,    '"Hello, "',   "Hello, "),
@@ -132,7 +132,7 @@ class TestStringLiterals:
 
 class TestNumberLiterals:
     def test_integer(self):
-        # print 5;  — text="5", value=5.0
+        # print 5;  — origin="5", value=5.0
         assert as_token_tuples(tokenize("print 5;")) == [
             (TokenType.PRINT,     "print", None),
             (TokenType.NUMBER,    "5",     5.0),
@@ -141,7 +141,7 @@ class TestNumberLiterals:
         ]
 
     def test_integer_dot_zero(self):
-        # print 5.0;  — text="5.0", value=5.0
+        # print 5.0;  — origin="5.0", value=5.0
         assert as_token_tuples(tokenize("print 5.0;")) == [
             (TokenType.PRINT,     "print", None),
             (TokenType.NUMBER,    "5.0",   5.0),
@@ -153,15 +153,15 @@ class TestNumberLiterals:
         # print 3.14;  — value는 float 근사 비교
         tokens = tokenize("print 3.14;")
         num = next(t for t in tokens if t.type == TokenType.NUMBER)
-        assert num.text  == "3.14"
+        assert num.origin  == "3.14"
         assert num.value == pytest.approx(3.14)
 
-    def test_integer_and_float_text_differ(self):
-        # 5와 5.0은 value는 동일하지만 text는 다르다.
+    def test_integer_and_float_origin_differ(self):
+        # 5와 5.0은 value는 동일하지만 origin는 다르다.
         tok_int   = next(t for t in tokenize("5;")   if t.type == TokenType.NUMBER)
         tok_float = next(t for t in tokenize("5.0;") if t.type == TokenType.NUMBER)
         assert tok_int.value == tok_float.value  # 5.0 == 5.0
-        assert tok_int.text  != tok_float.text   # "5" != "5.0"
+        assert tok_int.origin  != tok_float.origin   # "5" != "5.0"
 
 
 # ── boolean 리터럴 ─────────────────────────────────────────────────────
@@ -192,7 +192,7 @@ class TestEOF:
     def test_eof_always_last(self):
         tokens = tokenize("print 1;")
         assert tokens[-1].type  == TokenType.EOF
-        assert tokens[-1].text  == ""
+        assert tokens[-1].origin  == ""
         assert tokens[-1].value is None
 
     def test_empty_source_only_eof(self):
@@ -472,7 +472,7 @@ var outer = "A";
         assert tokens[-1].type == TokenType.EOF
 
         # 주석 내용("선언", "재할당", "expect" 등)이 토큰으로 남아있으면 안 된다.
-        identifiers = {t.text for t in tokens if t.type == TokenType.IDENTIFIER}
+        identifiers = {t.origin for t in tokens if t.type == TokenType.IDENTIFIER}
         assert identifiers == {"a", "b", "x", "count", "outer", "inner"}
 
         # 여는/닫는 중괄호 개수가 일치해야 한다 (블록 4개).
@@ -621,7 +621,7 @@ class TestForLoop:
         source = 'for (var j = 0; j < 3; j = j + 1) { print j; }\n'
         tokens = tokenize(source)
         j_tokens = [t for t in tokens if t.type == TokenType.IDENTIFIER]
-        assert all(t.text == "j" for t in j_tokens)
+        assert all(t.origin == "j" for t in j_tokens)
         assert len(j_tokens) == 5  # 초기화, 조건, 증감(좌변+우변 2개), 바디
 
 
@@ -694,7 +694,7 @@ class TestLogicalOperators:
         assert [t.type for t in tokens] == [
             TokenType.IDENTIFIER, TokenType.IDENTIFIER, TokenType.EOF,
         ]
-        assert [t.text for t in tokens[:2]] == ["android", "organic"]
+        assert [t.origin for t in tokens[:2]] == ["android", "organic"]
 
     def test_and_with_comparison_expressions(self):
         # x > 0 and y < 10;
