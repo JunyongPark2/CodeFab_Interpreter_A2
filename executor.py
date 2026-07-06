@@ -26,7 +26,7 @@ class Executor:
 
         elif isinstance(stmt, VarDeclStmt):
             val = self._eval(stmt.initializer) if stmt.initializer else None
-            self._current.define(stmt.name.text, val)
+            self._current.define(stmt.name.origin, val)
 
         elif isinstance(stmt, ExpressionStmt):
             self._eval(stmt.expression)
@@ -63,11 +63,11 @@ class Executor:
             return expr.value
 
         if isinstance(expr, VariableExpr):
-            return self._current.get(expr.name.text)
+            return self._current.get(expr.name.origin)
 
         if isinstance(expr, AssignExpr):
             val = self._eval(expr.value)
-            self._current.assign(expr.name.text, val)
+            self._current.assign(expr.name.origin, val)
             return val
 
         if isinstance(expr, GroupingExpr):

@@ -9,7 +9,7 @@ executor.py는 ast_nodes.py, environment.py, tokens.py 모듈에 의존하지만
 
 기대 인터페이스 요약:
 - tokens.TokenType: MINUS, BANG, PLUS, STAR, SLASH, GREATER, LESS, OR, AND
-- tokens.Token(type, text, value=None, line=0, col=0) - .type / .text / .value / .line / .col 속성 보유
+- tokens.Token(type, origin, value=None, line=0, col=0) - .type / .origin / .value / .line / .col 속성 보유
 - ast_nodes: PrintStmt(expression), VarDeclStmt(name, initializer),
   ExpressionStmt(expression), BlockStmt(statements),
   IfStmt(condition, then_branch, else_branch),
@@ -32,12 +32,12 @@ from tokens import Token, TokenType
 from executor import Executor, LangRuntimeError
 
 
-def tok(type_, text="", value=None, line=1, col=1):
-    return Token(type=type_, text=text, value=value, line=line, col=col)
+def tok(type_, origin="", value=None, line=1, col=1):
+    return Token(type=type_, origin=origin, value=value, line=line, col=col)
 
 
 def name_tok(name, line=1):
-    return tok(TokenType.IDENTIFIER, text=name, line=line)
+    return tok(TokenType.IDENTIFIER, origin=name, line=line)
 
 
 def run(stmts):
