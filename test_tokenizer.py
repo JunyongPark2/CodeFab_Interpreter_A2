@@ -658,3 +658,55 @@ for (var j = 0; j < 3; j = j + 1) { print j; }
         # 문자열 리터럴 값 집합 확인
         strings = {t.value for t in tokens if t.type == TokenType.STRING}
         assert strings == {"bbq", "no", "kfc"}
+
+
+# ── 논리 연산자 (and / or) ────────────────────────────────────────────
+
+class TestLogicalOperators:
+    def test_and_keyword(self):
+        source = "true and false;\n"
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.TRUE,      "true",  None),
+            (TokenType.AND,       "and",   None),
+            (TokenType.FALSE,     "false", None),
+            (TokenType.SEMICOLON, ";",     None),
+            (TokenType.EOF,       "",      None),
+        ]
+
+    def test_or_keyword(self):
+        source = "true or false;\n"
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.TRUE,      "true",  None),
+            (TokenType.OR,        "or",    None),
+            (TokenType.FALSE,     "false", None),
+            (TokenType.SEMICOLON, ";",     None),
+            (TokenType.EOF,       "",      None),
+        ]
+
+    def test_and_or_are_keywords_not_identifiers(self):
+        # 'and'/'or' 단독으로 등장해도 IDENTIFIER가 아니라 AND/OR 키워드로 인식되어야 한다.
+        tokens = tokenize("and or\n")
+        assert [t.type for t in tokens] == [TokenType.AND, TokenType.OR, TokenType.EOF]
+
+    def test_identifiers_starting_with_and_or_are_not_keywords(self):
+        # 'android', 'organic' 처럼 and/or로 "시작"할 뿐인 식별자는 IDENTIFIER로 인식되어야 한다.
+        tokens = tokenize("android organic\n")
+        assert [t.type for t in tokens] == [
+            TokenType.IDENTIFIER, TokenType.IDENTIFIER, TokenType.EOF,
+        ]
+        assert [t.text for t in tokens[:2]] == ["android", "organic"]
+
+    def test_and_with_comparison_expressions(self):
+        # x > 0 and y < 10;
+        source = "x > 0 and y < 10;\n"
+        assert as_token_tuples(tokenize(source)) == [
+            (TokenType.IDENTIFIER, "x",  None),
+            (TokenType.GREATER,    ">",  None),
+            (TokenType.NUMBER,     "0",  0.0),
+            (TokenType.AND,        "and", None),
+            (TokenType.IDENTIFIER, "y",  None),
+            (TokenType.LESS,       "<",  None),
+            (TokenType.NUMBER,     "10", 10.0),
+            (TokenType.SEMICOLON,  ";",  None),
+            (TokenType.EOF,        "",   None),
+        ]
