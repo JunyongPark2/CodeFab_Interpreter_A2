@@ -265,7 +265,7 @@ def test_var_선언():
     assert len(stmts) == 1
     stmt = stmts[0]
     assert isinstance(stmt, VarDeclStmt)
-    assert stmt.name.text == "a"
+    assert stmt.name.origin == "a"
     assert stmt.initializer == LiteralExpr(10.0)
 
 
@@ -288,9 +288,9 @@ def test_변수_참조():
     assert isinstance(expr, BinaryExpr)
     assert expr.operator.type == TokenType.PLUS
     assert isinstance(expr.left, VariableExpr)
-    assert expr.left.name.text == "a"
+    assert expr.left.name.origin == "a"
     assert isinstance(expr.right, VariableExpr)
-    assert expr.right.name.text == "b"
+    assert expr.right.name.origin == "b"
 
 
 def test_재할당():
@@ -307,12 +307,12 @@ def test_재할당():
     assert isinstance(stmt, ExpressionStmt)
     expr = stmt.expression
     assert isinstance(expr, AssignExpr)
-    assert expr.name.text == "a"
+    assert expr.name.origin == "a"
     rhs = expr.value
     assert isinstance(rhs, BinaryExpr)
     assert rhs.operator.type == TokenType.PLUS
     assert isinstance(rhs.left, VariableExpr)
-    assert rhs.left.name.text == "a"
+    assert rhs.left.name.origin == "a"
     assert rhs.right == LiteralExpr(5.0)
 
 
@@ -335,12 +335,12 @@ def test_블록_스코프():
     assert len(block.statements) == 2
     inner_decl = block.statements[0]
     assert isinstance(inner_decl, VarDeclStmt)
-    assert inner_decl.name.text == "x"
+    assert inner_decl.name.origin == "x"
     assert inner_decl.initializer == LiteralExpr("inner")
     print_stmt = block.statements[1]
     assert isinstance(print_stmt, PrintStmt)
     assert isinstance(print_stmt.expression, VariableExpr)
-    assert print_stmt.expression.name.text == "x"
+    assert print_stmt.expression.name.origin == "x"
 
 
 def test_변수_섀도잉():
@@ -362,7 +362,7 @@ def test_변수_섀도잉():
     assert len(stmts) == 3
     outer_decl = stmts[0]
     assert isinstance(outer_decl, VarDeclStmt)
-    assert outer_decl.name.text == "x"
+    assert outer_decl.name.origin == "x"
     assert outer_decl.initializer == LiteralExpr("global")
 
     block = stmts[1]
@@ -370,13 +370,13 @@ def test_변수_섀도잉():
     assert len(block.statements) == 2
     inner_decl = block.statements[0]
     assert isinstance(inner_decl, VarDeclStmt)
-    assert inner_decl.name.text == "x"
+    assert inner_decl.name.origin == "x"
     assert inner_decl.initializer == LiteralExpr("inner")
 
     outer_print = stmts[2]
     assert isinstance(outer_print, PrintStmt)
     assert isinstance(outer_print.expression, VariableExpr)
-    assert outer_print.expression.name.text == "x"
+    assert outer_print.expression.name.origin == "x"
 
 
 def test_바깥_변수_수정():
@@ -401,7 +401,7 @@ def test_바깥_변수_수정():
     assert isinstance(assign_stmt, ExpressionStmt)
     assign = assign_stmt.expression
     assert isinstance(assign, AssignExpr)
-    assert assign.name.text == "count"
+    assert assign.name.origin == "count"
     assert isinstance(assign.value, BinaryExpr)
 
     assert isinstance(stmts[2], PrintStmt)
@@ -427,7 +427,7 @@ def test_중첩_스코프():
 
     assert len(stmts) == 2
     assert isinstance(stmts[0], VarDeclStmt)
-    assert stmts[0].name.text == "outer"
+    assert stmts[0].name.origin == "outer"
 
     outer_block = stmts[1]
     assert isinstance(outer_block, BlockStmt)
@@ -435,7 +435,7 @@ def test_중첩_스코프():
 
     inner_decl = outer_block.statements[0]
     assert isinstance(inner_decl, VarDeclStmt)
-    assert inner_decl.name.text == "inner"
+    assert inner_decl.name.origin == "inner"
 
     inner_block = outer_block.statements[1]
     assert isinstance(inner_block, BlockStmt)
@@ -447,9 +447,9 @@ def test_중첩_스코프():
     assert isinstance(expr, BinaryExpr)
     assert expr.operator.type == TokenType.PLUS
     assert isinstance(expr.left, VariableExpr)
-    assert expr.left.name.text == "outer"
+    assert expr.left.name.origin == "outer"
     assert isinstance(expr.right, VariableExpr)
-    assert expr.right.name.text == "inner"
+    assert expr.right.name.origin == "inner"
 
 
 # ─────────────────────────────────────────────────────────
@@ -555,7 +555,7 @@ def test_for_반복문():
 
     # initializer: var j = 0
     assert isinstance(stmt.initializer, VarDeclStmt)
-    assert stmt.initializer.name.text == "j"
+    assert stmt.initializer.name.origin == "j"
     assert stmt.initializer.initializer == LiteralExpr(0.0)
 
     # condition: j < 3
@@ -563,18 +563,18 @@ def test_for_반복문():
     assert isinstance(cond, BinaryExpr)
     assert cond.operator.type == TokenType.LESS
     assert isinstance(cond.left, VariableExpr)
-    assert cond.left.name.text == "j"
+    assert cond.left.name.origin == "j"
     assert cond.right == LiteralExpr(3.0)
 
     # increment: j = j + 1
     inc = stmt.increment
     assert isinstance(inc, AssignExpr)
-    assert inc.name.text == "j"
+    assert inc.name.origin == "j"
     rhs = inc.value
     assert isinstance(rhs, BinaryExpr)
     assert rhs.operator.type == TokenType.PLUS
     assert isinstance(rhs.left, VariableExpr)
-    assert rhs.left.name.text == "j"
+    assert rhs.left.name.origin == "j"
     assert rhs.right == LiteralExpr(1.0)
 
     # body: { print j; }
@@ -583,4 +583,4 @@ def test_for_반복문():
     print_stmt = stmt.body.statements[0]
     assert isinstance(print_stmt, PrintStmt)
     assert isinstance(print_stmt.expression, VariableExpr)
-    assert print_stmt.expression.name.text == "j"
+    assert print_stmt.expression.name.origin == "j"
