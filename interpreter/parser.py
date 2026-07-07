@@ -45,7 +45,18 @@ from .tokens import Token, TokenType
 
 
 class ParseError(Exception):
-    def __init__(self, line: int, msg: str):
+    def __init__(self, line: int, msg: str, incomplete: bool = False):
+        # incomplete: "더 입력하면 완성될 수 있는" 실패인지 여부. 아래 두
+        # 경우에만 True가 된다 (REPL이 "다음 줄을 더 받아야 한다"와 "진짜
+        # 문법 오류"를 구분할 때 쓴다. prompt_shell.py 참고):
+        #   1) if/for/else의 본문(statement) 자리에 아무 토큰도 없이(EOF) 실패
+        #   2) ')' / '}' 가 필요한 자리에서, 다른 토큰이 아니라 EOF라서 실패
+        #      (예: "print (1+2"는 True, "print (1+2;"는 세미콜론이 이미
+        #      와버렸으니 False — 더 받아도 절대 고쳐지지 않는 진짜 에러)
+        # 세미콜론 누락이나 연산자만 남은 식처럼 그 외의 이유로 EOF에서
+        # 실패한 경우는 여기 해당하지 않는다 — 더 받아도 고쳐지지 않으므로
+        # 즉시 에러로 처리해야 한다.
+        self.incomplete = incomplete
         super().__init__(f"[{line}번째줄] {msg}")
 
 
@@ -82,10 +93,10 @@ class Parser:
         self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
         condition = self._expression()
         self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
-        then_branch = self._statement()
+        then_branch = self._body_statement()
         else_branch = None
         if self._match(TokenType.ELSE):
-            else_branch = self._statement()
+            else_branch = self._body_statement()
         return IfStmt(condition, then_branch, else_branch)
 
     def _for_statement(self) -> ForStmt:
@@ -108,8 +119,18 @@ class Parser:
             increment = self._expression()
         self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
 
-        body = self._statement()
+        body = self._body_statement()
         return ForStmt(initializer, condition, increment, body)
+
+    def _body_statement(self) -> Stmt:
+        """if/for/else의 본문(statement)을 파싱한다.
+
+        여기서 입력이 끝나 있으면(EOF) "본문이 아직 안 왔다"는 뜻이므로
+        incomplete=True로 표시해서 REPL이 더 받을 수 있게 한다.
+        """
+        if self._is_at_end():
+            raise ParseError(self._peek().line, "문장이 필요합니다.", incomplete=True)
+        return self._statement()
 
     def _var_declaration(self) -> VarDeclStmt:
         name = self._consume(TokenType.IDENTIFIER, "변수 이름이 필요합니다.")
@@ -230,7 +251,12 @@ class Parser:
     def _consume(self, t: TokenType, msg: str) -> Token:
         if self._check(t):
             return self._advance()
-        raise ParseError(self._peek().line, msg)
+        # ')' / '}' 를 기대했는데 다른 토큰이 아니라 EOF라서 못 찾은 거면
+        # "더 입력하면 닫힐 수 있다"는 뜻이므로 incomplete=True.
+        # (SEMICOLON 등 다른 토큰을 기대하다 EOF를 만난 경우는 해당 없음 —
+        # 세미콜론은 다음 줄에 따로 이어붙일 거라고 보기 어렵기 때문.)
+        incomplete = self._is_at_end() and t in (TokenType.RIGHT_PAREN, TokenType.RIGHT_BRACE)
+        raise ParseError(self._peek().line, msg, incomplete=incomplete)
 
     def _peek(self) -> Token:
         return self._tokens[self._current]
