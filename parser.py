@@ -10,7 +10,9 @@
 #   printStmt  → "print" expression ";"
 #   exprStmt   → expression ";"
 #   expression → assignment
-#   assignment → IDENTIFIER "=" assignment | comparison
+#   assignment → IDENTIFIER "=" assignment | logic_or
+#   logic_or   → logic_and ( "or" logic_and )*
+#   logic_and  → comparison ( "and" comparison )*
 #   comparison → term ( ( "<" | ">" | "<=" | ">=" | "==" | "!=" ) term )*
 #   term       → factor ( ( "+" | "-" ) factor )*
 #   factor     → unary ( ( "*" | "/" ) unary )*
@@ -20,7 +22,7 @@
 from ast_nodes import (
     Expr, Stmt,
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
-    VariableExpr, AssignExpr,
+    VariableExpr, AssignExpr, LogicalExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
     IfStmt, ForStmt,
 )
@@ -124,12 +126,28 @@ class Parser:
         return self._assignment()
 
     def _assignment(self) -> Expr:
-        expr = self._comparison()
+        expr = self._logic_or()
         if self._match(TokenType.EQUAL):
             value = self._assignment()  # 오른쪽 결합: a = b = 1
             if isinstance(expr, VariableExpr):
                 return AssignExpr(expr.name, value)
             raise ParseError(self._previous().line, "대입 대상이 올바르지 않습니다.")
+        return expr
+
+    def _logic_or(self) -> Expr:
+        expr = self._logic_and()
+        while self._match(TokenType.OR):
+            op = self._previous()
+            right = self._logic_and()
+            expr = LogicalExpr(expr, op, right)
+        return expr
+
+    def _logic_and(self) -> Expr:
+        expr = self._comparison()
+        while self._match(TokenType.AND):
+            op = self._previous()
+            right = self._comparison()
+            expr = LogicalExpr(expr, op, right)
         return expr
 
     def _comparison(self) -> Expr:  # < > <= >= == !=
