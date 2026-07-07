@@ -1,11 +1,13 @@
-# parser.py — Parser, ParseError (박준용, 송지영)
+# parser.py — Parser, ParseError
 #
 # list[Token] → list[Stmt] (AST)
 #
 # 문법 (우선순위 낮음 → 높음):
 #   program    → statement* EOF
-#   statement  → varDecl | block | printStmt | exprStmt
+#   statement  → varDecl | ifStmt | forStmt | block | printStmt | exprStmt
 #   varDecl    → "var" IDENTIFIER "=" expression ";"
+#   ifStmt     → "if" "(" expression ")" statement ( "else" statement )?
+#   forStmt    → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement
 #   block      → "{" statement* "}"
 #   printStmt  → "print" expression ";"
 #   exprStmt   → expression ";"
@@ -21,11 +23,21 @@
 #   primary    → NUMBER | STRING | "true" | "false" | IDENTIFIER | "(" expression ")"
 
 from .ast_nodes import (
-    Expr, Stmt,
-    LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
-    VariableExpr, AssignExpr, LogicalExpr,
-    PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
-    IfStmt, ForStmt,
+    AssignExpr,
+    BinaryExpr,
+    BlockStmt,
+    Expr,
+    ExpressionStmt,
+    ForStmt,
+    GroupingExpr,
+    IfStmt,
+    LiteralExpr,
+    LogicalExpr,
+    PrintStmt,
+    Stmt,
+    UnaryExpr,
+    VarDeclStmt,
+    VariableExpr,
 )
 from .tokens import Token, TokenType
 
@@ -73,7 +85,6 @@ class Parser:
     def _for_statement(self) -> ForStmt:
         self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
 
-        # initializer: var 선언 | 식 문장 | 없음(;)
         if self._match(TokenType.SEMICOLON):
             initializer = None
         elif self._match(TokenType.VAR):
@@ -81,13 +92,11 @@ class Parser:
         else:
             initializer = self._expression_statement()
 
-        # condition
         condition = None
         if not self._check(TokenType.SEMICOLON):
             condition = self._expression()
         self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
 
-        # increment
         increment = None
         if not self._check(TokenType.RIGHT_PAREN):
             increment = self._expression()
@@ -151,7 +160,7 @@ class Parser:
             expr = LogicalExpr(expr, op, right)
         return expr
 
-    def _equality(self) -> Expr:  # == !=
+    def _equality(self) -> Expr:
         expr = self._comparison()
         while self._match(TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL):
             operator = self._previous()
@@ -159,18 +168,20 @@ class Parser:
             expr = BinaryExpr(expr, operator, right)
         return expr
 
-    def _comparison(self) -> Expr:  # < > <= >=
+    def _comparison(self) -> Expr:
         expr = self._term()
         while self._match(
-                TokenType.LESS, TokenType.GREATER,
-                TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL,
+            TokenType.LESS,
+            TokenType.GREATER,
+            TokenType.LESS_EQUAL,
+            TokenType.GREATER_EQUAL,
         ):
             operator = self._previous()
             right = self._term()
             expr = BinaryExpr(expr, operator, right)
         return expr
 
-    def _term(self) -> Expr:  # + -
+    def _term(self) -> Expr:
         expr = self._factor()
         while self._match(TokenType.PLUS, TokenType.MINUS):
             operator = self._previous()
@@ -178,7 +189,7 @@ class Parser:
             expr = BinaryExpr(expr, operator, right)
         return expr
 
-    def _factor(self) -> Expr:  # * /
+    def _factor(self) -> Expr:
         expr = self._unary()
         while self._match(TokenType.STAR, TokenType.SLASH):
             operator = self._previous()
