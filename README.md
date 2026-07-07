@@ -1,7 +1,7 @@
 # CodeFab Interpreter
 
 Python으로 미니 스크립트 언어에 대한 인터프리터를 구현하였습니다.
-`Tokenizer → Parser → Checker → Executor` 파이프라인을 거쳐 소스 코드를 직접 해석하고 실행합니다.
+`Assembler → Checker → Executor` 파이프라인을 거쳐 소스 코드를 직접 해석하고 실행합니다.
 
 ## 특징
 
