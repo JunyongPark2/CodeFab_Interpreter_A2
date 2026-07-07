@@ -1,27 +1,3 @@
-# parser.py — Parser, ParseError
-#
-# list[Token] → list[Stmt] (AST)
-#
-# 문법 (우선순위 낮음 → 높음):
-#   program    → statement* EOF
-#   statement  → varDecl | ifStmt | forStmt | block | printStmt | exprStmt
-#   varDecl    → "var" IDENTIFIER "=" expression ";"
-#   ifStmt     → "if" "(" expression ")" statement ( "else" statement )?
-#   forStmt    → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement
-#   block      → "{" statement* "}"
-#   printStmt  → "print" expression ";"
-#   exprStmt   → expression ";"
-#   expression → assignment
-#   assignment → IDENTIFIER "=" assignment | logic_or
-#   logic_or   → logic_and ( "or" logic_and )*
-#   logic_and  → equality ( "and" equality )*
-#   equality   → comparison ( ( "==" | "!=" ) comparison )*
-#   comparison → term ( ( "<" | ">" | "<=" | ">=" ) term )*
-#   term       → factor ( ( "+" | "-" ) factor )*
-#   factor     → unary ( ( "*" | "/" ) unary )*
-#   unary      → ( "!" | "-" ) unary | primary
-#   primary    → NUMBER | STRING | "true" | "false" | IDENTIFIER | "(" expression ")"
-
 from collections.abc import Callable
 
 from .ast_nodes import (
@@ -41,23 +17,8 @@ from .ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
+from .errors import ParseError
 from .tokens import Token, TokenType
-
-
-class ParseError(Exception):
-    def __init__(self, line: int, msg: str, incomplete: bool = False):
-        # incomplete: "더 입력하면 완성될 수 있는" 실패인지 여부. 아래 두
-        # 경우에만 True가 된다 (REPL이 "다음 줄을 더 받아야 한다"와 "진짜
-        # 문법 오류"를 구분할 때 쓴다. prompt_shell.py 참고):
-        #   1) if/for/else의 본문(statement) 자리에 아무 토큰도 없이(EOF) 실패
-        #   2) ')' / '}' 가 필요한 자리에서, 다른 토큰이 아니라 EOF라서 실패
-        #      (예: "print (1+2"는 True, "print (1+2;"는 세미콜론이 이미
-        #      와버렸으니 False — 더 받아도 절대 고쳐지지 않는 진짜 에러)
-        # 세미콜론 누락이나 연산자만 남은 식처럼 그 외의 이유로 EOF에서
-        # 실패한 경우는 여기 해당하지 않는다 — 더 받아도 고쳐지지 않으므로
-        # 즉시 에러로 처리해야 한다.
-        self.incomplete = incomplete
-        super().__init__(f"[{line}번째줄] {msg}")
 
 
 class Parser:
@@ -188,7 +149,7 @@ class Parser:
         return expr
 
     def _binary(
-        self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]
+            self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]
     ) -> Expr:
         """이항 연산자 공통 루프. 새 우선순위 레벨은 이 메서드를 호출하는 1줄로 추가됩니다."""
         expr = next_level()

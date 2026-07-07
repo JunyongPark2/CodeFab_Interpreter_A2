@@ -1,11 +1,3 @@
-"""Checker Unit 테스트.
-
-AST(list[Stmt])를 직접 구성해서 Checker의 입력으로 준다. 테스트 스크립트.md 기준:
-  - "2) Checker Unit에서 검출하는 에러" 두 케이스는 Checker의 직접 책임 (에러 발생 검증)
-  - "1) 정상동작 테스트"의 변수/블록스코프/shadowing/중첩스코프 케이스는
-    Checker를 예외 없이 통과해야 한다 (Checker가 정상 코드를 막으면 안 됨)
-"""
-
 import pytest
 
 from interpreter.ast_nodes import (
@@ -20,7 +12,8 @@ from interpreter.ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from interpreter.checker import Checker, CheckError
+from interpreter.checker import Checker
+from interpreter.errors import CheckError
 from interpreter.tokens import Token, TokenType
 
 

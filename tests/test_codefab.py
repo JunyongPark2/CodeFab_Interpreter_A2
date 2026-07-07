@@ -1,10 +1,7 @@
 import pytest
 
-from interpreter.checker import CheckError
 from interpreter.codefab import CodeFabInterpreter
-from interpreter.executor import LangRuntimeError
-from interpreter.parser import ParseError
-from interpreter.tokenizer import TokenizeError
+from interpreter.errors import CheckError, LangRuntimeError, ParseError, TokenizeError
 
 
 @pytest.fixture

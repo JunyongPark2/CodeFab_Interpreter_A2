@@ -1,5 +1,3 @@
-"""Expr / Stmt 노드 클래스 (팀 공용 데이터 구조)."""
-
 from dataclasses import dataclass
 from typing import Any, Optional
 

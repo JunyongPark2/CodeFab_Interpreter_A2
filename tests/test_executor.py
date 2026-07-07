@@ -1,5 +1,3 @@
-"""Executor 유닛 테스트."""
-
 import pytest
 
 from interpreter.ast_nodes import (
@@ -17,7 +15,8 @@ from interpreter.ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from interpreter.executor import Executor, LangRuntimeError
+from interpreter.errors import LangRuntimeError
+from interpreter.executor import Executor
 from interpreter.tokens import Token, TokenType
 
 
@@ -597,7 +596,7 @@ def test_lang_runtime_error_message_includes_line():
 def test_bool_operand_raises():
     line = 1
     with pytest.raises(
-        LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+            LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
     ):
         run(
             [
@@ -615,7 +614,7 @@ def test_bool_operand_raises():
 def test_number_minus_string_raises():
     line = 1
     with pytest.raises(
-        LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+            LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
     ):
         run(
             [
@@ -634,7 +633,7 @@ def test_number_minus_string_raises():
 def test_assign_to_undefined_variable_raises():
     line = 1
     with pytest.raises(
-        LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
+            LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
     ):
         run(
             [
@@ -651,7 +650,7 @@ def test_assign_to_undefined_variable_raises():
 def test_read_undefined_variable_raises():
     line = 1
     with pytest.raises(
-        LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
+            LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
     ):
         run([PrintStmt(expression=VariableExpr(name=name_tok("undefined", line=line)))])
 

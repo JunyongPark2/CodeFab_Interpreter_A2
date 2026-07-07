@@ -14,11 +14,7 @@ from .ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-
-
-class CheckError(Exception):
-    def __init__(self, line: int, msg: str):
-        super().__init__(f"[{line}번째줄] {msg}")
+from .errors import CheckError
 
 
 class Checker:
