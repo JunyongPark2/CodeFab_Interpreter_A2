@@ -165,3 +165,26 @@ def test_runs_share_global_env(interp, capsys):
     interp.run("var x = 10;")
     interp.run("print x;")
     assert capsys.readouterr().out == "10\n"
+
+
+def test_global_var_redeclaration_across_runs_raises_check_error(interp):
+    interp.run("var x = 10;")
+    with pytest.raises(CheckError):
+        interp.run("var x = 20;")
+
+
+def test_global_var_reassignment_across_runs_is_allowed(interp, capsys):
+    interp.run("var x = 10;")
+    interp.run("x = 99; print x;")
+    assert capsys.readouterr().out == "99\n"
+
+
+def test_multiple_global_vars_across_runs(interp, capsys):
+    interp.run("var a = 1; var b = 2;")
+    interp.run("print a + b;")
+    assert capsys.readouterr().out == "3\n"
+
+
+def test_global_var_redeclaration_in_single_run_raises_check_error(interp):
+    with pytest.raises(CheckError):
+        interp.run("var x = 1; var x = 2;")
