@@ -21,7 +21,7 @@
 # 여기서는 트리의 모양(구조)만 검사한다.
 from ast_nodes import (
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
-    VariableExpr, AssignExpr,
+    VariableExpr, AssignExpr, LogicalExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
     IfStmt, ForStmt,
 )
@@ -58,6 +58,8 @@ RBRACE = Token(TokenType.RIGHT_BRACE, "}")
 IF_KW = Token(TokenType.IF, "if")
 ELSE_KW = Token(TokenType.ELSE, "else")
 FOR_KW = Token(TokenType.FOR, "for")
+AND_KW = Token(TokenType.AND, "and")
+OR_KW = Token(TokenType.OR, "or")
 
 
 def ident(name: str) -> Token:
@@ -584,3 +586,129 @@ def test_for_반복문():
     assert isinstance(print_stmt, PrintStmt)
     assert isinstance(print_stmt.expression, VariableExpr)
     assert print_stmt.expression.name.origin == "j"
+
+
+# ─────────────────────────────────────────────────────────
+# 논리 연산 — and / or
+# ─────────────────────────────────────────────────────────
+
+def test_and_기본():
+    # print true and false;
+    #
+    # 기대 트리:  LogicalExpr(and)
+    #            ├── LiteralExpr(True)
+    #            └── LiteralExpr(False)
+    expr = parse_print(TRUE, AND_KW, FALSE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.AND
+    assert expr.left == LiteralExpr(True)
+    assert expr.right == LiteralExpr(False)
+
+
+def test_or_기본():
+    # print false or true;
+    #
+    # 기대 트리:  LogicalExpr(or)
+    #            ├── LiteralExpr(False)
+    #            └── LiteralExpr(True)
+    expr = parse_print(FALSE, OR_KW, TRUE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.OR
+    assert expr.left == LiteralExpr(False)
+    assert expr.right == LiteralExpr(True)
+
+
+def test_and가_or보다_먼저():
+    # print true or false and false;
+    #
+    # and 가 or 보다 우선순위가 높으므로 false and false 가 먼저 묶여야 한다.
+    #
+    # 기대 트리:  LogicalExpr(or)          ← 루트가 or
+    #            ├── LiteralExpr(True)
+    #            └── LogicalExpr(and)      ← and 가 더 깊음
+    #                ├── LiteralExpr(False)
+    #                └── LiteralExpr(False)
+    expr = parse_print(TRUE, OR_KW, FALSE, AND_KW, FALSE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.OR   # 루트는 or
+    assert expr.left == LiteralExpr(True)
+
+    assert isinstance(expr.right, LogicalExpr)  # 오른쪽은 false and false
+    assert expr.right.operator.type == TokenType.AND
+    assert expr.right.left == LiteralExpr(False)
+    assert expr.right.right == LiteralExpr(False)
+
+
+def test_and_연속_왼쪽부터_묶인다():
+    # print true and false and true;
+    #
+    # 왼쪽 결합: (true and false) and true
+    #
+    # 기대 트리:  LogicalExpr(and)
+    #            ├── LogicalExpr(and)
+    #            │   ├── LiteralExpr(True)
+    #            │   └── LiteralExpr(False)
+    #            └── LiteralExpr(True)
+    expr = parse_print(TRUE, AND_KW, FALSE, AND_KW, TRUE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.AND
+    assert expr.right == LiteralExpr(True)
+
+    assert isinstance(expr.left, LogicalExpr)
+    assert expr.left.operator.type == TokenType.AND
+    assert expr.left.left == LiteralExpr(True)
+    assert expr.left.right == LiteralExpr(False)
+
+
+def test_or_연속_왼쪽부터_묶인다():
+    # print false or true or false;
+    #
+    # 왼쪽 결합: (false or true) or false
+    #
+    # 기대 트리:  LogicalExpr(or)
+    #            ├── LogicalExpr(or)
+    #            │   ├── LiteralExpr(False)
+    #            │   └── LiteralExpr(True)
+    #            └── LiteralExpr(False)
+    expr = parse_print(FALSE, OR_KW, TRUE, OR_KW, FALSE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.OR
+    assert expr.right == LiteralExpr(False)
+
+    assert isinstance(expr.left, LogicalExpr)
+    assert expr.left.operator.type == TokenType.OR
+    assert expr.left.left == LiteralExpr(False)
+    assert expr.left.right == LiteralExpr(True)
+
+
+def test_and_or_비교식과_함께():
+    # print 1 < 2 and 3 > 0;
+    #
+    # 비교식이 and 의 피연산자가 된다.
+    #
+    # 기대 트리:  LogicalExpr(and)
+    #            ├── BinaryExpr(<)
+    #            │   ├── LiteralExpr(1.0)
+    #            │   └── LiteralExpr(2.0)
+    #            └── BinaryExpr(>)
+    #                ├── LiteralExpr(3.0)
+    #                └── LiteralExpr(0.0)
+    expr = parse_print(num(1), LESS, num(2), AND_KW, num(3), GREATER, num(0))
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.AND
+
+    assert isinstance(expr.left, BinaryExpr)
+    assert expr.left.operator.type == TokenType.LESS
+    assert expr.left.left == LiteralExpr(1.0)
+    assert expr.left.right == LiteralExpr(2.0)
+
+    assert isinstance(expr.right, BinaryExpr)
+    assert expr.right.operator.type == TokenType.GREATER
+    assert expr.right.left == LiteralExpr(3.0)
+    assert expr.right.right == LiteralExpr(0.0)
