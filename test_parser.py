@@ -864,3 +864,149 @@ def test_and_or_비교식과_함께():
     assert expr.right.operator.type == TokenType.GREATER
     assert expr.right.left == LiteralExpr(3.0)
     assert expr.right.right == LiteralExpr(0.0)
+
+
+# ─────────────────────────────────────────────────────────
+# equality vs comparison 우선순위
+# 가이드 BNF: equality → comparison (("==" | "!=") comparison)*
+#             comparison → term ((">" | ">=" | "<" | "<=") term)*
+# 즉, < > <= >= 는 == != 보다 우선순위가 높아야 한다.
+# ─────────────────────────────────────────────────────────
+
+def test_동등비교가_대소비교보다_우선순위_낮다():
+    # print 1 == 2 < 3;
+    #
+    # < 가 == 보다 우선순위가 높으므로 2 < 3 이 먼저 묶여야 한다.
+    #
+    # 기대 트리 (가이드 명세):  ==             ← 루트가 ==
+    #                           ├── LiteralExpr(1.0)
+    #                           └── BinaryExpr(<)   ← < 가 더 깊음 (먼저 계산)
+    #                               ├── LiteralExpr(2.0)
+    #                               └── LiteralExpr(3.0)
+    #
+    # 현재 구현의 실제 결과:     <              ← 루트가 < (잘못된 결과)
+    #                           ├── BinaryExpr(==)
+    #                           │   ├── LiteralExpr(1.0)
+    #                           │   └── LiteralExpr(2.0)
+    #                           └── LiteralExpr(3.0)
+    EQUAL_EQUAL = Token(TokenType.EQUAL_EQUAL, "==")
+    expr = parse_print(num(1), EQUAL_EQUAL, num(2), LESS, num(3))
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.EQUAL_EQUAL  # 루트는 ==
+
+    assert expr.left == LiteralExpr(1.0)
+
+    assert isinstance(expr.right, BinaryExpr)           # 오른쪽은 2 < 3
+    assert expr.right.operator.type == TokenType.LESS
+    assert expr.right.left == LiteralExpr(2.0)
+    assert expr.right.right == LiteralExpr(3.0)
+
+
+def test_불일치비교가_대소비교보다_우선순위_낮다():
+    # print 5 != 3 > 1;
+    #
+    # > 가 != 보다 우선순위가 높으므로 3 > 1 이 먼저 묶여야 한다.
+    #
+    # 기대 트리 (가이드 명세):  !=
+    #                           ├── LiteralExpr(5.0)
+    #                           └── BinaryExpr(>)
+    #                               ├── LiteralExpr(3.0)
+    #                               └── LiteralExpr(1.0)
+    BANG_EQUAL = Token(TokenType.BANG_EQUAL, "!=")
+    GREATER_OP = Token(TokenType.GREATER, ">")
+    expr = parse_print(num(5), BANG_EQUAL, num(3), GREATER_OP, num(1))
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.BANG_EQUAL   # 루트는 !=
+
+    assert expr.left == LiteralExpr(5.0)
+
+    assert isinstance(expr.right, BinaryExpr)           # 오른쪽은 3 > 1
+    assert expr.right.operator.type == TokenType.GREATER
+    assert expr.right.left == LiteralExpr(3.0)
+    assert expr.right.right == LiteralExpr(1.0)
+
+
+# ─────────────────────────────────────────────────────────
+# and/or + equality/comparison 혼합 우선순위
+# 전체 체인: logic_or → logic_and → equality → comparison
+# ─────────────────────────────────────────────────────────
+
+def test_equality가_and보다_우선순위_높다():
+    # print 1 == 1 and 2 != 3;
+    #
+    # == 과 != 이 and 보다 먼저 묶여야 한다.
+    #
+    # 기대 트리:  LogicalExpr(and)        ← 루트가 and
+    #            ├── BinaryExpr(==)
+    #            │   ├── LiteralExpr(1.0)
+    #            │   └── LiteralExpr(1.0)
+    #            └── BinaryExpr(!=)
+    #                ├── LiteralExpr(2.0)
+    #                └── LiteralExpr(3.0)
+    EQUAL_EQUAL = Token(TokenType.EQUAL_EQUAL, "==")
+    BANG_EQUAL = Token(TokenType.BANG_EQUAL, "!=")
+    expr = parse_print(num(1), EQUAL_EQUAL, num(1), AND_KW, num(2), BANG_EQUAL, num(3))
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.AND          # 루트는 and
+
+    assert isinstance(expr.left, BinaryExpr)            # 왼쪽은 1 == 1
+    assert expr.left.operator.type == TokenType.EQUAL_EQUAL
+    assert expr.left.left == LiteralExpr(1.0)
+    assert expr.left.right == LiteralExpr(1.0)
+
+    assert isinstance(expr.right, BinaryExpr)           # 오른쪽은 2 != 3
+    assert expr.right.operator.type == TokenType.BANG_EQUAL
+    assert expr.right.left == LiteralExpr(2.0)
+    assert expr.right.right == LiteralExpr(3.0)
+
+
+def test_or_and_equality_comparison_전체_우선순위_체인():
+    # print 1 == 1 or 2 == 3 and 4 < 5;
+    #
+    # 우선순위: < > == != → and → or  (낮을수록 루트에 가까움)
+    # 따라서: 4 < 5 가 먼저, 2 == 3 이 다음, and 로 묶이고, or 가 마지막
+    #
+    # 기대 트리:  LogicalExpr(or)              ← 루트가 or
+    #            ├── BinaryExpr(==)            ← 1 == 1
+    #            │   ├── LiteralExpr(1.0)
+    #            │   └── LiteralExpr(1.0)
+    #            └── LogicalExpr(and)          ← and 가 or 보다 깊음
+    #                ├── BinaryExpr(==)        ← 2 == 3
+    #                │   ├── LiteralExpr(2.0)
+    #                │   └── LiteralExpr(3.0)
+    #                └── BinaryExpr(<)         ← 4 < 5
+    #                    ├── LiteralExpr(4.0)
+    #                    └── LiteralExpr(5.0)
+    EQUAL_EQUAL = Token(TokenType.EQUAL_EQUAL, "==")
+    expr = parse_print(
+        num(1), EQUAL_EQUAL, num(1),
+        OR_KW,
+        num(2), EQUAL_EQUAL, num(3),
+        AND_KW,
+        num(4), LESS, num(5),
+    )
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.OR           # 루트는 or
+
+    assert isinstance(expr.left, BinaryExpr)            # 왼쪽은 1 == 1
+    assert expr.left.operator.type == TokenType.EQUAL_EQUAL
+    assert expr.left.left == LiteralExpr(1.0)
+    assert expr.left.right == LiteralExpr(1.0)
+
+    rhs = expr.right
+    assert isinstance(rhs, LogicalExpr)                 # 오른쪽은 and
+    assert rhs.operator.type == TokenType.AND
+
+    assert isinstance(rhs.left, BinaryExpr)             # and 왼쪽은 2 == 3
+    assert rhs.left.operator.type == TokenType.EQUAL_EQUAL
+    assert rhs.left.left == LiteralExpr(2.0)
+    assert rhs.left.right == LiteralExpr(3.0)
+
+    assert isinstance(rhs.right, BinaryExpr)            # and 오른쪽은 4 < 5
+    assert rhs.right.operator.type == TokenType.LESS
+    assert rhs.right.left == LiteralExpr(4.0)
+    assert rhs.right.right == LiteralExpr(5.0)

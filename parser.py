@@ -12,8 +12,9 @@
 #   expression → assignment
 #   assignment → IDENTIFIER "=" assignment | logic_or
 #   logic_or   → logic_and ( "or" logic_and )*
-#   logic_and  → comparison ( "and" comparison )*
-#   comparison → term ( ( "<" | ">" | "<=" | ">=" | "==" | "!=" ) term )*
+#   logic_and  → equality ( "and" equality )*
+#   equality   → comparison ( ( "==" | "!=" ) comparison )*
+#   comparison → term ( ( "<" | ">" | "<=" | ">=" ) term )*
 #   term       → factor ( ( "+" | "-" ) factor )*
 #   factor     → unary ( ( "*" | "/" ) unary )*
 #   unary      → ( "!" | "-" ) unary | primary
@@ -143,19 +144,26 @@ class Parser:
         return expr
 
     def _logic_and(self) -> Expr:
-        expr = self._comparison()
+        expr = self._equality()
         while self._match(TokenType.AND):
             op = self._previous()
-            right = self._comparison()
+            right = self._equality()
             expr = LogicalExpr(expr, op, right)
         return expr
 
-    def _comparison(self) -> Expr:  # < > <= >= == !=
+    def _equality(self) -> Expr:  # == !=
+        expr = self._comparison()
+        while self._match(TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL):
+            operator = self._previous()
+            right = self._comparison()
+            expr = BinaryExpr(expr, operator, right)
+        return expr
+
+    def _comparison(self) -> Expr:  # < > <= >=
         expr = self._term()
         while self._match(
                 TokenType.LESS, TokenType.GREATER,
                 TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL,
-                TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL,
         ):
             operator = self._previous()
             right = self._term()
