@@ -127,9 +127,11 @@ class Parser:
 
     def _assignment(self) -> Expr:
         expr = self._logic_or()
-        if isinstance(expr, VariableExpr) and self._match(TokenType.EQUAL):
+        if self._match(TokenType.EQUAL):
             value = self._assignment()  # 오른쪽 결합: a = b = 1
-            return AssignExpr(expr.name, value)
+            if isinstance(expr, VariableExpr):
+                return AssignExpr(expr.name, value)
+            raise ParseError(self._previous().line, "대입 대상이 올바르지 않습니다.")
         return expr
 
     def _logic_or(self) -> Expr:
@@ -151,9 +153,9 @@ class Parser:
     def _comparison(self) -> Expr:  # < > <= >= == !=
         expr = self._term()
         while self._match(
-            TokenType.LESS, TokenType.GREATER,
-            TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL,
-            TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL,
+                TokenType.LESS, TokenType.GREATER,
+                TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL,
+                TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL,
         ):
             operator = self._previous()
             right = self._term()
