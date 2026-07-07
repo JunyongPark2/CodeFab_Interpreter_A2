@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from tokens import Token
+from .tokens import Token
 
 
 # ── 모든 Expr의 공통 부모 ──────────────────────────────────────

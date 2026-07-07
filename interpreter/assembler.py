@@ -4,10 +4,10 @@
 #   Output : list[Stmt]          AST 루트 Stmt 목록
 #   Error  : TokenizeError | ParseError (그대로 전파, 여기서 잡지 않음)
 
-from ast_nodes import Stmt
-from tokens import Token
-from tokenizer import Tokenizer
-from parser import Parser
+from .ast_nodes import Stmt
+from .tokens import Token
+from .tokenizer import Tokenizer
+from .parser import Parser
 
 
 class Assembler:

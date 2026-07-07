@@ -4,13 +4,13 @@ Executor에 대한 pytest 테스트.
 """
 import pytest
 
-from ast_nodes import (
+from interpreter.ast_nodes import (
     PrintStmt, VarDeclStmt, ExpressionStmt, BlockStmt, IfStmt, ForStmt,
     LiteralExpr, VariableExpr, AssignExpr, GroupingExpr,
     UnaryExpr, BinaryExpr, LogicalExpr,
 )
-from tokens import Token, TokenType
-from executor import Executor, LangRuntimeError
+from interpreter.tokens import Token, TokenType
+from interpreter.executor import Executor, LangRuntimeError
 
 
 def tok(type_, origin="", value=None, line=1, col=1):

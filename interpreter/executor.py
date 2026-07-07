@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from ast_nodes import (
+from .ast_nodes import (
     Expr, Stmt,
     LiteralExpr, VariableExpr, AssignExpr, BinaryExpr, UnaryExpr,
     GroupingExpr, LogicalExpr,
     ExpressionStmt, PrintStmt, VarDeclStmt, BlockStmt, IfStmt, ForStmt,
 )
-from tokens import TokenType
+from .tokens import TokenType
 
 
 # ── 별도 모듈로 분리 가능 (필요 시 environment.py / errors.py 로 이동) ──────
