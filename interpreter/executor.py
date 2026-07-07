@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-from typing import Any
-
 from .ast_nodes import (
     AssignExpr,
     BinaryExpr,
@@ -19,48 +15,9 @@ from .ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
+from .environment import Environment
+from .errors import LangRuntimeError
 from .tokens import TokenType
-
-
-# ── 별도 모듈로 분리 가능 (필요 시 environment.py / errors.py 로 이동) ──────
-class LangRuntimeError(Exception):
-    def __init__(self, line: int, msg: str):
-        super().__init__(f"[{line}번째줄] {msg}")
-
-
-class Environment:
-    def __init__(self, parent: "Environment | None" = None):
-        self._values: dict[str, Any] = {}
-        self.parent = parent  # 상위 스코프 (None 이면 Global)
-
-    @property
-    def names(self) -> set[str]:
-        return set(self._values.keys())
-
-    def define(self, name: str, value: Any) -> None:
-        """현재 스코프에 변수 선언 (중복 허용 — Checker가 사전 차단)"""
-        self._values[name] = value
-
-    def get(self, name: str, line: int = 0) -> Any:
-        """현재 → 상위 스코프 순으로 변수 탐색"""
-        if name in self._values:
-            return self._values[name]
-        if self.parent is not None:
-            return self.parent.get(name, line)
-        raise LangRuntimeError(line, f"미정의된 변수 '{name}'")
-
-    def assign(self, name: str, value: Any, line: int = 0) -> None:
-        """이미 선언된 변수 재할당 (선언된 스코프에 직접 씀)"""
-        if name in self._values:
-            self._values[name] = value
-            return
-        if self.parent is not None:
-            self.parent.assign(name, value, line)
-            return
-        raise LangRuntimeError(line, f"미정의된 변수 '{name}'")
-
-
-# ── 분리 가능 영역 끝 ──────────────────────────────────────────────────
 
 
 class Executor:

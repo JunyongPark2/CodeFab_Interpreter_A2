@@ -1,6 +1,8 @@
 from .assembler import Assembler
 from .checker import Checker, CheckError
-from .executor import Environment, Executor, LangRuntimeError
+from .environment import Environment
+from .errors import LangRuntimeError
+from .executor import Executor
 from .parser import ParseError
 from .tokenizer import TokenizeError
 
