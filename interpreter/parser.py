@@ -22,6 +22,8 @@
 #   unary      → ( "!" | "-" ) unary | primary
 #   primary    → NUMBER | STRING | "true" | "false" | IDENTIFIER | "(" expression ")"
 
+from collections.abc import Callable
+
 from .ast_nodes import (
     AssignExpr,
     BinaryExpr,
@@ -51,6 +53,14 @@ class Parser:
     def __init__(self, tokens: list[Token]):
         self._tokens = tokens
         self._current = 0
+        # 새 구문 추가 시 여기에 항목만 등록하면 됩니다.
+        self._stmt_dispatch: dict[TokenType, Callable[[], Stmt]] = {
+            TokenType.IF: self._if_statement,
+            TokenType.FOR: self._for_statement,
+            TokenType.VAR: self._var_declaration,
+            TokenType.LEFT_BRACE: self._block_statement,
+            TokenType.PRINT: self._print_statement,
+        }
 
     def parse(self) -> list[Stmt]:
         statements: list[Stmt] = []
@@ -60,17 +70,13 @@ class Parser:
 
     # ── Statement 파싱 ─────────────────────────────────────
     def _statement(self) -> Stmt:
-        if self._match(TokenType.IF):
-            return self._if_statement()
-        if self._match(TokenType.FOR):
-            return self._for_statement()
-        if self._match(TokenType.VAR):
-            return self._var_declaration()
-        if self._match(TokenType.LEFT_BRACE):
-            return BlockStmt(self._block())
-        if self._match(TokenType.PRINT):
-            return self._print_statement()
+        for token_type, handler in self._stmt_dispatch.items():
+            if self._match(token_type):
+                return handler()
         return self._expression_statement()
+
+    def _block_statement(self) -> BlockStmt:
+        return BlockStmt(self._block())
 
     def _if_statement(self) -> IfStmt:
         self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
@@ -160,42 +166,29 @@ class Parser:
             expr = LogicalExpr(expr, op, right)
         return expr
 
-    def _equality(self) -> Expr:
-        expr = self._comparison()
-        while self._match(TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL):
+    def _binary(self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]) -> Expr:
+        """이항 연산자 공통 루프. 새 우선순위 레벨은 이 메서드를 호출하는 1줄로 추가됩니다."""
+        expr = next_level()
+        while self._match(*ops):
             operator = self._previous()
-            right = self._comparison()
+            right = next_level()
             expr = BinaryExpr(expr, operator, right)
         return expr
+
+    def _equality(self) -> Expr:
+        return self._binary((TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL), self._comparison)
 
     def _comparison(self) -> Expr:
-        expr = self._term()
-        while self._match(
-            TokenType.LESS,
-            TokenType.GREATER,
-            TokenType.LESS_EQUAL,
-            TokenType.GREATER_EQUAL,
-        ):
-            operator = self._previous()
-            right = self._term()
-            expr = BinaryExpr(expr, operator, right)
-        return expr
+        return self._binary(
+            (TokenType.LESS, TokenType.GREATER, TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL),
+            self._term,
+        )
 
     def _term(self) -> Expr:
-        expr = self._factor()
-        while self._match(TokenType.PLUS, TokenType.MINUS):
-            operator = self._previous()
-            right = self._factor()
-            expr = BinaryExpr(expr, operator, right)
-        return expr
+        return self._binary((TokenType.PLUS, TokenType.MINUS), self._factor)
 
     def _factor(self) -> Expr:
-        expr = self._unary()
-        while self._match(TokenType.STAR, TokenType.SLASH):
-            operator = self._previous()
-            right = self._unary()
-            expr = BinaryExpr(expr, operator, right)
-        return expr
+        return self._binary((TokenType.STAR, TokenType.SLASH), self._unary)
 
     def _unary(self) -> Expr:
         if self._match(TokenType.BANG, TokenType.MINUS):
@@ -203,9 +196,7 @@ class Parser:
         return self._primary()
 
     def _primary(self) -> Expr:
-        if self._match(TokenType.NUMBER):
-            return LiteralExpr(self._previous().value)
-        if self._match(TokenType.STRING):
+        if self._match(TokenType.NUMBER, TokenType.STRING):
             return LiteralExpr(self._previous().value)
         if self._match(TokenType.TRUE):
             return LiteralExpr(True)
