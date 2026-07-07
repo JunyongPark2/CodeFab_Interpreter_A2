@@ -31,7 +31,11 @@ from .tokens import Token, TokenType
 
 
 class ParseError(Exception):
-    def __init__(self, line: int, msg: str):
+    def __init__(self, line: int, msg: str, at_eof: bool = False):
+        # at_eof: 토큰이 부족해서(EOF) 실패했는지 여부.
+        # REPL이 "입력이 아직 안 끝났다(더 받아야 한다)"와 "진짜 문법 오류"를
+        # 구분할 때 이 값을 쓴다 (prompt_shell.py 참고).
+        self.at_eof = at_eof
         super().__init__(f"[{line}번째줄] {msg}")
 
 
@@ -206,7 +210,7 @@ class Parser:
             expr = self._expression()
             self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
             return GroupingExpr(expr)
-        raise ParseError(self._peek().line, "표현식이 필요합니다.")
+        raise ParseError(self._peek().line, "표현식이 필요합니다.", at_eof=self._is_at_end())
 
     # ── 헬퍼 메서드 ──────────────────────────────────────────
     def _match(self, *types: TokenType) -> bool:
@@ -228,7 +232,7 @@ class Parser:
     def _consume(self, t: TokenType, msg: str) -> Token:
         if self._check(t):
             return self._advance()
-        raise ParseError(self._peek().line, msg)
+        raise ParseError(self._peek().line, msg, at_eof=self._is_at_end())
 
     def _peek(self) -> Token:
         return self._tokens[self._current]
