@@ -99,12 +99,18 @@ class Executor:
                 self._exec_stmt(stmt.else_branch)
 
         elif isinstance(stmt, ForStmt):
-            if stmt.initializer:
-                self._exec_stmt(stmt.initializer)
-            while stmt.condition is None or self._is_truthy(self._eval(stmt.condition)):
-                self._exec_stmt(stmt.body)
-                if stmt.increment:
-                    self._eval(stmt.increment)
+            loop_env = Environment(parent=self._current)
+            prev = self._current
+            self._current = loop_env
+            try:
+                if stmt.initializer:
+                    self._exec_stmt(stmt.initializer)
+                while stmt.condition is None or self._is_truthy(self._eval(stmt.condition)):
+                    self._exec_stmt(stmt.body)
+                    if stmt.increment:
+                        self._eval(stmt.increment)
+            finally:
+                self._current = prev
 
     def _exec_block(self, stmts: list[Stmt], env: Environment) -> None:
         prev = self._current

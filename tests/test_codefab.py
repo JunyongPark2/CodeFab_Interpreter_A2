@@ -188,3 +188,29 @@ def test_multiple_global_vars_across_runs(interp, capsys):
 def test_global_var_redeclaration_in_single_run_raises_check_error(interp):
     with pytest.raises(CheckError):
         interp.run("var x = 1; var x = 2;")
+
+
+def test_for_loop_var_does_not_leak_into_global_scope(interp, capsys):
+    interp.run("for (var i = 0; i < 3; i = i + 1) { print i; }")
+    capsys.readouterr()
+    interp.run("var i = 5; print i;")
+    assert capsys.readouterr().out == "5\n"
+
+
+# ── 이중 for 루프 ──────────────────────────────────────────────────
+
+def test_nested_for_loop(interp, capsys):
+    interp.run("for (var i = 0; i < 2; i = i + 1) { for (var j = 0; j < 2; j = j + 1) { print i + j; } }")
+    assert capsys.readouterr().out == "0\n1\n1\n2\n"
+
+
+def test_nested_for_loop_vars_do_not_leak_into_global_scope(interp, capsys):
+    interp.run("for (var i = 0; i < 2; i = i + 1) { for (var j = 0; j < 2; j = j + 1) { print i + j; } }")
+    capsys.readouterr()
+    interp.run("var i = 10; var j = 20; print i + j;")
+    assert capsys.readouterr().out == "30\n"
+
+
+def test_nested_for_loop_same_var_shadowing(interp, capsys):
+    interp.run("for (var i = 0; i < 2; i = i + 1) { for (var i = 10; i < 12; i = i + 1) { print i; } }")
+    assert capsys.readouterr().out == "10\n11\n10\n11\n"
