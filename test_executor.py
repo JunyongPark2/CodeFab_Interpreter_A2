@@ -249,6 +249,60 @@ def test_greater_and_less_comparisons(capsys):
     assert capsys.readouterr().out == "true\nfalse\n"
 
 
+@pytest.mark.parametrize("op,left,right,expected", [
+    (TokenType.GREATER_EQUAL, 2.0, 1.0, True),
+    (TokenType.GREATER_EQUAL, 1.0, 1.0, True),
+    (TokenType.GREATER_EQUAL, 1.0, 2.0, False),
+    (TokenType.LESS_EQUAL, 1.0, 2.0, True),
+    (TokenType.LESS_EQUAL, 1.0, 1.0, True),
+    (TokenType.LESS_EQUAL, 2.0, 1.0, False),
+])
+def test_greater_equal_and_less_equal_comparisons(op, left, right, expected, capsys):
+    run([PrintStmt(expression=BinaryExpr(
+        left=LiteralExpr(value=left), operator=tok(op, line=1), right=LiteralExpr(value=right),
+    ))])
+    assert capsys.readouterr().out == ("true\n" if expected else "false\n")
+
+
+@pytest.mark.parametrize("op", [TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL])
+def test_greater_equal_and_less_equal_non_number_operand_raises(op):
+    with pytest.raises(LangRuntimeError):
+        run([ExpressionStmt(expression=BinaryExpr(
+            left=LiteralExpr(value="a"), operator=tok(op, line=1), right=LiteralExpr(value=1.0),
+        ))])
+
+
+@pytest.mark.parametrize("left,right,expected", [
+    (1.0, 1.0, True),
+    (1.0, 2.0, False),
+    ("a", "a", True),
+    ("a", "b", False),
+    (True, True, True),
+    (True, False, False),
+    (None, None, True),
+    (1.0, "1", False),   # 타입이 다르면 값이 같아 보여도 false
+    (1.0, True, False),  # 숫자와 불린은 다른 타입으로 취급
+])
+def test_equal_equal_comparisons(left, right, expected, capsys):
+    run([PrintStmt(expression=BinaryExpr(
+        left=LiteralExpr(value=left), operator=tok(TokenType.EQUAL_EQUAL, line=1), right=LiteralExpr(value=right),
+    ))])
+    assert capsys.readouterr().out == ("true\n" if expected else "false\n")
+
+
+@pytest.mark.parametrize("left,right,expected", [
+    (1.0, 1.0, False),
+    (1.0, 2.0, True),
+    ("a", "a", False),
+    ("a", "b", True),
+])
+def test_bang_equal_comparisons(left, right, expected, capsys):
+    run([PrintStmt(expression=BinaryExpr(
+        left=LiteralExpr(value=left), operator=tok(TokenType.BANG_EQUAL, line=1), right=LiteralExpr(value=right),
+    ))])
+    assert capsys.readouterr().out == ("true\n" if expected else "false\n")
+
+
 # ── UnaryExpr ─────────────────────────────────────────────────────
 def test_unary_minus(capsys):
     run([PrintStmt(expression=UnaryExpr(operator=tok(TokenType.MINUS, line=1), right=LiteralExpr(value=5.0)))])

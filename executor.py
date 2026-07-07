@@ -146,6 +146,14 @@ class Executor:
                 self._check_numbers(expr.operator, left, right); return left > right
             if op == TokenType.LESS:
                 self._check_numbers(expr.operator, left, right); return left < right
+            if op == TokenType.GREATER_EQUAL:
+                self._check_numbers(expr.operator, left, right); return left >= right
+            if op == TokenType.LESS_EQUAL:
+                self._check_numbers(expr.operator, left, right); return left <= right
+            if op == TokenType.EQUAL_EQUAL:
+                return self._is_equal(left, right)
+            if op == TokenType.BANG_EQUAL:
+                return not self._is_equal(left, right)
 
         if isinstance(expr, LogicalExpr):
             left = self._eval(expr.left)
@@ -169,6 +177,11 @@ class Executor:
     def _check_numbers(self, op, left, right) -> None:
         if not (isinstance(left, float) and isinstance(right, float)):
             raise LangRuntimeError(op.line, "피연산자는 반드시 숫자여야 합니다.")
+
+    def _is_equal(self, left, right) -> bool:
+        if type(left) is not type(right):
+            return False
+        return left == right
 
     def _stringify(self, val) -> str:
         if val is None:   return "nil"
