@@ -1,97 +1,93 @@
-"""공통 데이터 구조: Expr / Stmt 노드.
+# ast_nodes.py — Expr / Stmt 노드 클래스 (팀 공용 데이터 구조)
 
-Assembler Unit(Parser) 팀이 완성할 파일이지만, 인터페이스가
-CodeFab_Interpreter_Guide.md 5-2, 5-3장에 확정되어 있으므로 Checker 개발/테스트를
-위해 동일한 스펙으로 미리 작성한다. 실제 Assembler 코드 합류 시 이 파일을 교체한다.
-"""
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from tokens import Token
 
 
-# ── Expr ────────────────────────────────────────────────────────
+# ── 모든 Expr의 공통 부모 ──────────────────────────────────────
 class Expr:
     pass
 
 
 @dataclass
 class LiteralExpr(Expr):
-    value: Any
+    value: Any  # float | str | bool | None
 
 
 @dataclass
 class VariableExpr(Expr):
-    name: Token
+    name: Token  # Token(IDENTIFIER, "변수명")
 
 
 @dataclass
 class AssignExpr(Expr):
-    name: Token
-    value: Expr
+    name: Token  # 대입 대상 변수 Token(IDENTIFIER, ...)
+    value: Expr  # 대입할 값 표현식
 
 
 @dataclass
 class BinaryExpr(Expr):
     left: Expr
-    operator: Token
+    operator: Token  # PLUS / MINUS / STAR / SLASH / GREATER / LESS ...
     right: Expr
 
 
 @dataclass
 class UnaryExpr(Expr):
-    operator: Token
+    operator: Token  # MINUS / BANG
     right: Expr
 
 
 @dataclass
 class GroupingExpr(Expr):
-    expression: Expr
+    expression: Expr  # ( 내부 Expr )
 
 
 @dataclass
 class LogicalExpr(Expr):
     left: Expr
-    operator: Token
+    operator: Token  # AND / OR
     right: Expr
 
 
-# ── Stmt ────────────────────────────────────────────────────────
+# ── 모든 Stmt의 공통 부모 ──────────────────────────────────────
 class Stmt:
     pass
 
 
 @dataclass
 class ExpressionStmt(Stmt):
-    expression: Expr
+    expression: Expr  # Expr을 Stmt로 감싸는 Wrapper
 
 
 @dataclass
 class PrintStmt(Stmt):
-    expression: Expr
+    expression: Expr  # 출력할 표현식
 
 
 @dataclass
 class VarDeclStmt(Stmt):
-    name: Token
-    initializer: Optional[Expr]
+    name: Token  # 변수 이름 Token(IDENTIFIER, ...)
+    initializer: Optional[Expr]  # 초기화 식 (없으면 None)
 
 
 @dataclass
 class BlockStmt(Stmt):
-    statements: list[Stmt]
+    statements: list[Stmt]  # 블록 내 문장 목록
 
 
 @dataclass
 class IfStmt(Stmt):
     condition: Expr
     then_branch: Stmt
-    else_branch: Optional[Stmt]
+    else_branch: Optional[Stmt]  # 없으면 None
 
 
 @dataclass
 class ForStmt(Stmt):
-    initializer: Optional[Stmt]
-    condition: Optional[Expr]
-    increment: Optional[Expr]
+    initializer: Optional[Stmt]  # var i = 0; 또는 None
+    condition: Optional[Expr]  # i < 3 또는 None (무한루프)
+    increment: Optional[Expr]  # i = i + 1 또는 None
     body: Stmt
