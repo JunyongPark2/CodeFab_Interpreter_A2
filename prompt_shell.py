@@ -4,7 +4,6 @@
 #
 # 실행: python prompt_shell.py
 
-from interpreter.assembler import Assembler
 from interpreter.codefab import (
     CodeFabInterpreter,
     TokenizeError,
@@ -12,6 +11,8 @@ from interpreter.codefab import (
     CheckError,
     LangRuntimeError,
 )
+from interpreter.tokenizer import Tokenizer
+from interpreter.parser import Parser
 
 
 def run(interpreter: CodeFabInterpreter, source: str) -> None:
@@ -25,20 +26,20 @@ EXIT_COMMANDS = {"exit", "exit()", "quit", "quit()"}
 
 
 def _needs_more_input(source: str) -> bool:
-    """지금까지 모은 입력을 tokenize+parse만 해보고, "토큰이 부족해서(EOF)"
-    실패했으면 True — 아직 문장이 안 끝났으니 다음 줄을 더 받아야 한다는 뜻.
+    """지금까지 모은 입력이 "문법적으로 틀리지 않은, 아직 안 끝난" 상태인지 판단한다.
 
-    Assembler.assemble()은 tokenize+parse만 하고 check/execute는 하지 않으므로
-    부작용(변수 선언, print 등) 없이 안전하게 "미리 살펴볼" 수 있다.
-    진짜 문법 오류(예: 잘못된 토큰)는 at_eof=False이므로 더 기다리지 않고
-    바로 실행 단계로 넘겨서 에러를 보여준다.
+    실제로 tokenize+parse를 시도해보고(부작용 없음 — check/execute는 안 함),
+    ParseError.incomplete로 판단한다
     """
     try:
-        Assembler().assemble(source)
-    except ParseError as e:
-        return e.at_eof
+        tokens = Tokenizer(source).tokenize()
     except TokenizeError:
         return False
+
+    try:
+        Parser(tokens).parse()
+    except ParseError as e:
+        return e.incomplete
     return False
 
 

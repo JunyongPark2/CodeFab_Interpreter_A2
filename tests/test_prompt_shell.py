@@ -364,48 +364,75 @@ def test_repl_recovers_after_error_and_keeps_previous_state(interpreter, capsys)
 
 # ── 여러 줄 연속 입력 (Python 셸의 '...' 이어받기) ──────────────────────
 #
-# _needs_more_input()은 tokenize+parse만 해보고 "EOF 때문에 실패했는지"로
+# _needs_more_input()은 tokenize+parse만 해보고 ParseError.incomplete로
 # 판단하므로, 부작용(변수 선언/print 등) 없이 단위 테스트할 수 있다.
 
 @pytest.mark.parametrize("source", [
-    "for (var i = 0; i < 5; i = i + 1)",              # '{' 자체가 아직 없음
-    "for (var i = 0; i < 5; i = i + 1)\n{",            # '{'만 열리고 안 닫힘
-    "for (var i = 0; i < 5; i = i + 1)\n{\n  print i;",  # 안 닫힌 '{'
-    "if (true)",                                        # if의 then_branch가 없음
-    "if (true)\n{\n  print 1;\n}\nelse",                 # else의 문장이 없음
-    "print 1 +",                                         # 이항 연산자 우변이 없음
-    "var a =",                                           # 초기화식이 없음
+    "if (true",                                          # '(' 자체가 안 닫힘 (EOF)
+    "print (1 + 2",                                      # 그루핑 '('가 안 닫힘 (EOF)
+    "for (var i = 0; i < 5; i = i + 1) {",             # '{'는 헤더와 같은 줄, 안 닫힘
+    "for (var i = 0; i < 5; i = i + 1) {\n  print i;",   # 안 닫힌 '{'
+    "if (true) {",                                       # '{'만 열리고 안 닫힘
+    "if (true) {\n  print 1;\n} else {",                 # else 블록의 '{'가 안 닫힘
     "{",                                                 # 블록 시작만 됨
 ])
-def test_needs_more_input_true_for_incomplete_statements(source):
+def test_needs_more_input_true_when_closing_bracket_missing_at_eof(source):
+    assert _needs_more_input(source) is True
+
+
+@pytest.mark.parametrize("source", [
+    # ')' 자리에 EOF가 아니라 다른 토큰(';')이 이미 와버린 경우 — 몇 줄을
+    # 더 받아도 절대 고쳐지지 않는 진짜 에러이므로 기다리면 안 된다.
+    # (괄호 개수만 세면 "안 닫혔다"고 오판해서 영원히 기다리게 되는 버그였음)
+    "print (1 + 2;",
+    "if (true; { print 1; }",
+])
+def test_needs_more_input_false_when_wrong_token_appears_instead_of_closing_bracket(source):
+    assert _needs_more_input(source) is False
+
+
+@pytest.mark.parametrize("source", [
+    # 괄호는 이미 다 닫혔지만, if/for/else의 본문(statement) 자리에
+    # 아무것도 없는 경우 — Python이 "if x:" 뒤에 들여쓰기 블록을 기다리는
+    # 것과 대응되는, 우리 문법에서 유일하게 구두점 없이 Stmt가 그대로
+    # 요구되는 자리라서 기다려야 한다.
+    "for (var i = 0; i < 5; i = i + 1)",   # '{' 자체가 아직 없음
+    "if (true)",                            # then_branch가 없음
+    "if (true) {\n  print 1;\n}\nelse",     # else의 문장이 없음
+])
+def test_needs_more_input_true_for_missing_body_statement(source):
     assert _needs_more_input(source) is True
 
 
 @pytest.mark.parametrize("source", [
     "print 1 + 2;",
     "var a = 1;",
-    "for (var i = 0; i < 5; i = i + 1)\n{\n  print i;\n}",
-    "if (true)\n{\n  print 1;\n}\nelse\n{\n  print 2;\n}",
-    "print 1 +\n2;",     # 이어붙이면 완전한 문장이 된다.
+    "for (var i = 0; i < 5; i = i + 1) {\n  print i;\n}",
+    "if (true) {\n  print 1;\n} else {\n  print 2;\n}",
+    # 괄호/중괄호가 다 맞고 "본문 자리"도 아닌데 뭔가 빠졌으면
+    # (연산자 우변, 초기화식 등) Python 셸처럼 더 기다리지 않고
+    # 바로 에러를 보여준다.
+    "print 1 +",                            # 이항 연산자 우변이 없음 → 즉시 에러
+    "var a =",                              # 초기화식이 없음 → 즉시 에러
+    "print 1 +\n2;",                        # 이어붙이면 완전한 문장이 된다.
 ])
-def test_needs_more_input_false_for_complete_statements(source):
+def test_needs_more_input_false_when_already_complete_or_real_error(source):
     assert _needs_more_input(source) is False
 
 
 @pytest.mark.parametrize("source", [
-    "print * 5;",   # 표현식 자리에 잘못된 토큰 (EOF 때문이 아님)
+    "print * 5;",   # 표현식 자리에 잘못된 토큰
     "print @;",     # Tokenizer 레벨 에러
 ])
 def test_needs_more_input_false_for_real_errors(source):
-    # EOF 때문에 못 끝난 게 아니라 "진짜" 에러이므로, 더 기다리지 않고
+    # 더 받아도 고쳐지지 않는 "진짜" 에러이므로 기다리지 않고
     # 바로 실행 단계로 넘겨서 에러를 보여줘야 한다.
     assert _needs_more_input(source) is False
 
 
 def test_main_accumulates_multiline_for_loop_before_executing(monkeypatch, capsys):
     _feed_lines(monkeypatch, [
-        "for (var i = 0; i < 5; i = i + 1)",
-        "{",
+        "for (var i = 0; i < 5; i = i + 1) {",  # '{'는 헤더와 같은 줄에 둔다
         "  print i;",
         "}",
     ])
@@ -415,13 +442,35 @@ def test_main_accumulates_multiline_for_loop_before_executing(monkeypatch, capsy
 
 def test_main_accumulates_multiline_if_else_before_executing(monkeypatch, capsys):
     _feed_lines(monkeypatch, [
-        "if (true)",
-        "{",
+        "if (true) {",  # '{'는 헤더와 같은 줄에 둔다
         '  print "bbq";',
         "}",
     ])
     main()
     assert capsys.readouterr().out.strip() == "bbq"
+
+
+def test_main_waits_for_body_when_brace_is_on_its_own_line(monkeypatch, capsys):
+    # '{'가 for 헤더와 다른 줄에 있어도, 본문(statement) 자리가 비어있으면
+    # 여전히 기다렸다가 실행해야 한다.
+    _feed_lines(monkeypatch, [
+        "for (var i = 0; i < 3; i = i + 1)",
+        "{",
+        "  print i;",
+        "}",
+    ])
+    main()
+    assert capsys.readouterr().out.strip() == "0\n1\n2"
+
+
+def test_main_waits_for_bodyless_if_across_lines_without_braces(monkeypatch, capsys):
+    # '{' 없이 단문 body를 다음 줄에 쓰는 경우도 기다렸다가 실행해야 한다.
+    _feed_lines(monkeypatch, [
+        "if (true)",
+        "print 1;",
+    ])
+    main()
+    assert capsys.readouterr().out.strip() == "1"
 
 
 def test_main_shows_real_syntax_error_immediately_without_waiting(monkeypatch, capsys):
@@ -456,8 +505,7 @@ def test_main_exits_on_exit_command_without_running_later_lines(monkeypatch, cap
 def test_main_preserves_variables_across_multiline_and_single_line_input(monkeypatch, capsys):
     _feed_lines(monkeypatch, [
         "var total = 0;",
-        "for (var i = 0; i < 3; i = i + 1)",
-        "{",
+        "for (var i = 0; i < 3; i = i + 1) {",  # '{'는 헤더와 같은 줄에 둔다
         "  total = total + i;",
         "}",
         "print total;",
