@@ -48,9 +48,12 @@ class Environment:
 
 
 class Executor:
-    def __init__(self, stmts: list[Stmt]):
+    def __init__(self, stmts: list[Stmt], environment: Environment | None = None):
+        # environment를 넘기지 않으면 매번 새 전역 스코프로 시작한다 (기존 동작 그대로 유지).
+        # REPL처럼 "이전 실행에서 선언한 변수를 다음 실행에서도 써야 하는" 경우엔
+        # 같은 Environment 인스턴스를 계속 넘겨서 재사용한다 (CodeFabInterpreter 참고).
         self._stmts = stmts
-        self._global  = Environment()
+        self._global = environment if environment is not None else Environment()
         self._current = self._global
 
     def execute(self) -> None:
