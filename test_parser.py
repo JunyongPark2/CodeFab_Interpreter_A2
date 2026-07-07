@@ -864,3 +864,65 @@ def test_and_or_비교식과_함께():
     assert expr.right.operator.type == TokenType.GREATER
     assert expr.right.left == LiteralExpr(3.0)
     assert expr.right.right == LiteralExpr(0.0)
+
+
+# ─────────────────────────────────────────────────────────
+# equality vs comparison 우선순위
+# 가이드 BNF: equality → comparison (("==" | "!=") comparison)*
+#             comparison → term ((">" | ">=" | "<" | "<=") term)*
+# 즉, < > <= >= 는 == != 보다 우선순위가 높아야 한다.
+# ─────────────────────────────────────────────────────────
+
+def test_동등비교가_대소비교보다_우선순위_낮다():
+    # print 1 == 2 < 3;
+    #
+    # < 가 == 보다 우선순위가 높으므로 2 < 3 이 먼저 묶여야 한다.
+    #
+    # 기대 트리 (가이드 명세):  ==             ← 루트가 ==
+    #                           ├── LiteralExpr(1.0)
+    #                           └── BinaryExpr(<)   ← < 가 더 깊음 (먼저 계산)
+    #                               ├── LiteralExpr(2.0)
+    #                               └── LiteralExpr(3.0)
+    #
+    # 현재 구현의 실제 결과:     <              ← 루트가 < (잘못된 결과)
+    #                           ├── BinaryExpr(==)
+    #                           │   ├── LiteralExpr(1.0)
+    #                           │   └── LiteralExpr(2.0)
+    #                           └── LiteralExpr(3.0)
+    EQUAL_EQUAL = Token(TokenType.EQUAL_EQUAL, "==")
+    expr = parse_print(num(1), EQUAL_EQUAL, num(2), LESS, num(3))
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.EQUAL_EQUAL  # 루트는 ==
+
+    assert expr.left == LiteralExpr(1.0)
+
+    assert isinstance(expr.right, BinaryExpr)           # 오른쪽은 2 < 3
+    assert expr.right.operator.type == TokenType.LESS
+    assert expr.right.left == LiteralExpr(2.0)
+    assert expr.right.right == LiteralExpr(3.0)
+
+
+def test_불일치비교가_대소비교보다_우선순위_낮다():
+    # print 5 != 3 > 1;
+    #
+    # > 가 != 보다 우선순위가 높으므로 3 > 1 이 먼저 묶여야 한다.
+    #
+    # 기대 트리 (가이드 명세):  !=
+    #                           ├── LiteralExpr(5.0)
+    #                           └── BinaryExpr(>)
+    #                               ├── LiteralExpr(3.0)
+    #                               └── LiteralExpr(1.0)
+    BANG_EQUAL = Token(TokenType.BANG_EQUAL, "!=")
+    GREATER_OP = Token(TokenType.GREATER, ">")
+    expr = parse_print(num(5), BANG_EQUAL, num(3), GREATER_OP, num(1))
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.BANG_EQUAL   # 루트는 !=
+
+    assert expr.left == LiteralExpr(5.0)
+
+    assert isinstance(expr.right, BinaryExpr)           # 오른쪽은 3 > 1
+    assert expr.right.operator.type == TokenType.GREATER
+    assert expr.right.left == LiteralExpr(3.0)
+    assert expr.right.right == LiteralExpr(1.0)
