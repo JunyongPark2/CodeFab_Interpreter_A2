@@ -149,7 +149,7 @@ class Parser:
         return expr
 
     def _binary(
-        self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]
+            self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]
     ) -> Expr:
         """이항 연산자 공통 루프. 새 우선순위 레벨은 이 메서드를 호출하는 1줄로 추가됩니다."""
         expr = next_level()
