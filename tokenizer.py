@@ -55,7 +55,8 @@ class Tokenizer:
                 self._add_token(TokenType.LESS_EQUAL if self._match_char('=') else TokenType.LESS)
             case ' ' | '\r' | '\t': pass   # 공백 무시
             case '\n': self._line += 1
-            case '"': self._string()
+            case '"': self._string('"')
+            case "'": self._string("'")
             case _:
                 if c.isdigit():
                     self._number()
@@ -81,14 +82,14 @@ class Tokenizer:
         text = self._source[self._start:self._current]
         self._add_token(TokenType.NUMBER, float(text))
 
-    def _string(self) -> None:
-        while not self._is_at_end() and self._peek() != '"':
+    def _string(self, quote: str) -> None:
+        while not self._is_at_end() and self._peek() != quote:
             if self._peek() == '\n':
                 self._line += 1
             self._advance()
         if self._is_at_end():
             raise TokenizeError(self._line, "문자열이 닫히지 않았습니다.")
-        self._advance()  # 닫는 " 소비
+        self._advance()  # 닫는 따옴표 소비
         value = self._source[self._start + 1:self._current - 1]
         self._add_token(TokenType.STRING, value)
 

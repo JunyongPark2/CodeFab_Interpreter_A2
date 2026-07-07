@@ -19,13 +19,15 @@
 # Parser는 "계산"을 하지 않는다. 계산은 Executor의 몫.
 # Parser의 책임은 올바른 "모양의 트리"를 만드는 것이므로,
 # 여기서는 트리의 모양(구조)만 검사한다.
+import pytest
+
 from ast_nodes import (
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
-    VariableExpr, AssignExpr,
+    VariableExpr, AssignExpr, LogicalExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
     IfStmt, ForStmt,
 )
-from parser import Parser
+from parser import Parser, ParseError
 from tokens import Token, TokenType
 
 
@@ -58,6 +60,8 @@ RBRACE = Token(TokenType.RIGHT_BRACE, "}")
 IF_KW = Token(TokenType.IF, "if")
 ELSE_KW = Token(TokenType.ELSE, "else")
 FOR_KW = Token(TokenType.FOR, "for")
+AND_KW = Token(TokenType.AND, "and")
+OR_KW = Token(TokenType.OR, "or")
 
 
 def ident(name: str) -> Token:
@@ -584,3 +588,205 @@ def test_for_반복문():
     assert isinstance(print_stmt, PrintStmt)
     assert isinstance(print_stmt.expression, VariableExpr)
     assert print_stmt.expression.name.origin == "j"
+
+
+# ─────────────────────────────────────────────────────────
+# ParseError 테스트 — 잘못된 코드가 반드시 오류를 raise 해야 한다
+# ─────────────────────────────────────────────────────────
+
+def test_세미콜론_누락():
+    # print 1 + 2   ← ';' 없음
+    # → [N번째줄] ';' 가 필요합니다.
+    with pytest.raises(ParseError, match="';' 가 필요합니다"):
+        Parser([PRINT, num(1), PLUS, num(2), EOF]).parse()
+
+
+def test_print_문_세미콜론_누락():
+    # print "hello"   ← ';' 없음
+    with pytest.raises(ParseError, match="';' 가 필요합니다"):
+        Parser([PRINT, string("hello"), EOF]).parse()
+
+
+def test_var_선언_세미콜론_누락():
+    # var a = 10   ← ';' 없음
+    with pytest.raises(ParseError, match="';' 가 필요합니다"):
+        Parser([VAR, ident("a"), EQUAL, num(10), EOF]).parse()
+
+
+def test_닫는_괄호_누락():
+    # print (1 + 2;   ← ')' 없음
+    # → [N번째줄] ')' 가 필요합니다.
+    with pytest.raises(ParseError, match="'\\)' 가 필요합니다"):
+        Parser([PRINT, LPAREN, num(1), PLUS, num(2), SEMI, EOF]).parse()
+
+
+def test_if_조건식_닫는_괄호_누락():
+    # if (true { print "x"; }   ← ')' 없음
+    with pytest.raises(ParseError, match="'\\)' 가 필요합니다"):
+        Parser([
+            IF_KW, LPAREN, TRUE,
+            LBRACE, PRINT, string("x"), SEMI, RBRACE,
+            EOF,
+        ]).parse()
+
+
+def test_잘못된_할당_대상():
+    # a + b = 3;   ← 대입 대상이 VariableExpr이 아님
+    # → [N번째줄] 대입 대상이 올바르지 않습니다.
+    with pytest.raises(ParseError, match="대입 대상이 올바르지 않습니다"):
+        Parser([
+            ident("a"), PLUS, ident("b"), EQUAL, num(3), SEMI, EOF,
+        ]).parse()
+
+
+def test_표현식_자리에_잘못된_토큰():
+    # print * 5;   ← '*' 는 표현식 시작이 될 수 없음
+    # → [N번째줄] 표현식이 필요합니다.
+    with pytest.raises(ParseError, match="표현식이 필요합니다"):
+        Parser([PRINT, STAR, num(5), SEMI, EOF]).parse()
+
+
+def test_표현식_없이_세미콜론():
+    # print ;   ← 표현식 자리에 ';'
+    with pytest.raises(ParseError, match="표현식이 필요합니다"):
+        Parser([PRINT, SEMI, EOF]).parse()
+
+
+def test_블록_닫는_중괄호_누락():
+    # { var a = 1;   ← '}' 없음
+    # → [N번째줄] '}' 가 필요합니다.
+    with pytest.raises(ParseError, match="'\\}' 가 필요합니다"):
+        Parser([LBRACE, VAR, ident("a"), EQUAL, num(1), SEMI, EOF]).parse()
+
+
+def test_var_선언_이름_누락():
+    # var = 10;   ← 변수 이름이 없음
+    # → [N번째줄] 변수 이름이 필요합니다.
+    with pytest.raises(ParseError, match="변수 이름이 필요합니다"):
+        Parser([VAR, EQUAL, num(10), SEMI, EOF]).parse()
+
+
+# ─────────────────────────────────────────────────────────
+# 논리 연산 — and / or
+# ─────────────────────────────────────────────────────────
+
+def test_and_기본():
+    # print true and false;
+    #
+    # 기대 트리:  LogicalExpr(and)
+    #            ├── LiteralExpr(True)
+    #            └── LiteralExpr(False)
+    expr = parse_print(TRUE, AND_KW, FALSE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.AND
+    assert expr.left == LiteralExpr(True)
+    assert expr.right == LiteralExpr(False)
+
+
+def test_or_기본():
+    # print false or true;
+    #
+    # 기대 트리:  LogicalExpr(or)
+    #            ├── LiteralExpr(False)
+    #            └── LiteralExpr(True)
+    expr = parse_print(FALSE, OR_KW, TRUE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.OR
+    assert expr.left == LiteralExpr(False)
+    assert expr.right == LiteralExpr(True)
+
+
+def test_and가_or보다_먼저():
+    # print true or false and false;
+    #
+    # and 가 or 보다 우선순위가 높으므로 false and false 가 먼저 묶여야 한다.
+    #
+    # 기대 트리:  LogicalExpr(or)          ← 루트가 or
+    #            ├── LiteralExpr(True)
+    #            └── LogicalExpr(and)      ← and 가 더 깊음
+    #                ├── LiteralExpr(False)
+    #                └── LiteralExpr(False)
+    expr = parse_print(TRUE, OR_KW, FALSE, AND_KW, FALSE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.OR   # 루트는 or
+    assert expr.left == LiteralExpr(True)
+
+    assert isinstance(expr.right, LogicalExpr)  # 오른쪽은 false and false
+    assert expr.right.operator.type == TokenType.AND
+    assert expr.right.left == LiteralExpr(False)
+    assert expr.right.right == LiteralExpr(False)
+
+
+def test_and_연속_왼쪽부터_묶인다():
+    # print true and false and true;
+    #
+    # 왼쪽 결합: (true and false) and true
+    #
+    # 기대 트리:  LogicalExpr(and)
+    #            ├── LogicalExpr(and)
+    #            │   ├── LiteralExpr(True)
+    #            │   └── LiteralExpr(False)
+    #            └── LiteralExpr(True)
+    expr = parse_print(TRUE, AND_KW, FALSE, AND_KW, TRUE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.AND
+    assert expr.right == LiteralExpr(True)
+
+    assert isinstance(expr.left, LogicalExpr)
+    assert expr.left.operator.type == TokenType.AND
+    assert expr.left.left == LiteralExpr(True)
+    assert expr.left.right == LiteralExpr(False)
+
+
+def test_or_연속_왼쪽부터_묶인다():
+    # print false or true or false;
+    #
+    # 왼쪽 결합: (false or true) or false
+    #
+    # 기대 트리:  LogicalExpr(or)
+    #            ├── LogicalExpr(or)
+    #            │   ├── LiteralExpr(False)
+    #            │   └── LiteralExpr(True)
+    #            └── LiteralExpr(False)
+    expr = parse_print(FALSE, OR_KW, TRUE, OR_KW, FALSE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.OR
+    assert expr.right == LiteralExpr(False)
+
+    assert isinstance(expr.left, LogicalExpr)
+    assert expr.left.operator.type == TokenType.OR
+    assert expr.left.left == LiteralExpr(False)
+    assert expr.left.right == LiteralExpr(True)
+
+
+def test_and_or_비교식과_함께():
+    # print 1 < 2 and 3 > 0;
+    #
+    # 비교식이 and 의 피연산자가 된다.
+    #
+    # 기대 트리:  LogicalExpr(and)
+    #            ├── BinaryExpr(<)
+    #            │   ├── LiteralExpr(1.0)
+    #            │   └── LiteralExpr(2.0)
+    #            └── BinaryExpr(>)
+    #                ├── LiteralExpr(3.0)
+    #                └── LiteralExpr(0.0)
+    expr = parse_print(num(1), LESS, num(2), AND_KW, num(3), GREATER, num(0))
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.AND
+
+    assert isinstance(expr.left, BinaryExpr)
+    assert expr.left.operator.type == TokenType.LESS
+    assert expr.left.left == LiteralExpr(1.0)
+    assert expr.left.right == LiteralExpr(2.0)
+
+    assert isinstance(expr.right, BinaryExpr)
+    assert expr.right.operator.type == TokenType.GREATER
+    assert expr.right.left == LiteralExpr(3.0)
+    assert expr.right.right == LiteralExpr(0.0)
