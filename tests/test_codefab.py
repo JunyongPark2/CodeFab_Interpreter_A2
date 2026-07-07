@@ -159,10 +159,9 @@ def test_type_mismatch_raises_runtime_error(interp):
         interp.run('print 1 - "a";')
 
 
-# ── 재사용: 인터프리터 인스턴스를 여러 번 run() 해도 격리 ────────────
+# ── 상태 공유: 여러 번 run() 해도 전역 환경 유지 ────────────────────
 
-def test_multiple_runs_are_independent(capsys):
-    interp = CodeFabInterpreter()
-    interp.run("var x = 1; print x;")
-    interp.run("var x = 2; print x;")
-    assert capsys.readouterr().out == "1\n2\n"
+def test_runs_share_global_env(interp, capsys):
+    interp.run("var x = 10;")
+    interp.run("print x;")
+    assert capsys.readouterr().out == "10\n"
