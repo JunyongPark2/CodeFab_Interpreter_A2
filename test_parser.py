@@ -19,13 +19,15 @@
 # Parser는 "계산"을 하지 않는다. 계산은 Executor의 몫.
 # Parser의 책임은 올바른 "모양의 트리"를 만드는 것이므로,
 # 여기서는 트리의 모양(구조)만 검사한다.
+import pytest
+
 from ast_nodes import (
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
     VariableExpr, AssignExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
     IfStmt, ForStmt,
 )
-from parser import Parser
+from parser import Parser, ParseError
 from tokens import Token, TokenType
 
 
@@ -584,3 +586,79 @@ def test_for_반복문():
     assert isinstance(print_stmt, PrintStmt)
     assert isinstance(print_stmt.expression, VariableExpr)
     assert print_stmt.expression.name.origin == "j"
+
+
+# ─────────────────────────────────────────────────────────
+# ParseError 테스트 — 잘못된 코드가 반드시 오류를 raise 해야 한다
+# ─────────────────────────────────────────────────────────
+
+def test_세미콜론_누락():
+    # print 1 + 2   ← ';' 없음
+    # → [N번째줄] ';' 가 필요합니다.
+    with pytest.raises(ParseError, match="';' 가 필요합니다"):
+        Parser([PRINT, num(1), PLUS, num(2), EOF]).parse()
+
+
+def test_print_문_세미콜론_누락():
+    # print "hello"   ← ';' 없음
+    with pytest.raises(ParseError, match="';' 가 필요합니다"):
+        Parser([PRINT, string("hello"), EOF]).parse()
+
+
+def test_var_선언_세미콜론_누락():
+    # var a = 10   ← ';' 없음
+    with pytest.raises(ParseError, match="';' 가 필요합니다"):
+        Parser([VAR, ident("a"), EQUAL, num(10), EOF]).parse()
+
+
+def test_닫는_괄호_누락():
+    # print (1 + 2;   ← ')' 없음
+    # → [N번째줄] ')' 가 필요합니다.
+    with pytest.raises(ParseError, match="'\\)' 가 필요합니다"):
+        Parser([PRINT, LPAREN, num(1), PLUS, num(2), SEMI, EOF]).parse()
+
+
+def test_if_조건식_닫는_괄호_누락():
+    # if (true { print "x"; }   ← ')' 없음
+    with pytest.raises(ParseError, match="'\\)' 가 필요합니다"):
+        Parser([
+            IF_KW, LPAREN, TRUE,
+            LBRACE, PRINT, string("x"), SEMI, RBRACE,
+            EOF,
+        ]).parse()
+
+
+def test_잘못된_할당_대상():
+    # a + b = 3;   ← 대입 대상이 VariableExpr이 아님
+    # → [N번째줄] 대입 대상이 올바르지 않습니다.
+    with pytest.raises(ParseError, match="대입 대상이 올바르지 않습니다"):
+        Parser([
+            ident("a"), PLUS, ident("b"), EQUAL, num(3), SEMI, EOF,
+        ]).parse()
+
+
+def test_표현식_자리에_잘못된_토큰():
+    # print * 5;   ← '*' 는 표현식 시작이 될 수 없음
+    # → [N번째줄] 표현식이 필요합니다.
+    with pytest.raises(ParseError, match="표현식이 필요합니다"):
+        Parser([PRINT, STAR, num(5), SEMI, EOF]).parse()
+
+
+def test_표현식_없이_세미콜론():
+    # print ;   ← 표현식 자리에 ';'
+    with pytest.raises(ParseError, match="표현식이 필요합니다"):
+        Parser([PRINT, SEMI, EOF]).parse()
+
+
+def test_블록_닫는_중괄호_누락():
+    # { var a = 1;   ← '}' 없음
+    # → [N번째줄] '}' 가 필요합니다.
+    with pytest.raises(ParseError, match="'\\}' 가 필요합니다"):
+        Parser([LBRACE, VAR, ident("a"), EQUAL, num(1), SEMI, EOF]).parse()
+
+
+def test_var_선언_이름_누락():
+    # var = 10;   ← 변수 이름이 없음
+    # → [N번째줄] 변수 이름이 필요합니다.
+    with pytest.raises(ParseError, match="변수 이름이 필요합니다"):
+        Parser([VAR, EQUAL, num(10), SEMI, EOF]).parse()
