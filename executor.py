@@ -27,23 +27,23 @@ class Environment:
         """현재 스코프에 변수 선언 (중복 허용 — Checker가 사전 차단)"""
         self._values[name] = value
 
-    def get(self, name: str) -> Any:
+    def get(self, name: str, line: int = 0) -> Any:
         """현재 → 상위 스코프 순으로 변수 탐색"""
         if name in self._values:
             return self._values[name]
         if self.parent is not None:
-            return self.parent.get(name)
-        raise LangRuntimeError(0, f"미정의된 변수 '{name}'")
+            return self.parent.get(name, line)
+        raise LangRuntimeError(line, f"미정의된 변수 '{name}'")
 
-    def assign(self, name: str, value: Any) -> None:
+    def assign(self, name: str, value: Any, line: int = 0) -> None:
         """이미 선언된 변수 재할당 (선언된 스코프에 직접 씀)"""
         if name in self._values:
             self._values[name] = value
             return
         if self.parent is not None:
-            self.parent.assign(name, value)
+            self.parent.assign(name, value, line)
             return
-        raise LangRuntimeError(0, f"미정의된 변수 '{name}'")
+        raise LangRuntimeError(line, f"미정의된 변수 '{name}'")
 # ── 분리 가능 영역 끝 ──────────────────────────────────────────────────
 
 
@@ -102,11 +102,11 @@ class Executor:
             return expr.value
 
         if isinstance(expr, VariableExpr):
-            return self._current.get(expr.name.origin)
+            return self._current.get(expr.name.origin, expr.name.line)
 
         if isinstance(expr, AssignExpr):
             val = self._eval(expr.value)
-            self._current.assign(expr.name.origin, val)
+            self._current.assign(expr.name.origin, val, expr.name.line)
             return val
 
         if isinstance(expr, GroupingExpr):

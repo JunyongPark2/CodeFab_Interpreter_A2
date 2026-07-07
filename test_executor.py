@@ -1,33 +1,14 @@
 # test_executor.py
 """
 Executor에 대한 pytest 테스트.
-
-executor.py는 ast_nodes.py, environment.py, tokens.py 모듈에 의존하지만
-현재 저장소에는 해당 모듈들이 존재하지 않는다. 아래 테스트는 executor.py의
-동작(및 그것이 기대하는 AST/Token/Environment 인터페이스)을 명세하는
-테스트이며, 세 모듈이 구현되어야 실행(수집)될 수 있다.
-
-기대 인터페이스 요약:
-- tokens.TokenType: MINUS, BANG, PLUS, STAR, SLASH, GREATER, LESS, OR, AND
-- tokens.Token(type, origin, value=None, line=0, col=0) - .type / .origin / .value / .line / .col 속성 보유
-- ast_nodes: PrintStmt(expression), VarDeclStmt(name, initializer),
-  ExpressionStmt(expression), BlockStmt(statements),
-  IfStmt(condition, then_branch, else_branch),
-  ForStmt(initializer, condition, body, increment),
-  LiteralExpr(value), VariableExpr(name), AssignExpr(name, value),
-  GroupingExpr(expression), UnaryExpr(operator, right),
-  BinaryExpr(left, operator, right), LogicalExpr(left, operator, right)
-- environment.Environment(parent=None): define/get/assign
 """
 import pytest
-'''
-from from ast_nodes import (
+
+from ast_nodes import (
     PrintStmt, VarDeclStmt, ExpressionStmt, BlockStmt, IfStmt, ForStmt,
     LiteralExpr, VariableExpr, AssignExpr, GroupingExpr,
     UnaryExpr, BinaryExpr, LogicalExpr,
 )
-'''
-from temp_implement import *
 from tokens import Token, TokenType
 from executor import Executor, LangRuntimeError
 
@@ -105,18 +86,6 @@ def test_assign_expression_evaluates_to_assigned_value(capsys):
         PrintStmt(expression=AssignExpr(name=name_tok("x"), value=LiteralExpr(value=9.0))),
     ])
     assert capsys.readouterr().out == "9\n"
-
-
-def test_assign_to_undefined_variable_raises():
-    with pytest.raises(Exception):
-        run([
-            ExpressionStmt(expression=AssignExpr(name=name_tok("undefined"), value=LiteralExpr(value=1.0))),
-        ])
-
-
-def test_read_undefined_variable_raises():
-    with pytest.raises(Exception):
-        run([PrintStmt(expression=VariableExpr(name=name_tok("undefined")))])
 
 
 # ── BlockStmt (스코프) ───────────────────────────────────────────
@@ -270,13 +239,6 @@ def test_arithmetic_non_number_operand_raises(op):
         ))])
 
 
-def test_division_by_zero_raises():
-    with pytest.raises(LangRuntimeError, match="0으로 나눈"):
-        run([ExpressionStmt(expression=BinaryExpr(
-            left=LiteralExpr(value=1.0), operator=tok(TokenType.SLASH, line=3), right=LiteralExpr(value=0.0),
-        ))])
-
-
 def test_greater_and_less_comparisons(capsys):
     run([
         PrintStmt(expression=BinaryExpr(
@@ -353,3 +315,43 @@ def test_logical_and_evaluates_right_when_left_truthy(capsys):
 def test_lang_runtime_error_message_includes_line():
     err = LangRuntimeError(12, "문제 발생")
     assert str(err) == "[12번째줄] 문제 발생"
+
+
+# ── PDF p.86 요구사항: 피연산자 타입 오류 시 어떤 문제인지 명시하여 보고 ──────
+def test_bool_operand_raises():
+    line = 1
+    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."):
+        run([ExpressionStmt(expression=BinaryExpr(
+            left=LiteralExpr(value=True), operator=tok(TokenType.STAR, line=line), right=LiteralExpr(value=False),
+        ))])
+
+
+def test_number_minus_string_raises():
+    line = 1
+    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."):
+        run([ExpressionStmt(expression=BinaryExpr(
+            left=LiteralExpr(value=3.0), operator=tok(TokenType.MINUS, line=line), right=LiteralExpr(value="hello"),
+        ))])
+
+# ── PDF p.87 요구사항: 정의되지 않은 변수 참조 ──────
+def test_assign_to_undefined_variable_raises():
+    line = 1
+    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"):
+        run([
+            ExpressionStmt(expression=AssignExpr(name=name_tok("undefined", line=line), value=LiteralExpr(value=1.0))),
+        ])
+
+
+def test_read_undefined_variable_raises():
+    line = 1
+    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"):
+        run([PrintStmt(expression=VariableExpr(name=name_tok("undefined", line=line)))])
+
+
+# ── PDF p.88 요구사항: 0으로 나누는 경우 런타임 오류 ──────
+def test_division_by_zero_raises():
+    line = 1
+    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 0으로 나눈 오류"):
+        run([ExpressionStmt(expression=BinaryExpr(
+            left=LiteralExpr(value=3.0), operator=tok(TokenType.SLASH, line=line), right=LiteralExpr(value=0.0),
+        ))])
