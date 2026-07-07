@@ -187,7 +187,9 @@ class Parser:
             expr = LogicalExpr(expr, op, right)
         return expr
 
-    def _binary(self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]) -> Expr:
+    def _binary(
+        self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]
+    ) -> Expr:
         """이항 연산자 공통 루프. 새 우선순위 레벨은 이 메서드를 호출하는 1줄로 추가됩니다."""
         expr = next_level()
         while self._match(*ops):
@@ -197,11 +199,18 @@ class Parser:
         return expr
 
     def _equality(self) -> Expr:
-        return self._binary((TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL), self._comparison)
+        return self._binary(
+            (TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL), self._comparison
+        )
 
     def _comparison(self) -> Expr:
         return self._binary(
-            (TokenType.LESS, TokenType.GREATER, TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL),
+            (
+                TokenType.LESS,
+                TokenType.GREATER,
+                TokenType.LESS_EQUAL,
+                TokenType.GREATER_EQUAL,
+            ),
             self._term,
         )
 
@@ -255,7 +264,10 @@ class Parser:
         # "더 입력하면 닫힐 수 있다"는 뜻이므로 incomplete=True.
         # (SEMICOLON 등 다른 토큰을 기대하다 EOF를 만난 경우는 해당 없음 —
         # 세미콜론은 다음 줄에 따로 이어붙일 거라고 보기 어렵기 때문.)
-        incomplete = self._is_at_end() and t in (TokenType.RIGHT_PAREN, TokenType.RIGHT_BRACE)
+        incomplete = self._is_at_end() and t in (
+            TokenType.RIGHT_PAREN,
+            TokenType.RIGHT_BRACE,
+        )
         raise ParseError(self._peek().line, msg, incomplete=incomplete)
 
     def _peek(self) -> Token:

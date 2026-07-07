@@ -14,6 +14,7 @@ def interp():
 
 # ── 정상 출력 ──────────────────────────────────────────────────────
 
+
 def test_print_integer(interp, capsys):
     interp.run("print 42;")
     assert capsys.readouterr().out == "42\n"
@@ -41,6 +42,7 @@ def test_print_bool_false(interp, capsys):
 
 # ── 변수 선언 / 재할당 ────────────────────────────────────────────
 
+
 def test_var_decl_and_print(interp, capsys):
     interp.run("var x = 10; print x;")
     assert capsys.readouterr().out == "10\n"
@@ -58,6 +60,7 @@ def test_var_without_initializer_is_nil(interp, capsys):
 
 # ── 산술 ──────────────────────────────────────────────────────────
 
+
 def test_arithmetic_expression(interp, capsys):
     interp.run("print 2 + 3 * 4;")
     assert capsys.readouterr().out == "14\n"
@@ -69,6 +72,7 @@ def test_string_concatenation(interp, capsys):
 
 
 # ── 블록 / 스코프 ─────────────────────────────────────────────────
+
 
 def test_block_scope_shadowing(interp, capsys):
     interp.run('var x = "outer"; { var x = "inner"; print x; } print x;')
@@ -82,6 +86,7 @@ def test_block_mutates_outer_variable(interp, capsys):
 
 # ── if / else ────────────────────────────────────────────────────
 
+
 def test_if_true_branch(interp, capsys):
     interp.run('if (true) print "yes";')
     assert capsys.readouterr().out == "yes\n"
@@ -94,6 +99,7 @@ def test_if_false_runs_else(interp, capsys):
 
 # ── for 루프 ──────────────────────────────────────────────────────
 
+
 def test_for_loop(interp, capsys):
     interp.run("for (var i = 0; i < 3; i = i + 1) print i;")
     assert capsys.readouterr().out == "0\n1\n2\n"
@@ -101,12 +107,14 @@ def test_for_loop(interp, capsys):
 
 # ── 주석 ──────────────────────────────────────────────────────────
 
+
 def test_line_comment_is_ignored(interp, capsys):
     interp.run("// this is a comment\nprint 1;")
     assert capsys.readouterr().out == "1\n"
 
 
 # ── TokenizeError ─────────────────────────────────────────────────
+
 
 def test_unknown_character_raises_tokenize_error(interp):
     with pytest.raises(TokenizeError):
@@ -120,6 +128,7 @@ def test_unterminated_string_raises_tokenize_error(interp):
 
 # ── ParseError ────────────────────────────────────────────────────
 
+
 def test_missing_semicolon_raises_parse_error(interp):
     with pytest.raises(ParseError):
         interp.run("print 1")
@@ -132,6 +141,7 @@ def test_unmatched_paren_raises_parse_error(interp):
 
 # ── CheckError ────────────────────────────────────────────────────
 
+
 def test_duplicate_var_in_same_scope_raises_check_error(interp):
     with pytest.raises(CheckError):
         interp.run("{ var a = 1; var a = 2; }")
@@ -143,6 +153,7 @@ def test_self_reference_in_initializer_raises_check_error(interp):
 
 
 # ── LangRuntimeError ──────────────────────────────────────────────
+
 
 def test_undefined_variable_raises_runtime_error(interp):
     with pytest.raises(LangRuntimeError):
@@ -160,6 +171,7 @@ def test_type_mismatch_raises_runtime_error(interp):
 
 
 # ── 상태 공유: 여러 번 run() 해도 전역 환경 유지 ────────────────────
+
 
 def test_runs_share_global_env(interp, capsys):
     interp.run("var x = 10;")
@@ -199,18 +211,25 @@ def test_for_loop_var_does_not_leak_into_global_scope(interp, capsys):
 
 # ── 이중 for 루프 ──────────────────────────────────────────────────
 
+
 def test_nested_for_loop(interp, capsys):
-    interp.run("for (var i = 0; i < 2; i = i + 1) { for (var j = 0; j < 2; j = j + 1) { print i + j; } }")
+    interp.run(
+        "for (var i = 0; i < 2; i = i + 1) { for (var j = 0; j < 2; j = j + 1) { print i + j; } }"
+    )
     assert capsys.readouterr().out == "0\n1\n1\n2\n"
 
 
 def test_nested_for_loop_vars_do_not_leak_into_global_scope(interp, capsys):
-    interp.run("for (var i = 0; i < 2; i = i + 1) { for (var j = 0; j < 2; j = j + 1) { print i + j; } }")
+    interp.run(
+        "for (var i = 0; i < 2; i = i + 1) { for (var j = 0; j < 2; j = j + 1) { print i + j; } }"
+    )
     capsys.readouterr()
     interp.run("var i = 10; var j = 20; print i + j;")
     assert capsys.readouterr().out == "30\n"
 
 
 def test_nested_for_loop_same_var_shadowing(interp, capsys):
-    interp.run("for (var i = 0; i < 2; i = i + 1) { for (var i = 10; i < 12; i = i + 1) { print i; } }")
+    interp.run(
+        "for (var i = 0; i < 2; i = i + 1) { for (var i = 10; i < 12; i = i + 1) { print i; } }"
+    )
     assert capsys.readouterr().out == "10\n11\n10\n11\n"
