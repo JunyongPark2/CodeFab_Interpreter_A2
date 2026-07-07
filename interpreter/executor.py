@@ -1,13 +1,23 @@
-# executor.py
 from __future__ import annotations
 
 from typing import Any
 
 from .ast_nodes import (
-    Expr, Stmt,
-    LiteralExpr, VariableExpr, AssignExpr, BinaryExpr, UnaryExpr,
-    GroupingExpr, LogicalExpr,
-    ExpressionStmt, PrintStmt, VarDeclStmt, BlockStmt, IfStmt, ForStmt,
+    AssignExpr,
+    BinaryExpr,
+    BlockStmt,
+    Expr,
+    ExpressionStmt,
+    ForStmt,
+    GroupingExpr,
+    IfStmt,
+    LiteralExpr,
+    LogicalExpr,
+    PrintStmt,
+    Stmt,
+    UnaryExpr,
+    VarDeclStmt,
+    VariableExpr,
 )
 from .tokens import TokenType
 
@@ -21,7 +31,7 @@ class LangRuntimeError(Exception):
 class Environment:
     def __init__(self, parent: "Environment | None" = None):
         self._values: dict[str, Any] = {}
-        self.parent = parent               # 상위 스코프 (None 이면 Global)
+        self.parent = parent  # 상위 스코프 (None 이면 Global)
 
     def define(self, name: str, value: Any) -> None:
         """현재 스코프에 변수 선언 (중복 허용 — Checker가 사전 차단)"""
@@ -44,6 +54,8 @@ class Environment:
             self.parent.assign(name, value, line)
             return
         raise LangRuntimeError(line, f"미정의된 변수 '{name}'")
+
+
 # ── 분리 가능 영역 끝 ──────────────────────────────────────────────────
 
 
@@ -97,7 +109,7 @@ class Executor:
             for stmt in stmts:
                 self._exec_stmt(stmt)
         finally:
-            self._current = prev   # 블록 종료 시 반드시 이전 환경 복귀
+            self._current = prev  # 블록 종료 시 반드시 이전 환경 복귀
 
     # ── Expr 평가 ─────────────────────────────────────────
     def _eval(self, expr: Expr):
@@ -125,34 +137,42 @@ class Executor:
                 return not self._is_truthy(right)
 
         if isinstance(expr, BinaryExpr):
-            left  = self._eval(expr.left)
+            left = self._eval(expr.left)
             right = self._eval(expr.right)
-            op    = expr.operator.type
-            line  = expr.operator.line
+            op = expr.operator.type
+            line = expr.operator.line
 
             if op == TokenType.PLUS:
                 if isinstance(left, float) and isinstance(right, float):
                     return left + right
                 if isinstance(left, str) and isinstance(right, str):
                     return left + right
-                raise LangRuntimeError(line, "피연산자는 반드시 숫자 또는 문자열이어야 합니다.")
+                raise LangRuntimeError(
+                    line, "피연산자는 반드시 숫자 또는 문자열이어야 합니다."
+                )
             if op == TokenType.MINUS:
-                self._check_numbers(expr.operator, left, right); return left - right
+                self._check_numbers(expr.operator, left, right)
+                return left - right
             if op == TokenType.STAR:
-                self._check_numbers(expr.operator, left, right); return left * right
+                self._check_numbers(expr.operator, left, right)
+                return left * right
             if op == TokenType.SLASH:
                 self._check_numbers(expr.operator, left, right)
                 if right == 0:
                     raise LangRuntimeError(line, "0으로 나눈 오류")
                 return left / right
             if op == TokenType.GREATER:
-                self._check_numbers(expr.operator, left, right); return left > right
+                self._check_numbers(expr.operator, left, right)
+                return left > right
             if op == TokenType.LESS:
-                self._check_numbers(expr.operator, left, right); return left < right
+                self._check_numbers(expr.operator, left, right)
+                return left < right
             if op == TokenType.GREATER_EQUAL:
-                self._check_numbers(expr.operator, left, right); return left >= right
+                self._check_numbers(expr.operator, left, right)
+                return left >= right
             if op == TokenType.LESS_EQUAL:
-                self._check_numbers(expr.operator, left, right); return left <= right
+                self._check_numbers(expr.operator, left, right)
+                return left <= right
             if op == TokenType.EQUAL_EQUAL:
                 return self._is_equal(left, right)
             if op == TokenType.BANG_EQUAL:
@@ -169,9 +189,11 @@ class Executor:
 
     # ── 헬퍼 ─────────────────────────────────────────────
     def _is_truthy(self, val) -> bool:
-        if val is None:        return False
-        if isinstance(val, bool): return val
-        return True   # 숫자, 문자열은 모두 truthy
+        if val is None:
+            return False
+        if isinstance(val, bool):
+            return val
+        return True  # 숫자, 문자열은 모두 truthy
 
     def _check_number(self, op, val) -> None:
         if not isinstance(val, float):
@@ -187,10 +209,11 @@ class Executor:
         return left == right
 
     def _stringify(self, val) -> str:
-        if val is None:   return "nil"
-        if isinstance(val, bool): return "true" if val else "false"
+        if val is None:
+            return "nil"
+        if isinstance(val, bool):
+            return "true" if val else "false"
         if isinstance(val, float):
             s = str(val)
             return s[:-2] if s.endswith(".0") else s
         return str(val)
-    

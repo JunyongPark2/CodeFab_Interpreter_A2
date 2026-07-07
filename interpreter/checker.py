@@ -38,10 +38,16 @@ class Checker:
         self._expr_handlers = {
             VariableExpr: self._check_variable,
             AssignExpr: lambda expr: self._check_expr(expr.value),
-            BinaryExpr: lambda expr: (self._check_expr(expr.left), self._check_expr(expr.right)),
+            BinaryExpr: lambda expr: (
+                self._check_expr(expr.left),
+                self._check_expr(expr.right),
+            ),
             UnaryExpr: lambda expr: self._check_expr(expr.right),
             GroupingExpr: lambda expr: self._check_expr(expr.expression),
-            LogicalExpr: lambda expr: (self._check_expr(expr.left), self._check_expr(expr.right)),
+            LogicalExpr: lambda expr: (
+                self._check_expr(expr.left),
+                self._check_expr(expr.right),
+            ),
         }
 
     def check(self) -> None:
@@ -66,7 +72,9 @@ class Checker:
 
     def _declare(self, line: int, name: str, scope: dict[str, bool]) -> None:
         if name in scope:
-            raise CheckError(line, f"변수 '{name}'이(가) 이미 이 스코프에 선언되어 있습니다.")
+            raise CheckError(
+                line, f"변수 '{name}'이(가) 이미 이 스코프에 선언되어 있습니다."
+            )
         scope[name] = False  # 초기화 미완
 
     def _check_block(self, stmt: BlockStmt) -> None:
@@ -102,7 +110,9 @@ class Checker:
         scope = self._current_scope
         name = expr.name.origin
         if scope is not None and scope.get(name) is False:
-            raise CheckError(expr.name.line, "자신의 초기화식에서 지역변수를 읽을 수 없습니다.")
+            raise CheckError(
+                expr.name.line, "자신의 초기화식에서 지역변수를 읽을 수 없습니다."
+            )
 
     # ── 스코프 관리 ─────────────────────────────────────────
     @property
