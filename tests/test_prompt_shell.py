@@ -7,7 +7,13 @@
 
 import pytest
 
-from interpreter.codefab import CodeFabInterpreter
+from interpreter.codefab import (
+    CodeFabInterpreter,
+    TokenizeError,
+    ParseError,
+    CheckError,
+    LangRuntimeError,
+)
 from prompt_shell import run
 
 
@@ -177,7 +183,6 @@ def test_full_variable_and_scope_script(interpreter, capsys):
         run(interpreter, source)
         assert capsys.readouterr().out.strip() == expected
 
-
 # ── if / else / for ──────────────────────────────────────────────────
 #
 # 여기서도 여러 줄에 걸친 구문(중첩 if/else, for의 블록 바디)은 "\n"으로
@@ -226,3 +231,114 @@ def test_full_if_else_for_script(interpreter, capsys):
     for source, expected in script:
         run(interpreter, source)
         assert capsys.readouterr().out.strip() == expected
+
+# ── 에러 검출 (Tokenizer / Parser / Checker / Executor) ───────────────
+#
+# 각 케이스마다 두 가지를 검증한다.
+#   1) CodeFabInterpreter.run(source)를 직접 호출하면 "정확한 예외 타입"이
+#      그대로 raise되는지 (prompt_shell.run()은 예외를 잡아서 출력만 하므로,
+#      타입 검증은 예외를 그대로 던지는 interpreter.run()으로 확인한다.)
+#   2) 실제 REPL 진입점인 prompt_shell.run()으로 실행하면 예외가 밖으로
+#      새지 않고, 대신 stdout에 정확한 에러 메시지가 출력되는지.
+
+ERROR_CASES = [
+    # (설명, source, 예외 타입, 기대 메시지)
+    (
+        "세미콜론 누락",
+        "print 1 + 2",
+        ParseError,
+        "[1번째줄] ';' 가 필요합니다.",
+    ),
+    (
+        "닫는 괄호 누락",
+        "print (1 + 2;",
+        ParseError,
+        "[1번째줄] ')' 가 필요합니다.",
+    ),
+    (
+        "잘못된 할당 대상",
+        "a + b = 3;",
+        ParseError,
+        "[1번째줄] 대입 대상이 올바르지 않습니다.",
+    ),
+    (
+        "표현식 자리에 잘못된 토큰",
+        "print * 5;",
+        ParseError,
+        "[1번째줄] 표현식이 필요합니다.",
+    ),
+    (
+        "초기화식에서 자기 참조",
+        "{ var a = a; }",
+        CheckError,
+        "[1번째줄] 자신의 초기화식에서 지역변수를 읽을 수 없습니다.",
+    ),
+    (
+        "같은 스코프 중복 선언",
+        '{ var a = "hi"; var a = 3; }',
+        CheckError,
+        "[1번째줄] 변수 'a'이(가) 이미 이 스코프에 선언되어 있습니다.",
+    ),
+    (
+        "미정의 변수 참조",
+        "print notDefined;",
+        LangRuntimeError,
+        "[1번째줄] 미정의된 변수 'notDefined'",
+    ),
+    (
+        "+ 연산 타입 혼용",
+        'print 1 + "HI";',
+        LangRuntimeError,
+        "[1번째줄] 피연산자는 반드시 숫자 또는 문자열이어야 합니다.",
+    ),
+    (
+        "단항 -에 비숫자 적용",
+        'print -"FabCoding";',
+        LangRuntimeError,
+        "[1번째줄] 피연산자는 반드시 숫자여야 합니다.",
+    ),
+    (
+        "인식 불가 문자 (Tokenizer)",
+        "print @;",
+        TokenizeError,
+        "[1번째줄] 인식할 수 없는 문자: '@'",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "desc,source,error_cls,expected_msg",
+    ERROR_CASES,
+    ids=[desc for desc, *_ in ERROR_CASES],
+)
+def test_interpreter_run_raises_expected_exception_type_and_message(
+    interpreter, desc, source, error_cls, expected_msg,
+):
+    with pytest.raises(error_cls) as exc_info:
+        interpreter.run(source)
+    assert str(exc_info.value) == expected_msg
+
+
+@pytest.mark.parametrize(
+    "desc,source,error_cls,expected_msg",
+    ERROR_CASES,
+    ids=[desc for desc, *_ in ERROR_CASES],
+)
+def test_prompt_shell_run_prints_error_message_without_raising(
+    interpreter, capsys, desc, source, error_cls, expected_msg,
+):
+    run(interpreter, source)  # 예외가 여기서 새어나오면 테스트 자체가 실패한다.
+    assert capsys.readouterr().out.strip() == expected_msg
+
+
+def test_repl_recovers_after_error_and_keeps_previous_state(interpreter, capsys):
+    # 한 줄에서 에러가 나도 REPL은 죽지 않고, 그 전에 선언한 변수도 그대로 유지된다.
+    run(interpreter, "var a = 10;")
+    assert capsys.readouterr().out == ""
+
+    run(interpreter, "print notDefined;")
+    assert capsys.readouterr().out.strip() == "[1번째줄] 미정의된 변수 'notDefined'"
+
+    run(interpreter, "print a;")
+    assert capsys.readouterr().out.strip() == "10"
+
