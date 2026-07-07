@@ -24,9 +24,9 @@ class CheckError(Exception):
 class Checker:
     """AST를 DFS로 순회하며 의미 오류(중복 선언, 초기화식 자기 참조)를 검출한다."""
 
-    def __init__(self, stmts: list[Stmt]):
+    def __init__(self, stmts: list[Stmt], global_scope: dict[str, bool] | None = None):
         self._stmts = stmts
-        self._scopes: list[dict[str, bool]] = []
+        self._scopes: list[dict[str, bool]] = [global_scope if global_scope is not None else {}]
         self._stmt_handlers = {
             VarDeclStmt: self._check_var_decl,
             BlockStmt: self._check_block,

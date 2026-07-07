@@ -33,6 +33,10 @@ class Environment:
         self._values: dict[str, Any] = {}
         self.parent = parent  # 상위 스코프 (None 이면 Global)
 
+    @property
+    def names(self) -> set[str]:
+        return set(self._values.keys())
+
     def define(self, name: str, value: Any) -> None:
         """현재 스코프에 변수 선언 (중복 허용 — Checker가 사전 차단)"""
         self._values[name] = value
@@ -95,12 +99,18 @@ class Executor:
                 self._exec_stmt(stmt.else_branch)
 
         elif isinstance(stmt, ForStmt):
-            if stmt.initializer:
-                self._exec_stmt(stmt.initializer)
-            while stmt.condition is None or self._is_truthy(self._eval(stmt.condition)):
-                self._exec_stmt(stmt.body)
-                if stmt.increment:
-                    self._eval(stmt.increment)
+            loop_env = Environment(parent=self._current)
+            prev = self._current
+            self._current = loop_env
+            try:
+                if stmt.initializer:
+                    self._exec_stmt(stmt.initializer)
+                while stmt.condition is None or self._is_truthy(self._eval(stmt.condition)):
+                    self._exec_stmt(stmt.body)
+                    if stmt.increment:
+                        self._eval(stmt.increment)
+            finally:
+                self._current = prev
 
     def _exec_block(self, stmts: list[Stmt], env: Environment) -> None:
         prev = self._current

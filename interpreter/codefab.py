@@ -19,5 +19,6 @@ class CodeFabInterpreter:
 
     def run(self, source: str) -> None:
         stmts = self._assembler.assemble(source)
-        Checker(stmts).check()
+        global_scope = {name: True for name in self._global_env.names}
+        Checker(stmts, global_scope=global_scope).check()
         Executor(stmts, environment=self._global_env).execute()
