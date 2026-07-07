@@ -8,7 +8,7 @@ Checker의 입력으로 준다. 테스트 스크립트.md 기준:
 """
 import pytest
 
-from ast_nodes import (
+from interpreter.ast_nodes import (
     AssignExpr,
     BlockStmt,
     ExpressionStmt,
@@ -19,8 +19,8 @@ from ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from checker import CheckError, Checker
-from tokens import Token, TokenType
+from interpreter.checker import CheckError, Checker
+from interpreter.tokens import Token, TokenType
 
 
 def ident(name: str, line: int = 1) -> Token:
@@ -93,7 +93,7 @@ def test_modifying_outer_variable_without_redeclaration_is_allowed():
 
 def test_nested_scope_variable_resolution_is_allowed():
     # var outer = "A"; { var inner = "B"; { print outer + inner; } }
-    from ast_nodes import BinaryExpr
+    from interpreter.ast_nodes import BinaryExpr
 
     stmts = [
         VarDeclStmt(ident("outer"), literal("A")),
@@ -140,7 +140,7 @@ def test_var_decl_inside_if_branch_block_is_allowed():
 
 def test_for_loop_variable_scope_is_allowed():
     # for (var j = 0; j < 3; j = j + 1) { print j; }
-    from ast_nodes import BinaryExpr
+    from interpreter.ast_nodes import BinaryExpr
 
     stmts = [
         ForStmt(

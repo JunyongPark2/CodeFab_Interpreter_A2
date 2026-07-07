@@ -1,4 +1,4 @@
-from ast_nodes import (
+from .ast_nodes import (
     AssignExpr,
     BinaryExpr,
     BlockStmt,

@@ -16,16 +16,16 @@
 
 import pytest
 
-from assembler import Assembler
-from ast_nodes import (
+from interpreter.assembler import Assembler
+from interpreter.ast_nodes import (
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
     VariableExpr, AssignExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
     IfStmt, ForStmt,
 )
-from parser import Parser, ParseError
-from tokenizer import Tokenizer, TokenizeError
-from tokens import TokenType
+from interpreter.parser import Parser, ParseError
+from interpreter.tokenizer import Tokenizer, TokenizeError
+from interpreter.tokens import TokenType
 
 
 # ─────────────────────────────────────────────────────────

@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=interpreter --cov-report=term-missing --cov-report=html"
+
+[tool.coverage.run]
+source = ["interpreter"]
+
+[tool.coverage.report]
+show_missing = true

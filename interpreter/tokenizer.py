@@ -1,4 +1,4 @@
-from tokens import Token, TokenType, KEYWORDS
+from .tokens import Token, TokenType, KEYWORDS
 
 
 class TokenizeError(Exception):

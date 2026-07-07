@@ -21,14 +21,14 @@
 # 여기서는 트리의 모양(구조)만 검사한다.
 import pytest
 
-from ast_nodes import (
+from interpreter.ast_nodes import (
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
     VariableExpr, AssignExpr, LogicalExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
     IfStmt, ForStmt,
 )
-from parser import Parser, ParseError
-from tokens import Token, TokenType
+from interpreter.parser import Parser, ParseError
+from interpreter.tokens import Token, TokenType
 
 
 # ─────────────────────────────────────────────────────────

@@ -20,14 +20,14 @@
 #   unary      → ( "!" | "-" ) unary | primary
 #   primary    → NUMBER | STRING | "true" | "false" | IDENTIFIER | "(" expression ")"
 
-from ast_nodes import (
+from .ast_nodes import (
     Expr, Stmt,
     LiteralExpr, BinaryExpr, UnaryExpr, GroupingExpr,
     VariableExpr, AssignExpr, LogicalExpr,
     PrintStmt, ExpressionStmt, VarDeclStmt, BlockStmt,
     IfStmt, ForStmt,
 )
-from tokens import Token, TokenType
+from .tokens import Token, TokenType
 
 
 class ParseError(Exception):
