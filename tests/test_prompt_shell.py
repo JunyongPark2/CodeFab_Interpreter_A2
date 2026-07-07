@@ -1,21 +1,9 @@
-# test_prompt_shell.py — prompt_shell.py(REPL 진입점) 통합 테스트
-#
-# 실행: pytest tests/test_prompt_shell.py -v
-#
-# prompt_shell.run()은 CodeFabInterpreter 하나를 REPL 세션 내내 재사용하므로,
-# 아래 테스트도 실제 REPL처럼 "같은 interpreter 인스턴스에 여러 줄을 순서대로 넣는다."
-
 import builtins
 
 import pytest
 
-from interpreter.codefab import (
-    CheckError,
-    CodeFabInterpreter,
-    LangRuntimeError,
-    ParseError,
-    TokenizeError,
-)
+from interpreter.codefab import CodeFabInterpreter
+from interpreter.errors import CheckError, LangRuntimeError, ParseError, TokenizeError
 from prompt_shell import _needs_more_input, main, run
 
 
@@ -395,6 +383,7 @@ def test_repl_recovers_after_error_and_keeps_previous_state(interpreter, capsys)
 #
 # _needs_more_input()은 tokenize+parse만 해보고 ParseError.incomplete로
 # 판단하므로, 부작용(변수 선언/print 등) 없이 단위 테스트할 수 있다.
+
 
 
 @pytest.mark.parametrize(

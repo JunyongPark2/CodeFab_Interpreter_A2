@@ -1,8 +1,3 @@
-# Parser 유닛 테스트.
-#
-# Parser는 "계산"을 하지 않는다 (계산은 Executor의 몫).
-# Parser의 책임은 올바른 "모양의 트리"를 만드는 것이므로,
-# 여기서는 트리의 모양(구조)만 검사한다.
 import pytest
 
 from interpreter.ast_nodes import (
@@ -20,8 +15,10 @@ from interpreter.ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from interpreter.parser import ParseError, Parser
+from interpreter.errors import ParseError
+from interpreter.parser import Parser
 from interpreter.tokens import Token, TokenType
+
 
 # ─────────────────────────────────────────────────────────
 # 토큰 생성 헬퍼 — Tokenizer 없이 토큰을 직접 만든다

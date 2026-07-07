@@ -1,9 +1,3 @@
-# Assembler(Tokenizer + Parser) 통합 유닛 테스트.
-#
-# test_parser.py가 손으로 만든 토큰 목록으로 트리 "모양"만 검사했다면,
-# 여기서는 실제 소스 코드 문자열을 넣었을 때 동일한 트리가 나오는지,
-# 그리고 Tokenizer/Parser의 오류가 Assembler를 통해 잘 전파되는지를 검사한다.
-
 import pytest
 
 from interpreter.assembler import Assembler
@@ -21,9 +15,11 @@ from interpreter.ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from interpreter.parser import ParseError, Parser
-from interpreter.tokenizer import TokenizeError, Tokenizer
+from interpreter.errors import ParseError, TokenizeError
+from interpreter.parser import Parser
+from interpreter.tokenizer import Tokenizer
 from interpreter.tokens import TokenType
+
 
 # ─────────────────────────────────────────────────────────
 # 헬퍼 — Tokenizer/Parser 클래스를 주입해 Assembler를 만든다

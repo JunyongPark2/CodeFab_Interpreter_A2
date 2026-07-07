@@ -1,7 +1,9 @@
 import pytest
 
-from interpreter.tokenizer import TokenizeError, Tokenizer
+from interpreter.errors import TokenizeError
+from interpreter.tokenizer import Tokenizer
 from interpreter.tokens import TokenType
+
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────
 

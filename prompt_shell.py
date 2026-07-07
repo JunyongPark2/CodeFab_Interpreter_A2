@@ -1,16 +1,5 @@
-# prompt_shell.py — CLI 기반 Prompt Shell 진입점
-#
-# 한 줄 입력 → CodeFabInterpreter(Assembler → Checker → Executor) → 즉시 실행
-#
-# 실행: python prompt_shell.py
-
-from interpreter.codefab import (
-    CheckError,
-    CodeFabInterpreter,
-    LangRuntimeError,
-    ParseError,
-    TokenizeError,
-)
+from interpreter.codefab import CodeFabInterpreter
+from interpreter.errors import CheckError, LangRuntimeError, ParseError, TokenizeError
 from interpreter.parser import Parser
 from interpreter.tokenizer import Tokenizer
 
