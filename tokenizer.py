@@ -68,8 +68,8 @@ class Tokenizer:
     def _identifier(self) -> None:
         while not self._is_at_end() and (self._peek().isalnum() or self._peek() == '_'):
             self._advance()
-        text = self._source[self._start:self._current]
-        token_type = KEYWORDS.get(text, TokenType.IDENTIFIER)
+        origin = self._source[self._start:self._current]
+        token_type = KEYWORDS.get(origin, TokenType.IDENTIFIER)
         self._add_token(token_type)
 
     def _number(self) -> None:
@@ -79,8 +79,8 @@ class Tokenizer:
             self._advance()  # '.' 소비
             while not self._is_at_end() and self._peek().isdigit():
                 self._advance()
-        text = self._source[self._start:self._current]
-        self._add_token(TokenType.NUMBER, float(text))
+        origin = self._source[self._start:self._current]
+        self._add_token(TokenType.NUMBER, float(origin))
 
     def _string(self, quote: str) -> None:
         while not self._is_at_end() and self._peek() != quote:
@@ -115,8 +115,8 @@ class Tokenizer:
         return True
 
     def _add_token(self, token_type: TokenType, value=None) -> None:
-        text = self._source[self._start:self._current]
-        self._tokens.append(Token(token_type, text, value, self._line, self._col))
+        origin = self._source[self._start:self._current]
+        self._tokens.append(Token(token_type, origin, value, self._line, self._col))
 
     def _is_at_end(self) -> bool:
         return self._current >= len(self._source)
