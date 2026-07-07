@@ -33,6 +33,10 @@ class Environment:
         self._values: dict[str, Any] = {}
         self.parent = parent  # 상위 스코프 (None 이면 Global)
 
+    @property
+    def names(self) -> set[str]:
+        return set(self._values.keys())
+
     def define(self, name: str, value: Any) -> None:
         """현재 스코프에 변수 선언 (중복 허용 — Checker가 사전 차단)"""
         self._values[name] = value
