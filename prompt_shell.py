@@ -11,8 +11,8 @@ from interpreter.codefab import (
     ParseError,
     TokenizeError,
 )
-from interpreter.tokenizer import Tokenizer
 from interpreter.parser import Parser
+from interpreter.tokenizer import Tokenizer
 
 
 def run(interpreter: CodeFabInterpreter, source: str) -> None:

@@ -26,7 +26,9 @@ class Checker:
 
     def __init__(self, stmts: list[Stmt], global_scope: dict[str, bool] | None = None):
         self._stmts = stmts
-        self._scopes: list[dict[str, bool]] = [global_scope if global_scope is not None else {}]
+        self._scopes: list[dict[str, bool]] = [
+            global_scope if global_scope is not None else {}
+        ]
         self._stmt_handlers = {
             VarDeclStmt: self._check_var_decl,
             BlockStmt: self._check_block,

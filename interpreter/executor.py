@@ -99,13 +99,17 @@ class Executor:
                 self._exec_stmt(stmt.else_branch)
 
         elif isinstance(stmt, ForStmt):
+            # 초기화 변수(예: i)를 자체 스코프에 가둬서 for문이 끝나면 사라지게 한다.
+            # 그러지 않으면 top-level for문의 변수가 전역 스코프로 새어나간다.
             loop_env = Environment(parent=self._current)
             prev = self._current
             self._current = loop_env
             try:
                 if stmt.initializer:
                     self._exec_stmt(stmt.initializer)
-                while stmt.condition is None or self._is_truthy(self._eval(stmt.condition)):
+                while stmt.condition is None or self._is_truthy(
+                    self._eval(stmt.condition)
+                ):
                     self._exec_stmt(stmt.body)
                     if stmt.increment:
                         self._eval(stmt.increment)
