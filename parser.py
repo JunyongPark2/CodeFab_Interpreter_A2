@@ -16,7 +16,7 @@
 #   comparison → term ( ( "<" | ">" | "<=" | ">=" | "==" | "!=" ) term )*
 #   term       → factor ( ( "+" | "-" ) factor )*
 #   factor     → unary ( ( "*" | "/" ) unary )*
-#   unary      → "-" unary | primary
+#   unary      → ( "!" | "-" ) unary | primary
 #   primary    → NUMBER | STRING | "true" | "false" | IDENTIFIER | "(" expression ")"
 
 from ast_nodes import (
@@ -179,7 +179,7 @@ class Parser:
         return expr
 
     def _unary(self) -> Expr:
-        if self._match(TokenType.MINUS):
+        if self._match(TokenType.BANG, TokenType.MINUS):
             return UnaryExpr(self._previous(), self._unary())
         return self._primary()
 
