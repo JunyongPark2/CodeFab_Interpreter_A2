@@ -175,14 +175,16 @@ primary    → NUMBER | STRING | "true" | "false" | IDENTIFIER | "(" expression 
 각 모듈(Tokenizer/Parser/Checker/Executor/Assembler/Prompt Shell)은 `pytest` 기반 TDD로 개발되었습니다.
 구현에 앞서 기대 동작에 대한 테스트를 먼저 작성하고, 테스트를 통과시키는 방향으로 구현을 진행했습니다.
 
+테스트 수는 `pytest --collect-only`로 센 실제 실행 케이스 기준입니다(`@pytest.mark.parametrize`로 늘어난 케이스 포함).
+
 | 클래스 / 파일 (`interpreter/`) | 테스트 파일 (`tests/`) | 테스트 수 |
 | --- | --- | --- |
 | `Token`, `TokenType` (`tokens.py`) / `Tokenizer`, `TokenizeError` (`tokenizer.py`) | `test_tokenizer.py` | 45 |
 | `Expr` / `Stmt` 및 하위 AST 노드 (`ast_nodes.py`) / `Parser`, `ParseError` (`parser.py`) | `test_parser.py` | 46 |
 | `Checker`, `CheckError` (`checker.py`) | `test_checker.py` | 9 |
-| `Executor`, `Environment`, `LangRuntimeError` (`executor.py`) | `test_executor.py` | 42 |
-| `Assembler` (`assembler.py`) | `test_assembler.py` | 21 |
-| `CodeFabInterpreter` (`codefab.py`) / `run()` (`prompt_shell.py`) | `test_prompt_shell.py` | 20 |
+| `Executor`, `Environment`, `LangRuntimeError` (`executor.py`) | `test_executor.py` | 68 |
+| `Assembler` (`assembler.py`) | `test_assembler.py` | 28 |
+| `CodeFabInterpreter` (`codefab.py`) / `run()` (`prompt_shell.py`) | `test_prompt_shell.py` | 46 |
 
 
 ## 기여
