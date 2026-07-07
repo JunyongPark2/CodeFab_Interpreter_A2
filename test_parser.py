@@ -62,6 +62,7 @@ ELSE_KW = Token(TokenType.ELSE, "else")
 FOR_KW = Token(TokenType.FOR, "for")
 AND_KW = Token(TokenType.AND, "and")
 OR_KW = Token(TokenType.OR, "or")
+BANG = Token(TokenType.BANG, "!")
 
 
 def ident(name: str) -> Token:
@@ -762,6 +763,79 @@ def test_or_연속_왼쪽부터_묶인다():
     assert expr.left.operator.type == TokenType.OR
     assert expr.left.left == LiteralExpr(False)
     assert expr.left.right == LiteralExpr(True)
+
+
+def test_bang_논리_부정_true():
+    # print !true;
+    #
+    # 기대 트리:  UnaryExpr(!)
+    #            └── LiteralExpr(True)
+    expr = parse_print(BANG, TRUE)
+
+    assert isinstance(expr, UnaryExpr)
+    assert expr.operator.type == TokenType.BANG
+    assert expr.right == LiteralExpr(True)
+
+
+def test_bang_논리_부정_false():
+    # print !false;
+    #
+    # 기대 트리:  UnaryExpr(!)
+    #            └── LiteralExpr(False)
+    expr = parse_print(BANG, FALSE)
+
+    assert isinstance(expr, UnaryExpr)
+    assert expr.operator.type == TokenType.BANG
+    assert expr.right == LiteralExpr(False)
+
+
+def test_bang_이중_부정():
+    # print !!true;
+    #
+    # 기대 트리:  UnaryExpr(!)        ← 바깥 !
+    #            └── UnaryExpr(!)    ← 안쪽 !
+    #                └── LiteralExpr(True)
+    expr = parse_print(BANG, BANG, TRUE)
+
+    assert isinstance(expr, UnaryExpr)
+    assert expr.operator.type == TokenType.BANG
+    assert isinstance(expr.right, UnaryExpr)
+    assert expr.right.operator.type == TokenType.BANG
+    assert expr.right.right == LiteralExpr(True)
+
+
+def test_bang이_and보다_먼저():
+    # print !true and false;
+    #
+    # !는 and보다 우선순위가 높으므로 !true 가 먼저 묶여야 한다.
+    #
+    # 기대 트리:  LogicalExpr(and)
+    #            ├── UnaryExpr(!)
+    #            │   └── LiteralExpr(True)
+    #            └── LiteralExpr(False)
+    expr = parse_print(BANG, TRUE, AND_KW, FALSE)
+
+    assert isinstance(expr, LogicalExpr)
+    assert expr.operator.type == TokenType.AND
+
+    assert isinstance(expr.left, UnaryExpr)
+    assert expr.left.operator.type == TokenType.BANG
+    assert expr.left.right == LiteralExpr(True)
+
+    assert expr.right == LiteralExpr(False)
+
+
+def test_bang_변수에_적용():
+    # print !isExist;
+    #
+    # 기대 트리:  UnaryExpr(!)
+    #            └── VariableExpr("isExist")
+    expr = parse_print(BANG, ident("isExist"))
+
+    assert isinstance(expr, UnaryExpr)
+    assert expr.operator.type == TokenType.BANG
+    assert isinstance(expr.right, VariableExpr)
+    assert expr.right.name.origin == "isExist"
 
 
 def test_and_or_비교식과_함께():
