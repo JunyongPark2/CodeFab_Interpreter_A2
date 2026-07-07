@@ -1,8 +1,8 @@
 from .assembler import Assembler
 from .checker import Checker, CheckError
 from .executor import Environment, Executor, LangRuntimeError
-from .tokenizer import TokenizeError
 from .parser import ParseError
+from .tokenizer import TokenizeError
 
 
 class CodeFabInterpreter:

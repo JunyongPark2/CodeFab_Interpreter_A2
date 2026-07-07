@@ -5,11 +5,11 @@
 # 실행: python prompt_shell.py
 
 from interpreter.codefab import (
-    CodeFabInterpreter,
-    TokenizeError,
-    ParseError,
     CheckError,
+    CodeFabInterpreter,
     LangRuntimeError,
+    ParseError,
+    TokenizeError,
 )
 
 
