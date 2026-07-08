@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable, Optional
+
 from .ast_nodes import (
     ArrayExpr,
     AssignExpr,
@@ -52,6 +54,9 @@ class Executor:
         environment: Environment | None = None,
         locals: dict[int, int] | None = None,
         loader: Loader | None = None,
+        on_stmt: Optional[Callable[[Stmt, int, "Executor"], None]] = None,
+        source: str = "",
+        path: str = "<main>",
     ):
         # environment를 넘기지 않으면 매번 새 전역 스코프로 시작한다 (기존 동작 그대로 유지).
         # REPL처럼 "이전 실행에서 선언한 변수를 다음 실행에서도 써야 하는" 경우엔
@@ -65,58 +70,113 @@ class Executor:
         # import 실행에 쓰는 파일 로더. None이면(예: 손으로 AST를 만든 단위테스트)
         # ImportStmt를 만나도 실행할 수 없다는 명확한 에러를 낸다.
         self._loader = loader
+        # 디버그 모드(factory_shell debug)가 Stmt 단위 stepping을 구현하는 데 쓰는 훅.
+        # (stmt, depth, self)로 호출되며, depth는 현재 몇 겹의 블록 안인지를 나타낸다
+        # (0=최상위) — "next"가 블록 내부로 진입하지 않고 건너뛰는 데 필요하다.
+        self._on_stmt = on_stmt
+        self._depth = 0
+        # 디버그 모드가 on_stmt에서 "이 Stmt는 어느 파일 몇 번째 줄인가"를 보여줄 때 쓴다.
+        # import된 모듈은 자기 자신의 소스/경로를 갖고 있어야 하므로(_exec_import 참고),
+        # Executor 인스턴스마다 자신이 실행 중인 파일의 소스와 경로를 따로 들고 있는다.
+        self._source_lines = source.splitlines()
+        self._path = path
+        self._stmt_handlers = {
+            PrintStmt: self._exec_print,
+            VarDeclStmt: self._exec_var_decl,
+            ExpressionStmt: self._exec_expression,
+            BlockStmt: self._exec_block_stmt,
+            IfStmt: self._exec_if,
+            ForStmt: self._exec_for,
+            FuncDeclStmt: self._exec_func_decl,
+            ReturnStmt: self._exec_return,
+            ImportStmt: self._exec_import,
+            ClassDeclStmt: self._exec_class_decl,
+        }
+        self._expr_handlers = {
+            LiteralExpr: self._eval_literal,
+            VariableExpr: self._eval_variable,
+            AssignExpr: self._eval_assign,
+            GroupingExpr: self._eval_grouping,
+            UnaryExpr: self._eval_unary,
+            BinaryExpr: self._eval_binary,
+            LogicalExpr: self._eval_logical,
+            ArrayExpr: self._eval_array,
+            IndexGetExpr: self._eval_index_get,
+            IndexSetExpr: self._eval_index_set,
+            CallExpr: self._eval_call,
+            GetExpr: self._eval_get,
+            SetExpr: self._eval_set,
+            ThisExpr: self._eval_this,
+            SuperExpr: self._eval_super,
+            InstanceOfExpr: self._eval_instanceof,
+        }
 
     def execute(self) -> None:
         for stmt in self._stmts:
-            stmt.accept(self)
+            self._exec_stmt(stmt)
+
+    @property
+    def current_env(self) -> Environment:
+        """디버그 모드가 watch/inspect 구현 시 현재 실행 스코프를 들여다보는 용도."""
+        return self._current
+
+    @property
+    def source_lines(self) -> list[str]:
+        """디버그 모드가 on_stmt에서 현재 실행 중인 파일의 소스 줄을 보여주는 용도."""
+        return self._source_lines
+
+    @property
+    def path(self) -> str:
+        """디버그 모드가 on_stmt에서 현재 실행 중인 파일 경로를 보여주는 용도."""
+        return self._path
 
     # ── Stmt 실행 ─────────────────────────────────────────
     # (개별 visit_XxxStmt 메서드는 Stmt.accept()가 더블 디스패치로 직접 호출한다.
     # 새 Stmt 타입 추가 시 대응하는 visit_ 메서드가 없으면 accept()가 즉시
     # NotImplementedError를 낸다 — dict 디스패치 시절의 "조용한 누락"을 방지.)
 
-    def visit_PrintStmt(self, stmt: PrintStmt) -> None:
+    def _exec_print(self, stmt: PrintStmt) -> None:
         print(self._stringify(self._eval(stmt.expression)))
 
-    def visit_VarDeclStmt(self, stmt: VarDeclStmt) -> None:
+    def _exec_var_decl(self, stmt: VarDeclStmt) -> None:
         val = self._eval(stmt.initializer) if stmt.initializer else None
         self._current.define(stmt.name.origin, val)
 
-    def visit_ExpressionStmt(self, stmt: ExpressionStmt) -> None:
+    def _exec_expression(self, stmt: ExpressionStmt) -> None:
         self._eval(stmt.expression)
 
-    def visit_BlockStmt(self, stmt: BlockStmt) -> None:
+    def _exec_block_stmt(self, stmt: BlockStmt) -> None:
         self._exec_block(stmt.statements, Environment(parent=self._current))
 
-    def visit_IfStmt(self, stmt: IfStmt) -> None:
+    def _exec_if(self, stmt: IfStmt) -> None:
         if self._is_truthy(self._eval(stmt.condition)):
-            stmt.then_branch.accept(self)
+            self._exec_stmt(stmt.then_branch)
         elif stmt.else_branch:
-            stmt.else_branch.accept(self)
+            self._exec_stmt(stmt.else_branch)
 
-    def visit_ForStmt(self, stmt: ForStmt) -> None:
+    def _exec_for(self, stmt: ForStmt) -> None:
         loop_env = Environment(parent=self._current)
         prev = self._current
         self._current = loop_env
         try:
             if stmt.initializer:
-                stmt.initializer.accept(self)
+                self._exec_stmt(stmt.initializer)
             while stmt.condition is None or self._is_truthy(self._eval(stmt.condition)):
-                stmt.body.accept(self)
+                self._exec_stmt(stmt.body)
                 if stmt.increment:
                     self._eval(stmt.increment)
         finally:
             self._current = prev
 
-    def visit_FuncDeclStmt(self, stmt: FuncDeclStmt) -> None:
+    def _exec_func_decl(self, stmt: FuncDeclStmt) -> None:
         func = CodeFabFunction(stmt, self._current)
         self._current.define(stmt.name.origin, func)
 
-    def visit_ReturnStmt(self, stmt: ReturnStmt) -> None:
+    def _exec_return(self, stmt: ReturnStmt) -> None:
         value = self._eval(stmt.value) if stmt.value is not None else None
         raise _ReturnSignal(value)
 
-    def visit_ClassDeclStmt(self, stmt: ClassDeclStmt) -> None:
+    def _exec_class_decl(self, stmt: ClassDeclStmt) -> None:
         superclass = None
         if stmt.superclass is not None:
             superclass = self._eval(stmt.superclass)
@@ -145,7 +205,7 @@ class Executor:
 
         self._current.assign(stmt.name.origin, klass, stmt.name.line)
 
-    def visit_ImportStmt(self, stmt: ImportStmt) -> None:
+    def _exec_import(self, stmt: ImportStmt) -> None:
         if self._loader is None:
             raise CodeFabRuntimeError(
                 stmt.path.line, "이 실행 환경에서는 import를 사용할 수 없습니다."
@@ -155,13 +215,23 @@ class Executor:
         # 실행 중에 이 파일을 다시 import하려는 시도까지 잡아내야 하기 때문.
         with self._loader.loading(path, stmt.path.line):
             stmts = self._loader.load(path, stmt.path.line)
+            # 디버그 모드가 module 내부에서 멈출 때 올바른 파일의 소스 줄을 보여줄 수
+            # 있도록, module 자신의 소스도 함께 읽어 nested Executor에 넘긴다.
+            with open(path, encoding="utf-8") as f:
+                module_source = f.read()
 
             # import된 파일은 독립된 네임스페이스(부모 없는 Environment)에서 실행한다 —
             # 현재 실행 중인 스코프의 변수를 보거나 건드리면 안 되기 때문.
             module_locals = Checker(stmts).check()
             module_env = Environment()
             Executor(
-                stmts, environment=module_env, locals=module_locals, loader=self._loader
+                stmts,
+                environment=module_env,
+                locals=module_locals,
+                loader=self._loader,
+                on_stmt=self._on_stmt,
+                source=module_source,
+                path=path,
             ).execute()
 
         module = CodeFabModule(stmt.alias.origin)
@@ -172,12 +242,14 @@ class Executor:
         """블록 진입 시 스코프를 바꿔 문장을 순차 실행하는 공용 헬퍼.
         visit_BlockStmt뿐 아니라 함수/메서드 호출(CodeFabFunction.call)도 재사용한다."""
         prev = self._current
+        self._depth += 1
         try:
             self._current = env
             for stmt in stmts:
                 stmt.accept(self)
         finally:
             self._current = prev
+            self._depth -= 1
 
     # ── Expr 평가 ─────────────────────────────────────────
     # (개별 visit_XxxExpr 메서드는 Expr.accept()가 더블 디스패치로 직접 호출한다.)
@@ -324,6 +396,11 @@ class Executor:
 
     def visit_GetExpr(self, expr: GetExpr):
         obj = self._eval(expr.object)
+        if isinstance(obj, CodeFabModule):
+            # import된 모듈의 멤버 접근: sum.add, sum.VERSION 등.
+            # CodeFabModule.get()은 CodeFabInstance.get()과 달리 Token이 아니라
+            # (str, line)을 받으므로 여기서 풀어서 넘긴다.
+            return obj.get(expr.name.origin, expr.name.line)
         if not isinstance(obj, CodeFabInstance):
             raise CodeFabRuntimeError(
                 expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다."
@@ -332,6 +409,11 @@ class Executor:
 
     def visit_SetExpr(self, expr: SetExpr):
         obj = self._eval(expr.object)
+        if isinstance(obj, CodeFabModule):
+            # import된 모듈은 읽기 전용 네임스페이스로 취급한다 (sum.x = 1; 금지).
+            raise CodeFabRuntimeError(
+                expr.name.line, "모듈에는 값을 대입할 수 없습니다."
+            )
         if not isinstance(obj, CodeFabInstance):
             raise CodeFabRuntimeError(
                 expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다."

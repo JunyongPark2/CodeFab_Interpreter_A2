@@ -73,7 +73,7 @@ def test_folded_constant_expression_is_never_recomputed_in_loop(monkeypatch, cap
 
 
 def test_this_reference_never_calls_dynamic_get(monkeypatch, capsys):
-    # Class A { Func setX(x) { This.x = x; } Func f() { print This.x; } }
+    # Class A { setX(x) { This.x = x; } f() { print This.x; } }
     # init()은 생성자 종료 후 인스턴스를 돌려주려고 런타임(CodeFabFunction.call)이
     # 항상 closure에서 직접 This를 한 번 꺼내므로(AST의 ThisExpr와 무관, 항상
     # distance 0이라 사실상 O(1)) 여기서는 일부러 init 없는 클래스로 검증해서
@@ -90,8 +90,8 @@ def test_this_reference_never_calls_dynamic_get(monkeypatch, capsys):
 
     source = """
 Class A {
-    Func setX(x) { This.x = x; }
-    Func f() { print This.x; }
+    setX(x) { This.x = x; }
+    f() { print This.x; }
 }
 var a = A();
 a.setX(5);

@@ -31,15 +31,8 @@ from interpreter.ast_nodes import (
 )
 from interpreter.errors import CodeFabRuntimeError
 from interpreter.executor import Executor
-from interpreter.tokens import Token, TokenType
-
-
-def tok(type_, origin="", value=None, line=1, col=1):
-    return Token(type=type_, origin=origin, value=value, line=line, col=col)
-
-
-def name_tok(name, line=1):
-    return tok(TokenType.IDENTIFIER, origin=name, line=line)
+from interpreter.tokens import TokenType
+from tests.helpers import name_tok, tok
 
 
 def run(stmts):
@@ -356,60 +349,23 @@ def test_calling_non_function_value_raises():
         run(stmts)
 
 
-def test_call_with_too_few_arguments_raises():
-    line = 4
-    add = make_func(
-        "add",
-        ["a", "b"],
-        [
-            make_return(
-                BinaryExpr(
-                    left=VariableExpr(name_tok("a")),
-                    operator=tok(TokenType.PLUS),
-                    right=VariableExpr(name_tok("b")),
-                )
-            )
-        ],
-    )
-    call = ExpressionStmt(
-        expression=CallExpr(
-            callee=VariableExpr(name_tok("add", line=line)),
-            paren=tok(TokenType.RIGHT_PAREN, line=line),
-            arguments=[LiteralExpr(1.0)],
-        )
-    )
+@pytest.mark.parametrize(
+    "func_name,params,call_args,line",
+    [
+        ("add", ["a", "b"], [lit(1.0)], 4),
+        ("add", ["a", "b"], [lit(1.0), lit(2.0), lit(3.0)], 4),
+        ("greet", [], [lit(1.0)], 2),
+    ],
+    ids=["too_few", "too_many", "zero_with_extra"],
+)
+def test_call_arity_mismatch_raises(func_name, params, call_args, line):
+    func = make_func(func_name, params, [])
+    call = ExpressionStmt(expression=make_call(func_name, call_args, line=line))
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\.",
     ):
-        run([add, call])
-
-
-def test_call_with_too_many_arguments_raises():
-    line = 4
-    add = make_func(
-        "add",
-        ["a", "b"],
-        [
-            make_return(
-                BinaryExpr(
-                    left=VariableExpr(name_tok("a")),
-                    operator=tok(TokenType.PLUS),
-                    right=VariableExpr(name_tok("b")),
-                )
-            )
-        ],
-    )
-    call = ExpressionStmt(
-        expression=CallExpr(
-            callee=VariableExpr(name_tok("add", line=line)),
-            paren=tok(TokenType.RIGHT_PAREN, line=line),
-            arguments=[LiteralExpr(1.0), LiteralExpr(2.0), LiteralExpr(3.0)],
-        )
-    )
-    with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
-    ):
-        run([add, call])
+        run([func, call])
 
 
 # ── 추가: 더 복잡한 시나리오 ──────────────────────────────────────────
@@ -849,11 +805,3 @@ def test_argument_evaluation_order_is_left_to_right(capsys):
     assert capsys.readouterr().out == "AB\n"
 
 
-def test_zero_arg_function_called_with_extra_argument_raises():
-    line = 2
-    greet = make_func("greet", [], [make_return(lit("hi"))])
-    call = ExpressionStmt(expression=make_call("greet", [lit(1.0)], line=line))
-    with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
-    ):
-        run([greet, call])

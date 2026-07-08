@@ -172,7 +172,6 @@ class Parser:
         self._consume(TokenType.LEFT_BRACE, "'{' 가 필요합니다.")
         methods: list[FuncDeclStmt] = []
         while not self._check(TokenType.RIGHT_BRACE) and not self._is_at_end():
-            self._consume(TokenType.FUNC, "메서드는 'Func' 키워드로 시작해야 합니다.")
             methods.append(self._func_declaration())
         self._consume(TokenType.RIGHT_BRACE, "'}' 가 필요합니다.")
         return ClassDeclStmt(name, superclass, methods)
@@ -314,11 +313,11 @@ class Parser:
 
     def _primary(self) -> Expr:
         if self._match(TokenType.NUMBER, TokenType.STRING):
-            return LiteralExpr(self._previous().value)
+            return LiteralExpr(self._previous().value, self._previous().line)
         if self._match(TokenType.TRUE):
-            return LiteralExpr(True)
+            return LiteralExpr(True, self._previous().line)
         if self._match(TokenType.FALSE):
-            return LiteralExpr(False)
+            return LiteralExpr(False, self._previous().line)
         if self._match(TokenType.THIS):
             return ThisExpr(self._previous())
         if self._match(TokenType.SUPER):
