@@ -12,6 +12,7 @@ from .ast_nodes import (
     FuncDeclStmt,
     GroupingExpr,
     IfStmt,
+    ImportStmt,
     IndexGetExpr,
     IndexSetExpr,
     LiteralExpr,
@@ -31,6 +32,10 @@ class Parser:
     def __init__(self, tokens: list[Token]):
         self._tokens = tokens
         self._current = 0
+        # for 본문을 파싱하는 동안에만 1 이상이 된다 (중첩 for도 재진입 가능하도록 카운터).
+        # import는 for 반복문 내부(중첩된 블록/if 포함) 어디서도 금지되므로, 특정 호출
+        # 경로에 플래그를 넘기는 대신 파서 전역 상태로 관리하는 게 더 간단하고 안전하다.
+        self._import_forbidden_depth = 0
         # 새 구문 추가 시 여기에 항목만 등록하면 됩니다.
         self._stmt_dispatch: dict[TokenType, Callable[[], Stmt]] = {
             TokenType.IF: self._if_statement,
@@ -40,6 +45,7 @@ class Parser:
             TokenType.PRINT: self._print_statement,
             TokenType.FUNC: self._func_declaration,
             TokenType.RETURN: self._return_statement,
+            TokenType.IMPORT: self._import_statement,
         }
 
     def parse(self) -> list[Stmt]:
@@ -50,6 +56,10 @@ class Parser:
 
     # ── Statement 파싱 ─────────────────────────────────────
     def _statement(self) -> Stmt:
+        if self._check(TokenType.IMPORT) and self._import_forbidden_depth > 0:
+            raise ParseError(
+                self._peek().line, "반복문 내부에서는 import를 사용할 수 없습니다."
+            )
         for token_type, handler in self._stmt_dispatch.items():
             if self._match(token_type):
                 return handler()
@@ -88,7 +98,11 @@ class Parser:
             increment = self._expression()
         self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
 
-        body = self._body_statement()
+        self._import_forbidden_depth += 1
+        try:
+            body = self._body_statement()
+        finally:
+            self._import_forbidden_depth -= 1
         return ForStmt(initializer, condition, increment, body)
 
     def _body_statement(self) -> Stmt:
@@ -113,10 +127,23 @@ class Parser:
     def _parameters(self) -> list[Token]:
         params: list[Token] = []
         if not self._check(TokenType.RIGHT_PAREN):
-            params.append(self._consume(TokenType.IDENTIFIER, "파라미터 이름이 필요합니다."))
+            params.append(
+                self._consume(TokenType.IDENTIFIER, "파라미터 이름이 필요합니다.")
+            )
             while self._match(TokenType.COMMA):
-                params.append(self._consume(TokenType.IDENTIFIER, "파라미터 이름이 필요합니다."))
+                params.append(
+                    self._consume(TokenType.IDENTIFIER, "파라미터 이름이 필요합니다.")
+                )
         return params
+
+    def _import_statement(self) -> ImportStmt:
+        path = self._consume(
+            TokenType.STRING, "import 대상 파일 경로(문자열)가 필요합니다."
+        )
+        self._consume(TokenType.ALIAS, "'alias' 키워드가 필요합니다.")
+        alias = self._consume(TokenType.IDENTIFIER, "alias 이름이 필요합니다.")
+        self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
+        return ImportStmt(path, alias)
 
     def _return_statement(self) -> ReturnStmt:
         keyword = self._previous()
@@ -185,7 +212,7 @@ class Parser:
         return expr
 
     def _binary(
-            self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]
+        self, ops: tuple[TokenType, ...], next_level: Callable[[], Expr]
     ) -> Expr:
         """이항 연산자 공통 루프. 새 우선순위 레벨은 이 메서드를 호출하는 1줄로 추가됩니다."""
         expr = next_level()

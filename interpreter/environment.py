@@ -14,6 +14,11 @@ class Environment:
     def names(self) -> set[str]:
         return set(self._values.keys())
 
+    def snapshot(self) -> dict[str, Any]:
+        """import 기능: 이 Environment(주로 모듈 전용 격리 스코프)에 정의된
+        최상위 이름 -> 값 매핑을 복사해서 돌려준다 (LangModule.fields로 옮겨 담는 용도)."""
+        return dict(self._values)
+
     def define(self, name: str, value: Any) -> None:
         self._values[name] = value
 

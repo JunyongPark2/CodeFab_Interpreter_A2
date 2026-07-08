@@ -9,6 +9,7 @@ from interpreter.ast_nodes import (
     ForStmt,
     GroupingExpr,
     IfStmt,
+    ImportStmt,
     IndexGetExpr,
     IndexSetExpr,
     LiteralExpr,
@@ -21,7 +22,6 @@ from interpreter.ast_nodes import (
 from interpreter.errors import ParseError
 from interpreter.parser import Parser
 from interpreter.tokens import Token, TokenType
-
 
 # ─────────────────────────────────────────────────────────
 # 토큰 생성 헬퍼 — Tokenizer 없이 토큰을 직접 만든다
@@ -1132,7 +1132,9 @@ def test_array_creation():
     # var arr = Array(3);
     #
     # 기대 트리:  VarDeclStmt(name="arr", initializer=ArrayExpr(size=3))
-    stmts = parse_stmts(VAR, ident("arr"), EQUAL, ARRAY_KW, LPAREN, num(3), RPAREN, SEMI)
+    stmts = parse_stmts(
+        VAR, ident("arr"), EQUAL, ARRAY_KW, LPAREN, num(3), RPAREN, SEMI
+    )
 
     assert len(stmts) == 1
     stmt = stmts[0]
@@ -1159,9 +1161,7 @@ def test_index_write():
     #
     # 기대 트리:  ExpressionStmt
     #              └── IndexSetExpr(array="arr", index=0, value=10)
-    stmts = parse_stmts(
-        ident("arr"), LBRACKET, num(0), RBRACKET, EQUAL, num(10), SEMI
-    )
+    stmts = parse_stmts(ident("arr"), LBRACKET, num(0), RBRACKET, EQUAL, num(10), SEMI)
 
     assert len(stmts) == 1
     stmt = stmts[0]
@@ -1201,12 +1201,186 @@ def test_index_write_with_expression_index():
 def test_missing_closing_paren_in_array_creation():
     # var arr = Array(3;   ← ')' 없음
     with pytest.raises(ParseError, match="'\\)' 가 필요합니다"):
-        Parser(
-            [VAR, ident("arr"), EQUAL, ARRAY_KW, LPAREN, num(3), SEMI, EOF]
-        ).parse()
+        Parser([VAR, ident("arr"), EQUAL, ARRAY_KW, LPAREN, num(3), SEMI, EOF]).parse()
 
 
 def test_missing_closing_bracket_in_index():
     # print arr[0;   ← ']' 없음
     with pytest.raises(ParseError, match="'\\]' 가 필요합니다"):
         Parser([PRINT, ident("arr"), LBRACKET, num(0), SEMI, EOF]).parse()
+
+
+# ── import 문법 (가이드 5-5) ────────────────────────────────
+IMPORT_KW = Token(TokenType.IMPORT, "import")
+ALIAS_KW = Token(TokenType.ALIAS, "alias")
+
+
+def test_import_statement():
+    # import "sum.txt" alias sum;
+    stmts = parse_stmts(IMPORT_KW, string("sum.txt"), ALIAS_KW, ident("sum"), SEMI)
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ImportStmt)
+    assert stmt.path.value == "sum.txt"
+    assert stmt.alias.origin == "sum"
+
+
+def test_import_missing_alias_keyword_raises():
+    # import "sum.txt" sum;   ← alias 키워드 없음
+    with pytest.raises(ParseError, match="'alias'"):
+        Parser([IMPORT_KW, string("sum.txt"), ident("sum"), SEMI, EOF]).parse()
+
+
+def test_import_path_must_be_string_literal():
+    # import sum alias sum;   ← 경로가 문자열이 아님
+    with pytest.raises(ParseError):
+        Parser([IMPORT_KW, ident("sum"), ALIAS_KW, ident("sum"), SEMI, EOF]).parse()
+
+
+def test_import_allowed_at_top_level_after_a_for_loop():
+    # for (;false;) { print 1; } import "sum.txt" alias sum;
+    stmts = parse_stmts(
+        FOR_KW,
+        LPAREN,
+        SEMI,
+        FALSE,
+        SEMI,
+        RPAREN,
+        PRINT,
+        num(1),
+        SEMI,
+        IMPORT_KW,
+        string("sum.txt"),
+        ALIAS_KW,
+        ident("sum"),
+        SEMI,
+    )
+    assert len(stmts) == 2
+    assert isinstance(stmts[1], ImportStmt)
+
+
+def test_import_allowed_inside_if_body():
+    # if (true) { import "sum.txt" alias sum; }
+    stmts = parse_stmts(
+        IF_KW,
+        LPAREN,
+        TRUE,
+        RPAREN,
+        LBRACE,
+        IMPORT_KW,
+        string("sum.txt"),
+        ALIAS_KW,
+        ident("sum"),
+        SEMI,
+        RBRACE,
+    )
+    assert isinstance(stmts[0].then_branch.statements[0], ImportStmt)
+
+
+def test_import_directly_inside_for_body_raises():
+    # for (;false;) { import "sum.txt" alias sum; }
+    with pytest.raises(ParseError, match="반복문 내부"):
+        Parser(
+            [
+                FOR_KW,
+                LPAREN,
+                SEMI,
+                FALSE,
+                SEMI,
+                RPAREN,
+                LBRACE,
+                IMPORT_KW,
+                string("sum.txt"),
+                ALIAS_KW,
+                ident("sum"),
+                SEMI,
+                RBRACE,
+                EOF,
+            ]
+        ).parse()
+
+
+def test_import_inside_nested_block_inside_for_body_raises():
+    # for (;false;) { { import "sum.txt" alias sum; } }  ← 중첩 블록 안이어도 금지
+    with pytest.raises(ParseError, match="반복문 내부"):
+        Parser(
+            [
+                FOR_KW,
+                LPAREN,
+                SEMI,
+                FALSE,
+                SEMI,
+                RPAREN,
+                LBRACE,
+                LBRACE,
+                IMPORT_KW,
+                string("sum.txt"),
+                ALIAS_KW,
+                ident("sum"),
+                SEMI,
+                RBRACE,
+                RBRACE,
+                EOF,
+            ]
+        ).parse()
+
+
+def test_import_inside_if_body_inside_for_body_raises():
+    # for (;false;) { if (true) { import "sum.txt" alias sum; } }
+    with pytest.raises(ParseError, match="반복문 내부"):
+        Parser(
+            [
+                FOR_KW,
+                LPAREN,
+                SEMI,
+                FALSE,
+                SEMI,
+                RPAREN,
+                LBRACE,
+                IF_KW,
+                LPAREN,
+                TRUE,
+                RPAREN,
+                LBRACE,
+                IMPORT_KW,
+                string("sum.txt"),
+                ALIAS_KW,
+                ident("sum"),
+                SEMI,
+                RBRACE,
+                RBRACE,
+                EOF,
+            ]
+        ).parse()
+
+
+def test_import_forbidden_depth_restored_after_nested_for_loop():
+    # for (;false;) { for (;false;) { print 1; } } import "sum.txt" alias sum;
+    # 중첩 for 하나가 끝나도 바깥 for 안이면 여전히 금지되고, 둘 다 끝나면 다시 허용된다.
+    stmts = parse_stmts(
+        FOR_KW,
+        LPAREN,
+        SEMI,
+        FALSE,
+        SEMI,
+        RPAREN,
+        LBRACE,
+        FOR_KW,
+        LPAREN,
+        SEMI,
+        FALSE,
+        SEMI,
+        RPAREN,
+        PRINT,
+        num(1),
+        SEMI,
+        RBRACE,
+        IMPORT_KW,
+        string("sum.txt"),
+        ALIAS_KW,
+        ident("sum"),
+        SEMI,
+    )
+    assert len(stmts) == 2
+    assert isinstance(stmts[1], ImportStmt)

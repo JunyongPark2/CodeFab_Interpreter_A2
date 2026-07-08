@@ -2,6 +2,7 @@ from .assembler import Assembler
 from .checker import Checker
 from .environment import Environment
 from .executor import Executor
+from .loader import Loader
 
 
 class CodeFabInterpreter:
@@ -15,6 +16,8 @@ class CodeFabInterpreter:
     def __init__(self):
         self._assembler = Assembler()
         self._global_env = Environment()
+        # import 문이 파일을 로드할 때 쓴다. 인스턴스당 하나만 두고 재사용한다.
+        self._loader = Loader(self._assembler)
 
     def run(self, source: str) -> None:
         stmts = self._assembler.assemble(source)
@@ -22,4 +25,9 @@ class CodeFabInterpreter:
         # 같은 이름을 var로 재선언할 때 중복 선언 오류를 잡을 수 있다.
         global_scope = {name: True for name in self._global_env.names}
         locals_map = Checker(stmts, global_scope=global_scope).check()
-        Executor(stmts, environment=self._global_env, locals=locals_map).execute()
+        Executor(
+            stmts,
+            environment=self._global_env,
+            locals=locals_map,
+            loader=self._loader,
+        ).execute()
