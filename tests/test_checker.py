@@ -10,6 +10,7 @@ from interpreter.ast_nodes import (
     ExpressionStmt,
     ForStmt,
     FuncDeclStmt,
+    GetExpr,
     GroupingExpr,
     IfStmt,
     ImportStmt,
@@ -18,6 +19,7 @@ from interpreter.ast_nodes import (
     LiteralExpr,
     PrintStmt,
     ReturnStmt,
+    SetExpr,
     SuperExpr,
     ThisExpr,
     UnaryExpr,
@@ -785,3 +787,78 @@ def test_super_static_binding_distance_is_correct():
     locals_map = Checker(stmts).check()
     # Super 스코프는 This 스코프보다 1단계 위 → distance >= 1
     assert locals_map[id(super_expr)] >= 1
+
+
+def test_this_is_resolved_via_static_binding():
+    # Class A { Func f() { print This; } }
+    this_expr = ThisExpr(kw_this())
+    stmts = [
+        ClassDeclStmt(
+            ident("A"), None, [FuncDeclStmt(ident("f"), [], [PrintStmt(this_expr)])]
+        )
+    ]
+    locals_map = Checker(stmts).check()
+
+    assert id(this_expr) in locals_map
+
+
+def test_this_static_binding_distance_is_one_regardless_of_inheritance():
+    # This는 항상 메서드 본문 스코프 바로 한 단계 바깥에 있다 (부모 클래스 유무 무관).
+    this_no_parent = ThisExpr(kw_this())
+    stmts_no_parent = [
+        ClassDeclStmt(
+            ident("A"),
+            None,
+            [FuncDeclStmt(ident("f"), [], [PrintStmt(this_no_parent)])],
+        )
+    ]
+    locals_no_parent = Checker(stmts_no_parent).check()
+
+    this_with_parent = ThisExpr(kw_this())
+    stmts_with_parent = [
+        ClassDeclStmt(ident("A"), None, []),
+        ClassDeclStmt(
+            ident("B"),
+            VariableExpr(ident("A")),
+            [FuncDeclStmt(ident("f"), [], [PrintStmt(this_with_parent)])],
+        ),
+    ]
+    locals_with_parent = Checker(stmts_with_parent).check()
+
+    assert locals_no_parent[id(this_no_parent)] == 1
+    assert locals_with_parent[id(this_with_parent)] == 1
+
+
+def test_this_inside_get_and_set_expr_is_resolved():
+    # Class A { Func f() { This.x = This.x + 1; } }
+    this_in_set = ThisExpr(kw_this())
+    this_in_get = ThisExpr(kw_this())
+    stmts = [
+        ClassDeclStmt(
+            ident("A"),
+            None,
+            [
+                FuncDeclStmt(
+                    ident("f"),
+                    [],
+                    [
+                        ExpressionStmt(
+                            SetExpr(
+                                this_in_set,
+                                ident("x"),
+                                BinaryExpr(
+                                    GetExpr(this_in_get, ident("x")),
+                                    Token(TokenType.PLUS, "+"),
+                                    literal(1.0),
+                                ),
+                            )
+                        )
+                    ],
+                )
+            ],
+        )
+    ]
+    locals_map = Checker(stmts).check()
+
+    assert locals_map[id(this_in_set)] == 1
+    assert locals_map[id(this_in_get)] == 1

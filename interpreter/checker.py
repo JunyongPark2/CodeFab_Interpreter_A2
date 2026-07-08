@@ -294,6 +294,10 @@ class Checker:
             raise CheckError(
                 expr.keyword.line, "클래스 외부에서 'This'를 사용할 수 없습니다."
             )
+        # Super와 동일하게 정적 바인딩 대상이다. This는 CodeFabFunction.bind()가
+        # 메서드 호출마다 정확히 스코프 1개(This를 담은 Environment)를 새로 만드는
+        # 구조라, Checker가 계산하는 distance와 런타임 스코프 깊이가 항상 일치한다.
+        self._resolve_local(expr, "This")
 
     def _check_super(self, expr: SuperExpr) -> None:
         if self._in_class == 0:
