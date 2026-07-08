@@ -1,6 +1,7 @@
 import pytest
 
 from interpreter.ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
@@ -10,6 +11,8 @@ from interpreter.ast_nodes import (
     FuncDeclStmt,
     GroupingExpr,
     IfStmt,
+    IndexGetExpr,
+    IndexSetExpr,
     LiteralExpr,
     PrintStmt,
     ReturnStmt,
@@ -379,6 +382,25 @@ def test_assign_expr_in_nested_block_resolves_with_correct_distance():
     assert locals_map[id(assign)] == 1
 
 
+
+# ── 정적배열 기능 — checker는 값 검증은 안 하고 하위 표현식만 순회한다 ──
+
+
+def test_self_reference_inside_array_size_raises():
+    # { var a = Array(a); }  — 크기 표현식 안의 자기참조도 잡아야 한다.
+    stmts = [
+        BlockStmt(
+            [
+                VarDeclStmt(
+                    ident("a"),
+                    ArrayExpr(VariableExpr(ident("a")), Token(TokenType.ARRAY, "Array")),
+                ),
+            ]
+        )
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
 # ── Function 정적 검사 (가이드 5-1) ────────────────────────────
 
 
@@ -430,6 +452,27 @@ def test_return_outside_function_after_function_body_ends_raises():
         Checker(stmts).check()
 
 
+
+def test_self_reference_inside_index_get_expr_raises():
+    # { var a = arr[a]; }  — 인덱스 표현식 안의 자기참조도 잡아야 한다.
+    stmts = [
+        VarDeclStmt(ident("arr"), literal(0.0)),
+        BlockStmt(
+            [
+                VarDeclStmt(
+                    ident("a"),
+                    IndexGetExpr(
+                        VariableExpr(ident("arr")),
+                        Token(TokenType.LEFT_BRACKET, "["),
+                        VariableExpr(ident("a")),
+                    ),
+                ),
+            ]
+        ),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
 def test_duplicate_parameter_names_raises():
     # Func foo(a, a) {}
     stmts = [FuncDeclStmt(ident("foo"), [ident("a"), ident("a")], [])]
@@ -446,6 +489,21 @@ def test_duplicate_function_declaration_in_same_scope_raises():
     with pytest.raises(CheckError):
         Checker(stmts).check()
 
+def test_index_set_with_defined_variables_is_allowed():
+    # var arr = 0; var i = 0; arr[i] = 1;
+    stmts = [
+        VarDeclStmt(ident("arr"), literal(0.0)),
+        VarDeclStmt(ident("i"), literal(0.0)),
+        ExpressionStmt(
+            IndexSetExpr(
+                VariableExpr(ident("arr")),
+                Token(TokenType.LEFT_BRACKET, "["),
+                VariableExpr(ident("i")),
+                literal(1.0),
+            )
+        ),
+    ]
+    Checker(stmts).check()
 
 def test_function_name_colliding_with_existing_variable_raises():
     # var foo = 1; Func foo() {}

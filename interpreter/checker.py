@@ -1,4 +1,5 @@
 from .ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
@@ -9,6 +10,8 @@ from .ast_nodes import (
     FuncDeclStmt,
     GroupingExpr,
     IfStmt,
+    IndexGetExpr,
+    IndexSetExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
@@ -61,6 +64,9 @@ class Checker:
             UnaryExpr: self._check_unary,
             GroupingExpr: self._check_grouping,
             LogicalExpr: self._check_logical,
+            ArrayExpr: self._check_array,
+            IndexGetExpr: self._check_index_get,
+            IndexSetExpr: self._check_index_set,
             CallExpr: self._check_call,
         }
 
@@ -191,6 +197,18 @@ class Checker:
     def _check_logical(self, expr: LogicalExpr) -> None:
         expr.left = self._check_expr(expr.left)
         expr.right = self._check_expr(expr.right)
+
+    def _check_array(self, expr: ArrayExpr) -> None:
+        expr.size = self._check_expr(expr.size)
+
+    def _check_index_get(self, expr: IndexGetExpr) -> None:
+        expr.array = self._check_expr(expr.array)
+        expr.index = self._check_expr(expr.index)
+
+    def _check_index_set(self, expr: IndexSetExpr) -> None:
+        expr.array = self._check_expr(expr.array)
+        expr.index = self._check_expr(expr.index)
+        expr.value = self._check_expr(expr.value)
 
     def _check_call(self, expr: CallExpr) -> None:
         expr.callee = self._check_expr(expr.callee)

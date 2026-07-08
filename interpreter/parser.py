@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from .ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
@@ -11,6 +12,8 @@ from .ast_nodes import (
     FuncDeclStmt,
     GroupingExpr,
     IfStmt,
+    IndexGetExpr,
+    IndexSetExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
@@ -159,6 +162,9 @@ class Parser:
             value = self._assignment()  # 오른쪽 결합: a = b = 1
             if isinstance(expr, VariableExpr):
                 return AssignExpr(expr.name, value)
+            # 정적배열 기능: arr[index] = value
+            if isinstance(expr, IndexGetExpr):
+                return IndexSetExpr(expr.array, expr.bracket, expr.index, value)
             raise ParseError(self._previous().line, "대입 대상이 올바르지 않습니다.")
         return expr
 
@@ -217,7 +223,7 @@ class Parser:
         return self._call()
 
     def _call(self) -> Expr:
-        expr = self._primary()
+        expr = self._index()
         while self._match(TokenType.LEFT_PAREN):
             expr = self._finish_call(expr)
         return expr
@@ -231,6 +237,16 @@ class Parser:
         paren = self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
         return CallExpr(callee, paren, arguments)
 
+    # ── 정적배열 기능: arr[index] 읽기 (연쇄 인덱싱도 허용) ────
+    def _index(self) -> Expr:
+        expr = self._primary()
+        while self._match(TokenType.LEFT_BRACKET):
+            bracket = self._previous()
+            index = self._expression()
+            self._consume(TokenType.RIGHT_BRACKET, "']' 가 필요합니다.")
+            expr = IndexGetExpr(expr, bracket, index)
+        return expr
+
     def _primary(self) -> Expr:
         if self._match(TokenType.NUMBER, TokenType.STRING):
             return LiteralExpr(self._previous().value)
@@ -240,6 +256,13 @@ class Parser:
             return LiteralExpr(False)
         if self._match(TokenType.IDENTIFIER):
             return VariableExpr(self._previous())
+        # 정적배열 기능: Array(size)
+        if self._match(TokenType.ARRAY):
+            keyword = self._previous()
+            self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
+            size = self._expression()
+            self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
+            return ArrayExpr(size, keyword)
         if self._match(TokenType.LEFT_PAREN):
             expr = self._expression()
             self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")

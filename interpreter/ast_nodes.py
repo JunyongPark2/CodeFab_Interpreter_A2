@@ -102,6 +102,13 @@ class IndexSetExpr(Expr):
     value: Expr
 
 
+# ── 정적배열 기능: 배열 생성 (인덱스 읽기/쓰기는 위의 IndexGetExpr/IndexSetExpr 사용) ──
+@dataclass
+class ArrayExpr(Expr):
+    size: Expr
+    keyword: Token
+
+
 # ── Stmt ─────────────────────────────────────────────────────
 class Stmt:
     pass

@@ -1,6 +1,7 @@
 import pytest
 
 from interpreter.ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
@@ -8,6 +9,8 @@ from interpreter.ast_nodes import (
     ForStmt,
     GroupingExpr,
     IfStmt,
+    IndexGetExpr,
+    IndexSetExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
@@ -713,3 +716,167 @@ def test_unresolved_variable_still_falls_back_to_dynamic_lookup(capsys):
         ]
     )
     assert capsys.readouterr().out == "7\n"
+
+
+# ── 정적배열 기능 ─────────────────────────────────────────────────
+# var arr = Array(3); arr[0] = 10; ... 를 AST 레벨에서 직접 구성해 검증한다.
+
+
+def array_tok(line=1):
+    return tok(TokenType.ARRAY, "Array", line=line)
+
+
+def bracket_tok(line=1):
+    return tok(TokenType.LEFT_BRACKET, "[", line=line)
+
+
+def test_array_creation_is_fixed_size_filled_with_nil(capsys):
+    run(
+        [
+            VarDeclStmt(
+                name=name_tok("arr"),
+                initializer=ArrayExpr(size=LiteralExpr(3.0), keyword=array_tok()),
+            ),
+            PrintStmt(expression=VariableExpr(name=name_tok("arr"))),
+        ]
+    )
+    assert capsys.readouterr().out == "[nil, nil, nil]\n"
+
+
+def test_index_write_then_read(capsys):
+    run(
+        [
+            VarDeclStmt(
+                name=name_tok("arr"),
+                initializer=ArrayExpr(size=LiteralExpr(3.0), keyword=array_tok()),
+            ),
+            ExpressionStmt(
+                expression=IndexSetExpr(
+                    array=VariableExpr(name=name_tok("arr")),
+                    bracket=bracket_tok(),
+                    index=LiteralExpr(0.0),
+                    value=LiteralExpr(10.0),
+                )
+            ),
+            PrintStmt(
+                expression=IndexGetExpr(
+                    array=VariableExpr(name=name_tok("arr")),
+                    bracket=bracket_tok(),
+                    index=LiteralExpr(0.0),
+                )
+            ),
+        ]
+    )
+    assert capsys.readouterr().out == "10\n"
+
+
+def test_index_write_with_dynamic_index(capsys):
+    # var i = 2; arr[i - 1] = 7;
+    run(
+        [
+            VarDeclStmt(
+                name=name_tok("arr"),
+                initializer=ArrayExpr(size=LiteralExpr(3.0), keyword=array_tok()),
+            ),
+            VarDeclStmt(name=name_tok("i"), initializer=LiteralExpr(2.0)),
+            ExpressionStmt(
+                expression=IndexSetExpr(
+                    array=VariableExpr(name=name_tok("arr")),
+                    bracket=bracket_tok(),
+                    index=BinaryExpr(
+                        left=VariableExpr(name=name_tok("i")),
+                        operator=tok(TokenType.MINUS, line=1),
+                        right=LiteralExpr(1.0),
+                    ),
+                    value=LiteralExpr(7.0),
+                )
+            ),
+            PrintStmt(expression=VariableExpr(name=name_tok("arr"))),
+        ]
+    )
+    assert capsys.readouterr().out == "[nil, 7, nil]\n"
+
+
+def test_index_out_of_range_raises():
+    line = 1
+    with pytest.raises(
+            LangRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스가 범위를 벗어났습니다\."
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("arr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(3.0), keyword=array_tok(line)
+                    ),
+                ),
+                ExpressionStmt(
+                    expression=IndexGetExpr(
+                        array=VariableExpr(name=name_tok("arr")),
+                        bracket=bracket_tok(line),
+                        index=LiteralExpr(5.0),
+                    )
+                ),
+            ]
+        )
+
+
+def test_non_number_index_raises():
+    line = 1
+    with pytest.raises(
+            LangRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스는 숫자여야 합니다\."
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("arr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(3.0), keyword=array_tok(line)
+                    ),
+                ),
+                ExpressionStmt(
+                    expression=IndexGetExpr(
+                        array=VariableExpr(name=name_tok("arr")),
+                        bracket=bracket_tok(line),
+                        index=LiteralExpr("hello"),
+                    )
+                ),
+            ]
+        )
+
+
+def test_indexing_non_array_raises():
+    line = 1
+    with pytest.raises(
+            LangRuntimeError,
+            match=rf"\[{line}번째줄\] 배열이 아닌 값에는 인덱스로 접근할 수 없습니다\.",
+    ):
+        run(
+            [
+                VarDeclStmt(name=name_tok("x"), initializer=LiteralExpr(10.0)),
+                ExpressionStmt(
+                    expression=IndexGetExpr(
+                        array=VariableExpr(name=name_tok("x")),
+                        bracket=bracket_tok(line),
+                        index=LiteralExpr(0.0),
+                    )
+                ),
+            ]
+        )
+
+
+def test_non_number_array_size_raises():
+    line = 1
+    with pytest.raises(
+            LangRuntimeError, match=rf"\[{line}번째줄\] 배열의 크기는 숫자여야 합니다\."
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("brr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr("hi"), keyword=array_tok(line)
+                    ),
+                ),
+            ]
+        )
