@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable, Optional
+
 from .ast_nodes import (
     ArrayExpr,
     AssignExpr,
@@ -52,6 +54,7 @@ class Executor:
         environment: Environment | None = None,
         locals: dict[int, int] | None = None,
         loader: Loader | None = None,
+        on_stmt: Optional[Callable[[Stmt, int, "Executor"], None]] = None,
     ):
         # environment를 넘기지 않으면 매번 새 전역 스코프로 시작한다 (기존 동작 그대로 유지).
         # REPL처럼 "이전 실행에서 선언한 변수를 다음 실행에서도 써야 하는" 경우엔
@@ -65,6 +68,11 @@ class Executor:
         # import 실행에 쓰는 파일 로더. None이면(예: 손으로 AST를 만든 단위테스트)
         # ImportStmt를 만나도 실행할 수 없다는 명확한 에러를 낸다.
         self._loader = loader
+        # 디버그 모드(factory_shell debug)가 Stmt 단위 stepping을 구현하는 데 쓰는 훅.
+        # (stmt, depth, self)로 호출되며, depth는 현재 몇 겹의 블록 안인지를 나타낸다
+        # (0=최상위) — "next"가 블록 내부로 진입하지 않고 건너뛰는 데 필요하다.
+        self._on_stmt = on_stmt
+        self._depth = 0
         self._stmt_handlers = {
             PrintStmt: self._exec_print,
             VarDeclStmt: self._exec_var_decl,
@@ -100,8 +108,15 @@ class Executor:
         for stmt in self._stmts:
             self._exec_stmt(stmt)
 
+    @property
+    def current_env(self) -> Environment:
+        """디버그 모드가 watch/inspect 구현 시 현재 실행 스코프를 들여다보는 용도."""
+        return self._current
+
     # ── Stmt 실행 ─────────────────────────────────────────
     def _exec_stmt(self, stmt: Stmt) -> None:
+        if self._on_stmt is not None:
+            self._on_stmt(stmt, self._depth, self)
         handler = self._stmt_handlers.get(type(stmt))
         if handler:
             handler(stmt)
@@ -201,12 +216,14 @@ class Executor:
 
     def _exec_block(self, stmts: list[Stmt], env: Environment) -> None:
         prev = self._current
+        self._depth += 1
         try:
             self._current = env
             for stmt in stmts:
                 self._exec_stmt(stmt)
         finally:
             self._current = prev
+            self._depth -= 1
 
     # ── Expr 평가 ─────────────────────────────────────────
     def _eval(self, expr: Expr):

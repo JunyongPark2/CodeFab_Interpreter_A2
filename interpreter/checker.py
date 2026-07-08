@@ -333,9 +333,11 @@ class Checker:
             if expr.operator.type == TokenType.MINUS and isinstance(
                 expr.right.value, float
             ):
-                return LiteralExpr(-expr.right.value)
+                return LiteralExpr(-expr.right.value, expr.operator.line)
             if expr.operator.type == TokenType.BANG:
-                return LiteralExpr(not self._is_truthy(expr.right.value))
+                return LiteralExpr(
+                    not self._is_truthy(expr.right.value), expr.operator.line
+                )
 
         if (
             isinstance(expr, BinaryExpr)
@@ -346,7 +348,7 @@ class Checker:
                 expr.operator, expr.left.value, expr.right.value
             )
             if folded is not _NOT_FOLDABLE:
-                return LiteralExpr(folded)
+                return LiteralExpr(folded, expr.operator.line)
 
         return expr
 
