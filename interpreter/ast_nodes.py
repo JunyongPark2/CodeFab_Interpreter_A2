@@ -50,6 +50,28 @@ class LogicalExpr(Expr):
     right: Expr
 
 
+# ── 정적배열 기능 ────────────────────────────────────────────
+@dataclass
+class ArrayExpr(Expr):
+    size: Expr
+    keyword: Token
+
+
+@dataclass
+class IndexExpr(Expr):
+    array: Expr
+    index: Expr
+    bracket: Token
+
+
+@dataclass
+class IndexAssignExpr(Expr):
+    array: Expr
+    index: Expr
+    value: Expr
+    bracket: Token
+
+
 # ── Stmt ─────────────────────────────────────────────────────
 class Stmt:
     pass

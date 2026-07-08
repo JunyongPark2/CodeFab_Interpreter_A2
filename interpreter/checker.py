@@ -1,4 +1,5 @@
 from .ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
@@ -7,6 +8,8 @@ from .ast_nodes import (
     ForStmt,
     GroupingExpr,
     IfStmt,
+    IndexAssignExpr,
+    IndexExpr,
     LogicalExpr,
     PrintStmt,
     Stmt,
@@ -45,6 +48,18 @@ class Checker:
             LogicalExpr: lambda expr: (
                 self._check_expr(expr.left),
                 self._check_expr(expr.right),
+            ),
+            # 정적배열 기능: 크기/인덱스/값 검증은 하지 않고 하위 표현식만 순회한다.
+            # (실제 값 기반 검증은 checker가 아니라 executor의 런타임 오류로 처리)
+            ArrayExpr: lambda expr: self._check_expr(expr.size),
+            IndexExpr: lambda expr: (
+                self._check_expr(expr.array),
+                self._check_expr(expr.index),
+            ),
+            IndexAssignExpr: lambda expr: (
+                self._check_expr(expr.array),
+                self._check_expr(expr.index),
+                self._check_expr(expr.value),
             ),
         }
 

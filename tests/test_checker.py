@@ -1,12 +1,15 @@
 import pytest
 
 from interpreter.ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
     ExpressionStmt,
     ForStmt,
     IfStmt,
+    IndexAssignExpr,
+    IndexExpr,
     LiteralExpr,
     PrintStmt,
     VarDeclStmt,
@@ -166,5 +169,62 @@ def test_for_loop_variable_scope_is_allowed():
             ),
             body=BlockStmt([PrintStmt(VariableExpr(ident("j")))]),
         )
+    ]
+    Checker(stmts).check()
+
+
+# ── 정적배열 기능 — checker는 값 검증은 안 하고 하위 표현식만 순회한다 ──
+
+
+def test_self_reference_inside_array_size_raises():
+    # { var a = Array(a); }  — 크기 표현식 안의 자기참조도 잡아야 한다.
+    stmts = [
+        BlockStmt(
+            [
+                VarDeclStmt(
+                    ident("a"),
+                    ArrayExpr(VariableExpr(ident("a")), Token(TokenType.ARRAY, "Array")),
+                ),
+            ]
+        )
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_self_reference_inside_index_expr_raises():
+    # { var a = arr[a]; }  — 인덱스 표현식 안의 자기참조도 잡아야 한다.
+    stmts = [
+        VarDeclStmt(ident("arr"), literal(0.0)),
+        BlockStmt(
+            [
+                VarDeclStmt(
+                    ident("a"),
+                    IndexExpr(
+                        VariableExpr(ident("arr")),
+                        VariableExpr(ident("a")),
+                        Token(TokenType.LEFT_BRACKET, "["),
+                    ),
+                ),
+            ]
+        ),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_index_assign_with_defined_variables_is_allowed():
+    # var arr = 0; var i = 0; arr[i] = 1;
+    stmts = [
+        VarDeclStmt(ident("arr"), literal(0.0)),
+        VarDeclStmt(ident("i"), literal(0.0)),
+        ExpressionStmt(
+            IndexAssignExpr(
+                VariableExpr(ident("arr")),
+                VariableExpr(ident("i")),
+                literal(1.0),
+                Token(TokenType.LEFT_BRACKET, "["),
+            )
+        ),
     ]
     Checker(stmts).check()

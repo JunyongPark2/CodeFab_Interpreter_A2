@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from .ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
@@ -9,6 +10,8 @@ from .ast_nodes import (
     ForStmt,
     GroupingExpr,
     IfStmt,
+    IndexAssignExpr,
+    IndexExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
@@ -129,6 +132,9 @@ class Parser:
             value = self._assignment()  # 오른쪽 결합: a = b = 1
             if isinstance(expr, VariableExpr):
                 return AssignExpr(expr.name, value)
+            # 정적배열 기능: arr[index] = value
+            if isinstance(expr, IndexExpr):
+                return IndexAssignExpr(expr.array, expr.index, value, expr.bracket)
             raise ParseError(self._previous().line, "대입 대상이 올바르지 않습니다.")
         return expr
 
@@ -184,7 +190,17 @@ class Parser:
     def _unary(self) -> Expr:
         if self._match(TokenType.BANG, TokenType.MINUS):
             return UnaryExpr(self._previous(), self._unary())
-        return self._primary()
+        return self._index()
+
+    # ── 정적배열 기능: arr[index] 읽기 (연쇄 인덱싱도 허용) ────
+    def _index(self) -> Expr:
+        expr = self._primary()
+        while self._match(TokenType.LEFT_BRACKET):
+            bracket = self._previous()
+            index = self._expression()
+            self._consume(TokenType.RIGHT_BRACKET, "']' 가 필요합니다.")
+            expr = IndexExpr(expr, index, bracket)
+        return expr
 
     def _primary(self) -> Expr:
         if self._match(TokenType.NUMBER, TokenType.STRING):
@@ -195,6 +211,13 @@ class Parser:
             return LiteralExpr(False)
         if self._match(TokenType.IDENTIFIER):
             return VariableExpr(self._previous())
+        # 정적배열 기능: Array(size)
+        if self._match(TokenType.ARRAY):
+            keyword = self._previous()
+            self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
+            size = self._expression()
+            self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
+            return ArrayExpr(size, keyword)
         if self._match(TokenType.LEFT_PAREN):
             expr = self._expression()
             self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")

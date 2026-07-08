@@ -12,6 +12,10 @@ class TokenType(Enum):
     SEMICOLON = auto()
     COMMA = auto()
 
+    # 정적배열 기능
+    LEFT_BRACKET = auto()
+    RIGHT_BRACKET = auto()
+
     # 산술 연산자
     PLUS = auto()
     MINUS = auto()
@@ -44,6 +48,9 @@ class TokenType(Enum):
     AND = auto()
     OR = auto()
 
+    # 정적배열 기능
+    ARRAY = auto()
+
     EOF = auto()
 
 
@@ -58,6 +65,7 @@ KEYWORDS: dict[str, TokenType] = {
     "false": TokenType.FALSE,
     "and": TokenType.AND,
     "or": TokenType.OR,
+    "Array": TokenType.ARRAY,  # 정적배열 기능: Array(n) 생성자
 }
 
 

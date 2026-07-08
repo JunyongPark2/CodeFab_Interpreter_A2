@@ -732,6 +732,44 @@ def test_identifiers_starting_with_and_or_are_not_keywords():
     assert [t.origin for t in tokens[:2]] == ["android", "organic"]
 
 
+# ── 정적배열 기능 ──────────────────────────────────────────────────────
+
+
+def test_array_creation_tokens():
+    # var arr = Array(3);
+    assert as_token_tuples(tokenize("var arr = Array(3);")) == [
+        (TokenType.VAR, "var", None),
+        (TokenType.IDENTIFIER, "arr", None),
+        (TokenType.EQUAL, "=", None),
+        (TokenType.ARRAY, "Array", None),
+        (TokenType.LEFT_PAREN, "(", None),
+        (TokenType.NUMBER, "3", 3.0),
+        (TokenType.RIGHT_PAREN, ")", None),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+def test_index_access_tokens():
+    # arr[0] = 10;
+    assert as_token_tuples(tokenize("arr[0] = 10;")) == [
+        (TokenType.IDENTIFIER, "arr", None),
+        (TokenType.LEFT_BRACKET, "[", None),
+        (TokenType.NUMBER, "0", 0.0),
+        (TokenType.RIGHT_BRACKET, "]", None),
+        (TokenType.EQUAL, "=", None),
+        (TokenType.NUMBER, "10", 10.0),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+def test_array_keyword_is_case_sensitive():
+    # 'array' (소문자)는 키워드가 아니라 그냥 식별자여야 한다.
+    tokens = tokenize("array;")
+    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+
+
 def test_and_with_comparison_expressions():
     # x > 0 and y < 10;
     source = "x > 0 and y < 10;\n"

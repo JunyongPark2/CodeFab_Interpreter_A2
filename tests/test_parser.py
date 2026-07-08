@@ -1,6 +1,7 @@
 import pytest
 
 from interpreter.ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
@@ -8,6 +9,8 @@ from interpreter.ast_nodes import (
     ForStmt,
     GroupingExpr,
     IfStmt,
+    IndexAssignExpr,
+    IndexExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
@@ -53,6 +56,10 @@ FOR_KW = Token(TokenType.FOR, "for")
 AND_KW = Token(TokenType.AND, "and")
 OR_KW = Token(TokenType.OR, "or")
 BANG = Token(TokenType.BANG, "!")
+# 정적배열 기능
+ARRAY_KW = Token(TokenType.ARRAY, "Array")
+LBRACKET = Token(TokenType.LEFT_BRACKET, "[")
+RBRACKET = Token(TokenType.RIGHT_BRACKET, "]")
 
 
 def ident(name: str) -> Token:
@@ -1114,3 +1121,92 @@ def test_full_precedence_chain_or_and_equality_comparison():
     assert rhs.right.operator.type == TokenType.LESS
     assert rhs.right.left == LiteralExpr(4.0)
     assert rhs.right.right == LiteralExpr(5.0)
+
+
+# ─────────────────────────────────────────────────────────
+# 정적배열 기능 — Array(size) 생성, arr[index] 읽기/쓰기
+# ─────────────────────────────────────────────────────────
+
+
+def test_array_creation():
+    # var arr = Array(3);
+    #
+    # 기대 트리:  VarDeclStmt(name="arr", initializer=ArrayExpr(size=3))
+    stmts = parse_stmts(VAR, ident("arr"), EQUAL, ARRAY_KW, LPAREN, num(3), RPAREN, SEMI)
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, VarDeclStmt)
+    assert stmt.name.origin == "arr"
+    assert isinstance(stmt.initializer, ArrayExpr)
+    assert stmt.initializer.size == LiteralExpr(3.0)
+
+
+def test_index_read():
+    # print arr[0];
+    #
+    # 기대 트리:  IndexExpr(array=VariableExpr("arr"), index=0)
+    expr = parse_print(ident("arr"), LBRACKET, num(0), RBRACKET)
+
+    assert isinstance(expr, IndexExpr)
+    assert isinstance(expr.array, VariableExpr)
+    assert expr.array.name.origin == "arr"
+    assert expr.index == LiteralExpr(0.0)
+
+
+def test_index_write():
+    # arr[0] = 10;
+    #
+    # 기대 트리:  ExpressionStmt
+    #              └── IndexAssignExpr(array="arr", index=0, value=10)
+    stmts = parse_stmts(
+        ident("arr"), LBRACKET, num(0), RBRACKET, EQUAL, num(10), SEMI
+    )
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ExpressionStmt)
+    expr = stmt.expression
+    assert isinstance(expr, IndexAssignExpr)
+    assert isinstance(expr.array, VariableExpr)
+    assert expr.array.name.origin == "arr"
+    assert expr.index == LiteralExpr(0.0)
+    assert expr.value == LiteralExpr(10.0)
+
+
+def test_index_write_with_expression_index():
+    # arr[i - 1] = 7;
+    #
+    # 인덱스 자리에도 임의의 표현식이 올 수 있어야 한다.
+    stmts = parse_stmts(
+        ident("arr"),
+        LBRACKET,
+        ident("i"),
+        MINUS,
+        num(1),
+        RBRACKET,
+        EQUAL,
+        num(7),
+        SEMI,
+    )
+
+    assert len(stmts) == 1
+    expr = stmts[0].expression
+    assert isinstance(expr, IndexAssignExpr)
+    assert isinstance(expr.index, BinaryExpr)
+    assert expr.index.operator.type == TokenType.MINUS
+    assert expr.value == LiteralExpr(7.0)
+
+
+def test_missing_closing_paren_in_array_creation():
+    # var arr = Array(3;   ← ')' 없음
+    with pytest.raises(ParseError, match="'\\)' 가 필요합니다"):
+        Parser(
+            [VAR, ident("arr"), EQUAL, ARRAY_KW, LPAREN, num(3), SEMI, EOF]
+        ).parse()
+
+
+def test_missing_closing_bracket_in_index():
+    # print arr[0;   ← ']' 없음
+    with pytest.raises(ParseError, match="'\\]' 가 필요합니다"):
+        Parser([PRINT, ident("arr"), LBRACKET, num(0), SEMI, EOF]).parse()
