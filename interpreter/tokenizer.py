@@ -34,10 +34,18 @@ class Tokenizer:
                 self._add_token(TokenType.LEFT_BRACE)
             case "}":
                 self._add_token(TokenType.RIGHT_BRACE)
+            case "[":
+                self._add_token(TokenType.LEFT_BRACKET)
+            case "]":
+                self._add_token(TokenType.RIGHT_BRACKET)
             case ";":
                 self._add_token(TokenType.SEMICOLON)
             case ",":
                 self._add_token(TokenType.COMMA)
+            case ".":
+                self._add_token(TokenType.DOT)
+            case ":":
+                self._add_token(TokenType.COLON)
             case "+":
                 self._add_token(TokenType.PLUS)
             case "-":

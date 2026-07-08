@@ -9,8 +9,12 @@ class TokenType(Enum):
     RIGHT_PAREN = auto()
     LEFT_BRACE = auto()
     RIGHT_BRACE = auto()
+    LEFT_BRACKET = auto()
+    RIGHT_BRACKET = auto()
     SEMICOLON = auto()
     COMMA = auto()
+    DOT = auto()
+    COLON = auto()
 
     # 산술 연산자
     PLUS = auto()
@@ -43,6 +47,14 @@ class TokenType(Enum):
     FALSE = auto()
     AND = auto()
     OR = auto()
+    FUNC = auto()
+    RETURN = auto()
+    CLASS = auto()
+    THIS = auto()
+    SUPER = auto()
+    INSTANCEOF = auto()
+    IMPORT = auto()
+    ALIAS = auto()
 
     EOF = auto()
 
@@ -58,6 +70,14 @@ KEYWORDS: dict[str, TokenType] = {
     "false": TokenType.FALSE,
     "and": TokenType.AND,
     "or": TokenType.OR,
+    "Func": TokenType.FUNC,
+    "return": TokenType.RETURN,
+    "Class": TokenType.CLASS,
+    "This": TokenType.THIS,
+    "Super": TokenType.SUPER,
+    "instanceof": TokenType.INSTANCEOF,
+    "import": TokenType.IMPORT,
+    "alias": TokenType.ALIAS,
 }
 
 

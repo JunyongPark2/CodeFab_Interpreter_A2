@@ -746,3 +746,149 @@ def test_and_with_comparison_expressions():
         (TokenType.SEMICOLON, ";", None),
         (TokenType.EOF, "", None),
     ]
+
+
+# ── 신규 구분자 (배열/필드/상속용) ────────────────────────────────────
+
+
+def test_brackets():
+    # arr[0];
+    assert as_token_tuples(tokenize("arr[0];\n")) == [
+        (TokenType.IDENTIFIER, "arr", None),
+        (TokenType.LEFT_BRACKET, "[", None),
+        (TokenType.NUMBER, "0", 0.0),
+        (TokenType.RIGHT_BRACKET, "]", None),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+def test_dot_for_field_access():
+    # r.speed;
+    assert as_token_tuples(tokenize("r.speed;\n")) == [
+        (TokenType.IDENTIFIER, "r", None),
+        (TokenType.DOT, ".", None),
+        (TokenType.IDENTIFIER, "speed", None),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+def test_colon_for_inheritance():
+    # Class Robot : Base {}
+    assert as_token_tuples(tokenize("Class Robot : Base {}\n")) == [
+        (TokenType.CLASS, "Class", None),
+        (TokenType.IDENTIFIER, "Robot", None),
+        (TokenType.COLON, ":", None),
+        (TokenType.IDENTIFIER, "Base", None),
+        (TokenType.LEFT_BRACE, "{", None),
+        (TokenType.RIGHT_BRACE, "}", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+def test_number_dot_is_not_confused_with_dot_token():
+    # 5.0.  숫자 리터럴의 '.'과 필드 접근 '.'이 혼동되면 안 된다.
+    tokens = tokenize("5.0;\n")
+    assert as_token_tuples(tokens) == [
+        (TokenType.NUMBER, "5.0", 5.0),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+# ── Function 관련 신규 키워드 ────────────────────────────────────────
+
+
+def test_func_and_return_keywords():
+    # Func add(a, b) { return a + b; }
+    source = "Func add(a, b) { return a + b; }\n"
+    assert as_token_tuples(tokenize(source)) == [
+        (TokenType.FUNC, "Func", None),
+        (TokenType.IDENTIFIER, "add", None),
+        (TokenType.LEFT_PAREN, "(", None),
+        (TokenType.IDENTIFIER, "a", None),
+        (TokenType.COMMA, ",", None),
+        (TokenType.IDENTIFIER, "b", None),
+        (TokenType.RIGHT_PAREN, ")", None),
+        (TokenType.LEFT_BRACE, "{", None),
+        (TokenType.RETURN, "return", None),
+        (TokenType.IDENTIFIER, "a", None),
+        (TokenType.PLUS, "+", None),
+        (TokenType.IDENTIFIER, "b", None),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.RIGHT_BRACE, "}", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+def test_identifiers_starting_with_return_are_not_keywords():
+    # 'returnValue' 처럼 return으로 "시작"할 뿐인 식별자는 IDENTIFIER로 인식되어야 한다.
+    tokens = tokenize("returnValue;\n")
+    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+
+
+# ── Class 관련 신규 키워드 ──────────────────────────────────────────
+
+
+def test_class_this_super_keywords():
+    # Class Robot : Base { move() { This.speed = Super.speed; } }
+    source = "Class Robot : Base { move() { This.speed = Super.speed; } }\n"
+    tokens = tokenize(source)
+    types = [t.type for t in tokens]
+    assert types == [
+        TokenType.CLASS,
+        TokenType.IDENTIFIER,
+        TokenType.COLON,
+        TokenType.IDENTIFIER,
+        TokenType.LEFT_BRACE,
+        TokenType.IDENTIFIER,
+        TokenType.LEFT_PAREN,
+        TokenType.RIGHT_PAREN,
+        TokenType.LEFT_BRACE,
+        TokenType.THIS,
+        TokenType.DOT,
+        TokenType.IDENTIFIER,
+        TokenType.EQUAL,
+        TokenType.SUPER,
+        TokenType.DOT,
+        TokenType.IDENTIFIER,
+        TokenType.SEMICOLON,
+        TokenType.RIGHT_BRACE,
+        TokenType.RIGHT_BRACE,
+        TokenType.EOF,
+    ]
+
+
+def test_instanceof_keyword():
+    # w instanceof Robot;
+    source = "w instanceof Robot;\n"
+    assert as_token_tuples(tokenize(source)) == [
+        (TokenType.IDENTIFIER, "w", None),
+        (TokenType.INSTANCEOF, "instanceof", None),
+        (TokenType.IDENTIFIER, "Robot", None),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+def test_class_lowercase_is_not_keyword():
+    # PDF 예시 표기(대문자 시작)와 다르게 소문자로 쓰면 키워드가 아니라 식별자다.
+    tokens = tokenize("class;\n")
+    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+
+
+# ── import 관련 신규 키워드 ─────────────────────────────────────────
+
+
+def test_import_alias_keywords():
+    # import "sum.txt" alias sum;
+    source = 'import "sum.txt" alias sum;\n'
+    assert as_token_tuples(tokenize(source)) == [
+        (TokenType.IMPORT, "import", None),
+        (TokenType.STRING, '"sum.txt"', "sum.txt"),
+        (TokenType.ALIAS, "alias", None),
+        (TokenType.IDENTIFIER, "sum", None),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
