@@ -862,3 +862,54 @@ def test_this_inside_get_and_set_expr_is_resolved():
 
     assert locals_map[id(this_in_set)] == 1
     assert locals_map[id(this_in_get)] == 1
+
+
+def test_class_empty_declaration_is_allowed():
+    # Class Robot { }  ← 메서드 없이 빈 클래스도 유효하다.
+    stmts = [ClassDeclStmt(ident("Robot"), None, [])]
+    Checker(stmts).check()  # 예외 없어야 함
+
+
+def test_class_with_multiple_methods_is_allowed():
+    # Class Robot { move() { } stop() { } }
+    stmts = [
+        ClassDeclStmt(
+            ident("Robot"),
+            None,
+            [
+                FuncDeclStmt(ident("move"), [], []),
+                FuncDeclStmt(ident("stop"), [], []),
+            ],
+        )
+    ]
+    Checker(stmts).check()  # 예외 없어야 함
+
+
+def test_duplicate_method_names_in_class_raises():
+    # Class Robot { move() { } move() { } }  ← 같은 이름의 메서드 두 개는 금지
+    stmts = [
+        ClassDeclStmt(
+            ident("Robot"),
+            None,
+            [
+                FuncDeclStmt(ident("move"), [], []),
+                FuncDeclStmt(ident("move"), [], []),
+            ],
+        )
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_class_method_parameter_resolves_inside_body():
+    # Class A { Func f(x) { print x; } }  ← 메서드 파라미터도 정적 바인딩돼야 한다.
+    x_ref = VariableExpr(ident("x"))
+    stmts = [
+        ClassDeclStmt(
+            ident("A"),
+            None,
+            [FuncDeclStmt(ident("f"), [ident("x")], [PrintStmt(x_ref)])],
+        )
+    ]
+    locals_map = Checker(stmts).check()
+    assert locals_map[id(x_ref)] == 0

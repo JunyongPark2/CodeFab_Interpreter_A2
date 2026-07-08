@@ -82,3 +82,39 @@ def test_run_file_mode_prints_error_and_exits_one(tmp_path, capsys, source, expe
 
     assert exc_info.value.code == 1
     assert capsys.readouterr().out.strip() == expected_msg
+
+
+def test_run_file_mode_reports_error_line_ignoring_trailing_newline(tmp_path, capsys):
+    # 파일은 보통 마지막 줄 뒤에 개행이 붙어 저장된다. 그 트레일링 개행까지
+    # 줄 수로 세어 EOF 토큰의 줄 번호가 실제 코드보다 한 줄 밀리면 안 된다.
+    path = tmp_path / "program.cf"
+    path.write_text('var a = 3;\nprint("ho")\n', encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        factory_shell.run_file_mode(str(path))
+
+    assert exc_info.value.code == 1
+    assert capsys.readouterr().out.strip() == "[2번째줄] ';' 가 필요합니다."
+
+
+def test_run_file_mode_reports_error_line_where_semicolon_is_missing_mid_file(
+        tmp_path, capsys
+):
+    # 세미콜론이 빠진 문장 다음 줄에 새 문장이 이어지는 경우, 다음 문장이
+    # 시작되는 줄이 아니라 세미콜론이 빠진 실제 줄을 가리켜야 한다.
+    path = tmp_path / "program.cf"
+    path.write_text(
+        'var a = 3;\n'
+        'print("ho");\n'
+        'for (var b=3; b<=10; b=b+1){\n'
+        '    print("hm")\n'
+        '    print("kakaka");\n'
+        '}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        factory_shell.run_file_mode(str(path))
+
+    assert exc_info.value.code == 1
+    assert capsys.readouterr().out.strip() == "[4번째줄] ';' 가 필요합니다."
