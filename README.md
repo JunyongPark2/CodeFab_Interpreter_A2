@@ -42,12 +42,14 @@ Executor    ── AST를 순회하며 실제로 실행
 
 ```
 interpreter/
-├── tokens.py      # TokenType, Token 정의
-├── tokenizer.py   # 소스 문자열 → list[Token]
-├── ast_nodes.py   # Expr / Stmt AST 노드 정의
-├── parser.py      # list[Token] → list[Stmt] (AST)
-├── checker.py     # AST 정적 검사 (스코프/중복 선언 등)
-├── executor.py     # AST 실행 (Environment 기반 스코프 체인)
+├── tokens.py       # TokenType, Token 정의
+├── tokenizer.py    # 소스 문자열 → list[Token]
+├── ast_nodes.py    # Expr / Stmt AST 노드 정의
+├── parser.py       # list[Token] → list[Stmt] (AST)
+├── checker.py      # AST 정적 검사 (스코프/중복 선언 등)
+├── environment.py  # Environment (스코프 체인)
+├── errors.py       # TokenizeError / ParseError / CheckError / LangRuntimeError
+├── executor.py     # AST 실행
 ├── assembler.py    # Tokenizer + Parser 파이프라인
 └── codefab.py      # 전체 파이프라인 진입점 (CodeFabInterpreter)
 
@@ -58,7 +60,9 @@ tests/
 ├── test_parser.py
 ├── test_checker.py
 ├── test_assembler.py
-└── test_executor.py
+├── test_executor.py
+├── test_codefab.py
+└── test_prompt_shell.py
 ```
 
 ## 시작하기
@@ -66,7 +70,7 @@ tests/
 ### 요구 사항
 
 - Python 3.10+ (`match` 문, `X | Y` 타입 힌트 사용)
-- pytest 9.1.1
+- pytest 9.1.0
 
 
 ### 사용 예시
@@ -125,9 +129,19 @@ python prompt_shell.py
 1
 ```
 
-- 한 줄 입력할 때마다 `CodeFabInterpreter.run()`이 그 줄만 실행하지만, 같은 인터프리터 인스턴스를 계속 재사용하므로 이전 줄에서 선언한 변수를 다음 줄에서도 그대로 사용할 수 있습니다.
+문장이 아직 끝나지 않았으면(예: `if`/`for`의 본문이나 블록이 안 닫힌 경우) Python 셸처럼 `...` 프롬프트로 다음 줄을 계속 이어받다가, 문장이 완성되는 순간 실행합니다.
+
+```
+>> if (true)
+... {
+...   print "bbq";
+... }
+bbq
+```
+
+- 한 줄 입력할 때마다 `CodeFabInterpreter.run()`이 그 문장만 실행하지만, 같은 인터프리터 인스턴스를 계속 재사용하므로 이전 줄에서 선언한 변수를 다음 줄에서도 그대로 사용할 수 있습니다.
 - `exit`, `exit()`, `quit`, `quit()` 입력 시 셸을 종료합니다.
-- `Ctrl+C`: 현재 입력만 취소하고 새 프롬프트로 (파이썬 셸과 동일)
+- `Ctrl+C`: 현재 입력(이어받던 블록 포함)만 취소하고 새 프롬프트로 (파이썬 셸과 동일)
 - `Ctrl+D`(Unix) / `Ctrl+Z` + `Enter`(Windows): 셸 종료
 - Tokenize/Parse/Check/Runtime 에러가 나도 셸이 죽지 않고 에러 메시지만 출력한 뒤 다음 입력을 받습니다.
 
@@ -179,12 +193,15 @@ primary    → NUMBER | STRING | "true" | "false" | IDENTIFIER | "(" expression 
 
 | 클래스 / 파일 (`interpreter/`) | 테스트 파일 (`tests/`) | 테스트 수 |
 | --- | --- | --- |
-| `Token`, `TokenType` (`tokens.py`) / `Tokenizer`, `TokenizeError` (`tokenizer.py`) | `test_tokenizer.py` | 45 |
-| `Expr` / `Stmt` 및 하위 AST 노드 (`ast_nodes.py`) / `Parser`, `ParseError` (`parser.py`) | `test_parser.py` | 46 |
-| `Checker`, `CheckError` (`checker.py`) | `test_checker.py` | 9 |
-| `Executor`, `Environment`, `LangRuntimeError` (`executor.py`) | `test_executor.py` | 68 |
+| `Token`, `TokenType` (`tokens.py`) / `Tokenizer` (`tokenizer.py`) | `test_tokenizer.py` | 45 |
+| `Expr` / `Stmt` 및 하위 AST 노드 (`ast_nodes.py`) / `Parser` (`parser.py`) | `test_parser.py` | 46 |
+| `Checker` (`checker.py`) | `test_checker.py` | 9 |
+| `Executor`, `Environment` (`executor.py`, `environment.py`) | `test_executor.py` | 68 |
 | `Assembler` (`assembler.py`) | `test_assembler.py` | 28 |
-| `CodeFabInterpreter` (`codefab.py`) / `run()` (`prompt_shell.py`) | `test_prompt_shell.py` | 46 |
+| `CodeFabInterpreter` (`codefab.py`) | `test_codefab.py` | 34 |
+| `run()`, 대화형 입력 처리 (`prompt_shell.py`) | `test_prompt_shell.py` | 75 |
+
+`TokenizeError` / `ParseError` / `CheckError` / `LangRuntimeError`는 모두 `errors.py`에 정의되어 있으며, 위 표의 각 테스트 파일에서 함께 검증됩니다.
 
 
 ## 기여
