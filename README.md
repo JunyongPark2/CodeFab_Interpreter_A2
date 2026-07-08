@@ -80,11 +80,14 @@ import "sum.txt" alias sum;
   서로 다른 형제 블록에서 각각 같은 파일을 import하는 것은 허용된다.
 - 순환 import(a가 b를, b가 다시 a를 import)는 `ModuleImportError`로 즉시 차단된다.
 - 대상 파일이 존재하지 않아도 `ModuleImportError`가 발생한다.
-- **현재 알려진 제약**: `sum.add(1, 2)`처럼 `.`으로 모듈 멤버에 접근하는 문법은 아직
-  지원되지 않는다. 이 문법은 Class 기능의 `GetExpr`(`.` 접근)/`CallExpr` 파싱·실행
-  로직을 그대로 재사용하도록 설계되어 있어서, Class 기능이 merge된 뒤에 마저 연결할
-  예정이다. 그 전까지 import 자체(파일 로드, alias 변수에 모듈 객체 저장)는 정상
-  동작하며, `LangModule.fields`를 통해 내부적으로는 모듈의 함수/변수를 담고 있다.
+- **모듈 멤버 접근**: `sum.add(1, 2)`, `sum.VERSION`처럼 `.`으로 import된 모듈의
+  함수/변수에 접근할 수 있다. Class 기능의 `GetExpr`(`.` 접근)/`CallExpr` 파싱·실행
+  로직을 그대로 재사용했다 — `Executor._eval_get`이 `CodeFabInstance`뿐 아니라
+  `CodeFabModule`도 처리하도록 확장한 것 외에 별도 문법 추가는 없었다. `mid.base.func()`
+  처럼 모듈 안에서 또 import한 모듈을 체이닝해서 접근하는 것도 동일하게 동작한다.
+  존재하지 않는 멤버에 접근하면 `CodeFabRuntimeError`가 발생한다. 다만 모듈 필드에
+  값을 대입하는 것(`sum.x = 1;`)은 지원하지 않는다 — 모듈은 읽기 전용 네임스페이스로
+  취급한다.
 
 ## 프로젝트 구조
 
