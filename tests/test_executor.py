@@ -893,7 +893,7 @@ def test_non_number_array_size_raises():
         )
 
 
-# ── Class 관련 런타임 오류 테스트 (PDF 3일차 15페이지) ────────────────────
+# ── Class 관련 런타임 오류 테스트 ────────────────────
 
 
 def make_class(name, superclass=None, methods=None, line=1):
