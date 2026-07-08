@@ -105,7 +105,8 @@ class Parser:
         incomplete=True로 표시해서 REPL이 더 받을 수 있게 한다.
         """
         if self._is_at_end():
-            raise ParseError(self._peek().line, "문장이 필요합니다.", incomplete=True)
+            # 마지막으로 읽은 토큰의 줄을 보고한다
+            raise ParseError(self._previous().line, "문장이 필요합니다.", incomplete=True)
         return self._statement()
 
     def _func_declaration(self) -> FuncDeclStmt:
@@ -309,7 +310,7 @@ class Parser:
             expr = self._expression()
             self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
             return GroupingExpr(expr)
-        raise ParseError(self._peek().line, "표현식이 필요합니다.")
+        raise ParseError(self._previous().line, "표현식이 필요합니다.")
 
     # ── 헬퍼 메서드 ──────────────────────────────────────────
     def _match(self, *types: TokenType) -> bool:
