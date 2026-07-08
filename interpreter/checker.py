@@ -2,14 +2,17 @@ from .ast_nodes import (
     AssignExpr,
     BinaryExpr,
     BlockStmt,
+    CallExpr,
     Expr,
     ExpressionStmt,
     ForStmt,
+    FuncDeclStmt,
     GroupingExpr,
     IfStmt,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
+    ReturnStmt,
     Stmt,
     UnaryExpr,
     VarDeclStmt,
@@ -38,6 +41,8 @@ class Checker:
         # 변수 참조(VariableExpr)/대입(AssignExpr) 표현식마다 "몇 단계 위 스코프에
         # 있는지"를 기록한다. id(expr) -> distance. 못 찾으면(=전역) 기록하지 않는다.
         self._locals: dict[int, int] = {}
+        # 현재 몇 겹의 함수 본문 안에 있는지 (함수 외부 return 검출용).
+        self._function_depth = 0
 
         self._stmt_handlers = {
             VarDeclStmt: self._check_var_decl,
@@ -46,6 +51,8 @@ class Checker:
             ForStmt: self._check_for,
             PrintStmt: self._check_print,
             ExpressionStmt: self._check_expression_stmt,
+            FuncDeclStmt: self._check_func_decl,
+            ReturnStmt: self._check_return,
         }
         self._expr_handlers = {
             VariableExpr: self._check_variable,
@@ -54,6 +61,7 @@ class Checker:
             UnaryExpr: self._check_unary,
             GroupingExpr: self._check_grouping,
             LogicalExpr: self._check_logical,
+            CallExpr: self._check_call,
         }
 
     def check(self) -> dict[int, int]:
@@ -113,6 +121,41 @@ class Checker:
         self._check_stmt(stmt.body)
         self._end_scope()
 
+    def _check_func_decl(self, stmt: FuncDeclStmt) -> None:
+        if self._current_scope is not None:
+            self._declare(stmt.name.line, stmt.name.origin, self._current_scope)
+            # 재귀 호출을 위해 본문을 검사하기 전에 즉시 정의 완료로 표시한다
+            # (var 선언과 달리 "자기 자신을 참조하는 초기화식" 제약이 없다).
+            self._current_scope[stmt.name.origin] = True
+
+        self._check_duplicate_params(stmt.params)
+
+        self._function_depth += 1
+        self._begin_scope()
+        for param in stmt.params:
+            self._current_scope[param.origin] = True  # 파라미터는 이미 초기화된 것으로 취급
+        for body_stmt in stmt.body:
+            self._check_stmt(body_stmt)
+        self._end_scope()
+        self._function_depth -= 1
+
+    def _check_duplicate_params(self, params: list) -> None:
+        seen: set[str] = set()
+        for param in params:
+            if param.origin in seen:
+                raise CheckError(
+                    param.line, f"파라미터 이름 '{param.origin}'이(가) 중복되었습니다."
+                )
+            seen.add(param.origin)
+
+    def _check_return(self, stmt: ReturnStmt) -> None:
+        if self._function_depth == 0:
+            raise CheckError(
+                stmt.keyword.line, "함수 외부에서는 return을 사용할 수 없습니다."
+            )
+        if stmt.value is not None:
+            stmt.value = self._check_expr(stmt.value)
+
     # ── Expr 방문 (검사 + 최적화) ────────────────────────────
     def _check_expr(self, expr: Expr) -> Expr:
         """expr을 검사하고, 상수로 접을 수 있으면 접은 결과를 돌려준다.
@@ -148,6 +191,10 @@ class Checker:
     def _check_logical(self, expr: LogicalExpr) -> None:
         expr.left = self._check_expr(expr.left)
         expr.right = self._check_expr(expr.right)
+
+    def _check_call(self, expr: CallExpr) -> None:
+        expr.callee = self._check_expr(expr.callee)
+        expr.arguments = [self._check_expr(arg) for arg in expr.arguments]
 
     # ── 실행 전 최적화: 정적 바인딩 ────────────────────────────
     def _resolve_local(self, expr: Expr, name: str) -> None:
