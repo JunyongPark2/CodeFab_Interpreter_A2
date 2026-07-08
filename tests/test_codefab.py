@@ -391,3 +391,145 @@ def test_init_return_value_raises_check_error(interp):
 def test_non_instance_field_access_raises(interp):
     with pytest.raises(LangRuntimeError):
         interp.run("var x = 42; print x.speed;")
+
+
+# ── Class — 상속 / Super / instanceof ────────────────────────────────────────
+
+
+def test_child_inherits_parent_method(interp, capsys):
+    source = """\
+Class Animal {
+  Func speak() { print "..."; }
+}
+Class Dog : Animal { }
+var d = Dog();
+d.speak();
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "...\n"
+
+
+def test_child_overrides_parent_method(interp, capsys):
+    source = """\
+Class Animal {
+  Func speak() { print "..."; }
+}
+Class Dog : Animal {
+  Func speak() { print "woof"; }
+}
+var d = Dog();
+d.speak();
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "woof\n"
+
+
+def test_super_calls_parent_method(interp, capsys):
+    source = """\
+Class Robot {
+  Func greet() { print "Robot"; }
+}
+Class SpeedRobot : Robot {
+  Func greet() {
+    Super.greet();
+    print "SpeedRobot";
+  }
+}
+var r = SpeedRobot();
+r.greet();
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "Robot\nSpeedRobot\n"
+
+
+def test_super_with_this_fields(interp, capsys):
+    source = """\
+Class Robot {
+  Func init(name) {
+    This.name = name;
+  }
+  Func greet() {
+    print This.name;
+  }
+}
+Class SpeedRobot : Robot {
+  Func init(name, speed) {
+    This.name = name;
+    This.speed = speed;
+  }
+  Func greet() {
+    Super.greet();
+    print This.speed;
+  }
+}
+var r = SpeedRobot("Bolt", 100);
+r.greet();
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "Bolt\n100\n"
+
+
+def test_instanceof_own_class_is_true(interp, capsys):
+    interp.run("Class Robot { } var r = Robot(); print r instanceof Robot;")
+    assert capsys.readouterr().out == "true\n"
+
+
+def test_instanceof_parent_class_is_true(interp, capsys):
+    source = """\
+Class Animal { }
+Class Dog : Animal { }
+var d = Dog();
+print d instanceof Dog;
+print d instanceof Animal;
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "true\ntrue\n"
+
+
+def test_instanceof_unrelated_class_is_false(interp, capsys):
+    source = """\
+Class Cat { }
+Class Dog { }
+var d = Dog();
+print d instanceof Cat;
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "false\n"
+
+
+def test_instanceof_non_instance_is_false(interp, capsys):
+    interp.run("Class Robot { } print 42 instanceof Robot;")
+    assert capsys.readouterr().out == "false\n"
+
+
+def test_self_inheritance_raises_check_error(interp):
+    with pytest.raises(CheckError):
+        interp.run("Class A : A { }")
+
+
+def test_non_class_inheritance_raises_runtime_error(interp):
+    with pytest.raises(LangRuntimeError):
+        interp.run("var A = 1; Class B : A { }")
+
+
+def test_super_outside_class_raises_check_error(interp):
+    with pytest.raises(CheckError):
+        interp.run("Super.greet();")
+
+
+def test_super_without_parent_raises_check_error(interp):
+    with pytest.raises(CheckError):
+        interp.run("Class A { Func greet() { Super.greet(); } }")
+
+
+def test_super_missing_method_raises_runtime_error(interp):
+    with pytest.raises(LangRuntimeError):
+        source = """\
+Class A { }
+Class B : A {
+  Func test() { Super.nope(); }
+}
+var b = B();
+b.test();
+"""
+        interp.run(source)

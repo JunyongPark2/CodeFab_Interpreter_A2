@@ -23,6 +23,7 @@ from .ast_nodes import (
     ReturnStmt,
     SetExpr,
     Stmt,
+    SuperExpr,
     ThisExpr,
     UnaryExpr,
     VarDeclStmt,
@@ -82,6 +83,7 @@ class Executor:
             GetExpr: self._eval_get,
             SetExpr: self._eval_set,
             ThisExpr: self._eval_this,
+            SuperExpr: self._eval_super,
             InstanceOfExpr: self._eval_instanceof,
         }
 
@@ -330,6 +332,21 @@ class Executor:
 
     def _eval_this(self, expr: ThisExpr):
         return self._current.get("This", expr.keyword.line)
+
+    def _eval_super(self, expr: SuperExpr):
+        distance = self._locals.get(id(expr))
+        if distance is not None:
+            superclass = self._current.get_at(distance, "Super")
+            instance = self._current.get_at(distance - 1, "This")
+        else:
+            superclass = self._current.get("Super", expr.keyword.line)
+            instance = self._current.get("This", expr.keyword.line)
+        method = superclass.find_method(expr.method.origin)
+        if method is None:
+            raise LangRuntimeError(
+                expr.method.line, f"'{expr.method.origin}' 메서드가 존재하지 않습니다."
+            )
+        return method.bind(instance)
 
     def _eval_instanceof(self, expr: InstanceOfExpr):
         obj = self._eval(expr.object)

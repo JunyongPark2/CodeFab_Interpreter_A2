@@ -23,6 +23,7 @@ from .ast_nodes import (
     ReturnStmt,
     SetExpr,
     Stmt,
+    SuperExpr,
     ThisExpr,
     UnaryExpr,
     VarDeclStmt,
@@ -290,6 +291,11 @@ class Parser:
             return LiteralExpr(False)
         if self._match(TokenType.THIS):
             return ThisExpr(self._previous())
+        if self._match(TokenType.SUPER):
+            keyword = self._previous()
+            self._consume(TokenType.DOT, "'.' 가 필요합니다.")
+            method = self._consume(TokenType.IDENTIFIER, "메서드 이름이 필요합니다.")
+            return SuperExpr(keyword, method)
         if self._match(TokenType.IDENTIFIER):
             return VariableExpr(self._previous())
         # 정적배열 기능: Array(size)

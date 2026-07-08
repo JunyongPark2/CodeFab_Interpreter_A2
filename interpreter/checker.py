@@ -21,6 +21,7 @@ from .ast_nodes import (
     ReturnStmt,
     SetExpr,
     Stmt,
+    SuperExpr,
     ThisExpr,
     UnaryExpr,
     VarDeclStmt,
@@ -53,6 +54,7 @@ class Checker:
         self._function_depth = 0
         self._in_class = 0
         self._in_init = False
+        self._in_super = 0  # 부모 클래스가 있는 클래스 본문 깊이
 
         self._stmt_handlers = {
             VarDeclStmt: self._check_var_decl,
@@ -79,6 +81,7 @@ class Checker:
             GetExpr: lambda expr: self._check_expr(expr.object),
             SetExpr: self._check_set_expr,
             ThisExpr: self._check_this,
+            SuperExpr: self._check_super,
             InstanceOfExpr: lambda expr: self._check_expr(expr.object),
         }
 
@@ -180,12 +183,27 @@ class Checker:
             stmt.value = self._check_expr(stmt.value)
 
     def _check_class_decl(self, stmt: ClassDeclStmt) -> None:
+        if stmt.superclass is not None and stmt.superclass.name.origin == stmt.name.origin:
+            raise CheckError(stmt.name.line, "클래스는 자기 자신을 상속할 수 없습니다.")
+
         self._in_class += 1
+
+        if stmt.superclass is not None:
+            self._check_expr(stmt.superclass)
+            self._begin_scope()
+            self._current_scope["Super"] = True
+            self._in_super += 1
+
         self._begin_scope()
         self._current_scope["This"] = True
         for method in stmt.methods:
             self._check_func_decl(method, is_init=(method.name.origin == "init"))
         self._end_scope()
+
+        if stmt.superclass is not None:
+            self._end_scope()
+            self._in_super -= 1
+
         self._in_class -= 1
 
     # ── Expr 방문 (검사 + 최적화) ────────────────────────────
@@ -247,6 +265,15 @@ class Checker:
     def _check_this(self, expr: ThisExpr) -> None:
         if self._in_class == 0:
             raise CheckError(expr.keyword.line, "클래스 외부에서 'This'를 사용할 수 없습니다.")
+
+    def _check_super(self, expr: SuperExpr) -> None:
+        if self._in_class == 0:
+            raise CheckError(expr.keyword.line, "클래스 외부에서 'Super'를 사용할 수 없습니다.")
+        if self._in_super == 0:
+            raise CheckError(
+                expr.keyword.line, "부모 클래스가 없는 클래스에서 'Super'를 사용할 수 없습니다."
+            )
+        self._resolve_local(expr, "Super")
 
     # ── 실행 전 최적화: 정적 바인딩 ────────────────────────────
     def _resolve_local(self, expr: Expr, name: str) -> None:
