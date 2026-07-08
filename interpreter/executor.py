@@ -355,6 +355,11 @@ class Executor:
 
     def _eval_get(self, expr: GetExpr):
         obj = self._eval(expr.object)
+        if isinstance(obj, CodeFabModule):
+            # import된 모듈의 멤버 접근: sum.add, sum.VERSION 등.
+            # CodeFabModule.get()은 CodeFabInstance.get()과 달리 Token이 아니라
+            # (str, line)을 받으므로 여기서 풀어서 넘긴다.
+            return obj.get(expr.name.origin, expr.name.line)
         if not isinstance(obj, CodeFabInstance):
             raise CodeFabRuntimeError(
                 expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다."
@@ -363,6 +368,11 @@ class Executor:
 
     def _eval_set(self, expr: SetExpr):
         obj = self._eval(expr.object)
+        if isinstance(obj, CodeFabModule):
+            # import된 모듈은 읽기 전용 네임스페이스로 취급한다 (sum.x = 1; 금지).
+            raise CodeFabRuntimeError(
+                expr.name.line, "모듈에는 값을 대입할 수 없습니다."
+            )
         if not isinstance(obj, CodeFabInstance):
             raise CodeFabRuntimeError(
                 expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다."

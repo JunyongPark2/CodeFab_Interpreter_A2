@@ -154,3 +154,43 @@ def test_end_to_end_reimporting_after_repl_line_boundary_reuses_global_env(tmp_p
     interp.run(f'import "{path}" alias sum;\n')
     with pytest.raises(Exception):  # CheckError (alias 이름 충돌)
         interp.run(f'import "{path}" alias sum;\n')
+
+
+# ── `.` 문법으로 모듈 멤버 접근 (Class의 GetExpr/CallExpr 재사용) ────────────
+
+
+def test_module_function_member_can_be_called_via_dot_syntax(tmp_path, capsys):
+    path = write(tmp_path, "sum.txt", "Func add(a, b) { return a + b; }\n")
+    CodeFabInterpreter().run(f'import "{path}" alias sum;\nprint sum.add(1, 2);\n')
+    assert capsys.readouterr().out == "3\n"
+
+
+def test_module_variable_member_can_be_read_via_dot_syntax(tmp_path, capsys):
+    path = write(tmp_path, "sum.txt", "var VERSION = 1;\n")
+    CodeFabInterpreter().run(f'import "{path}" alias sum;\nprint sum.VERSION;\n')
+    assert capsys.readouterr().out == "1\n"
+
+
+def test_accessing_nonexistent_module_member_raises(tmp_path):
+    path = write(tmp_path, "sum.txt", "var VERSION = 1;\n")
+    with pytest.raises(CodeFabRuntimeError, match="'nope'"):
+        CodeFabInterpreter().run(f'import "{path}" alias sum;\nprint sum.nope;\n')
+
+
+def test_assigning_to_module_member_raises(tmp_path):
+    # 모듈은 읽기 전용 네임스페이스로 취급한다 (sum.x = 1; 금지).
+    path = write(tmp_path, "sum.txt", "var x = 1;\n")
+    with pytest.raises(CodeFabRuntimeError, match="모듈에는 값을 대입할 수 없습니다"):
+        CodeFabInterpreter().run(f'import "{path}" alias sum;\nsum.x = 5;\n')
+
+
+def test_nested_module_member_accessible_via_chained_dot_syntax(tmp_path, capsys):
+    # mid.txt가 base.txt를 import했을 때, mid.base.double(3)처럼 체이닝도 된다
+    # (GetExpr가 중첩된 CodeFabModule에도 동일하게 적용되므로).
+    base_path = write(tmp_path, "base.txt", "Func double(n) { return n * 2; }\n")
+    mid_path = write(tmp_path, "mid.txt", f'import "{base_path}" alias base;\n')
+
+    interp = CodeFabInterpreter()
+    interp.run(f'import "{mid_path}" alias mid;\n')
+    interp.run("print mid.base.double(3);")
+    assert capsys.readouterr().out == "6\n"
