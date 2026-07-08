@@ -1420,10 +1420,10 @@ def test_class_empty_declaration():
 
 
 def test_class_with_method():
-    # Class Robot { Func move(dist) { } }
+    # Class Robot { move(dist) { } }
     stmts = parse_stmts(
         CLASS_KW, ident("Robot"), LBRACE,
-        FUNC_KW, ident("move"), LPAREN, ident("dist"), RPAREN, LBRACE, RBRACE,
+        ident("move"), LPAREN, ident("dist"), RPAREN, LBRACE, RBRACE,
         RBRACE,
     )
 
@@ -1455,10 +1455,10 @@ def test_class_with_inheritance():
 
 
 def test_class_with_init_method():
-    # Class Robot { Func init(name) { } }
+    # Class Robot { init(name) { } }
     stmts = parse_stmts(
         CLASS_KW, ident("Robot"), LBRACE,
-        FUNC_KW, ident("init"), LPAREN, ident("name"), RPAREN, LBRACE, RBRACE,
+        ident("init"), LPAREN, ident("name"), RPAREN, LBRACE, RBRACE,
         RBRACE,
     )
 

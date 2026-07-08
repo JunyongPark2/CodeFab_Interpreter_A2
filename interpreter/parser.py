@@ -172,7 +172,6 @@ class Parser:
         self._consume(TokenType.LEFT_BRACE, "'{' 가 필요합니다.")
         methods: list[FuncDeclStmt] = []
         while not self._check(TokenType.RIGHT_BRACE) and not self._is_at_end():
-            self._consume(TokenType.FUNC, "메서드는 'Func' 키워드로 시작해야 합니다.")
             methods.append(self._func_declaration())
         self._consume(TokenType.RIGHT_BRACE, "'}' 가 필요합니다.")
         return ClassDeclStmt(name, superclass, methods)

@@ -683,7 +683,7 @@ def test_this_outside_class_raises():
 
 
 def test_this_inside_class_method_is_allowed():
-    # Class A { Func f() { print This; } }
+    # Class A { f() { print This; } }
     stmts = [
         ClassDeclStmt(
             ident("A"),
@@ -701,7 +701,7 @@ def test_super_outside_class_raises():
 
 
 def test_super_in_class_without_parent_raises():
-    # Class A { Func f() { Super.greet(); } }
+    # Class A { f() { Super.greet(); } }
     stmts = [
         ClassDeclStmt(
             ident("A"),
@@ -720,7 +720,7 @@ def test_super_in_class_without_parent_raises():
 
 
 def test_super_in_class_with_parent_is_allowed():
-    # Class A {} Class B : A { Func f() { Super.greet(); } }
+    # Class A {} Class B : A { f() { Super.greet(); } }
     super_expr = SuperExpr(kw_super(), ident("greet"))
     stmts = [
         ClassDeclStmt(ident("A"), None, []),
@@ -741,7 +741,7 @@ def test_self_inheritance_raises():
 
 
 def test_init_return_with_value_raises():
-    # Class A { Func init() { return 1; } }
+    # Class A { init() { return 1; } }
     stmts = [
         ClassDeclStmt(
             ident("A"),
@@ -754,7 +754,7 @@ def test_init_return_with_value_raises():
 
 
 def test_init_return_without_value_is_allowed():
-    # Class A { Func init() { return; } }
+    # Class A { init() { return; } }
     stmts = [
         ClassDeclStmt(
             ident("A"),
@@ -766,7 +766,7 @@ def test_init_return_without_value_is_allowed():
 
 
 def test_super_static_binding_distance_is_correct():
-    # Class A {} Class B : A { Func f() { Super.m(); } }
+    # Class A {} Class B : A { f() { Super.m(); } }
     # Super scope는 This scope보다 1단계 바깥이므로 distance가 This(1)보다 1 커야 한다.
     super_expr = SuperExpr(kw_super(), ident("m"))
     stmts = [
@@ -783,7 +783,7 @@ def test_super_static_binding_distance_is_correct():
 
 
 def test_this_is_resolved_via_static_binding():
-    # Class A { Func f() { print This; } }
+    # Class A { f() { print This; } }
     this_expr = ThisExpr(kw_this())
     stmts = [
         ClassDeclStmt(
@@ -823,7 +823,7 @@ def test_this_static_binding_distance_is_one_regardless_of_inheritance():
 
 
 def test_this_inside_get_and_set_expr_is_resolved():
-    # Class A { Func f() { This.x = This.x + 1; } }
+    # Class A { f() { This.x = This.x + 1; } }
     this_in_set = ThisExpr(kw_this())
     this_in_get = ThisExpr(kw_this())
     stmts = [
@@ -895,7 +895,7 @@ def test_duplicate_method_names_in_class_raises():
 
 
 def test_class_method_parameter_resolves_inside_body():
-    # Class A { Func f(x) { print x; } }  ← 메서드 파라미터도 정적 바인딩돼야 한다.
+    # Class A { f(x) { print x; } }  ← 메서드 파라미터도 정적 바인딩돼야 한다.
     x_ref = VariableExpr(ident("x"))
     stmts = [
         ClassDeclStmt(
