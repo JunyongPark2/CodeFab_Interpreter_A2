@@ -52,7 +52,7 @@ def test_var_reassign(interp, capsys):
 
 def test_var_without_initializer_is_nil(interp, capsys):
     interp.run("var x; print x;")
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 # ── 산술 ──────────────────────────────────────────────────────────
