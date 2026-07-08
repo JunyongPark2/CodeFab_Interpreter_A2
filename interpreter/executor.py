@@ -21,13 +21,21 @@ from .tokens import TokenType
 
 
 class Executor:
-    def __init__(self, stmts: list[Stmt], environment: Environment | None = None):
+    def __init__(
+        self,
+        stmts: list[Stmt],
+        environment: Environment | None = None,
+        locals: dict[int, int] | None = None,
+    ):
         # environment를 넘기지 않으면 매번 새 전역 스코프로 시작한다 (기존 동작 그대로 유지).
         # REPL처럼 "이전 실행에서 선언한 변수를 다음 실행에서도 써야 하는" 경우엔
         # 같은 Environment 인스턴스를 계속 넘겨서 재사용한다 (CodeFabInterpreter 참고).
         self._stmts = stmts
         self._global = environment if environment is not None else Environment()
         self._current = self._global
+        # Checker.check()가 계산해둔 정적 바인딩 결과 (id(expr) -> distance).
+        # 여기 없는 변수 참조는 기존처럼 Environment 체인을 동적으로 거슬러 올라간다.
+        self._locals = locals if locals is not None else {}
         self._stmt_handlers = {
             PrintStmt: self._exec_print,
             VarDeclStmt: self._exec_var_decl,
@@ -109,11 +117,18 @@ class Executor:
         return expr.value
 
     def _eval_variable(self, expr: VariableExpr):
+        distance = self._locals.get(id(expr))
+        if distance is not None:
+            return self._current.get_at(distance, expr.name.origin)
         return self._current.get(expr.name.origin, expr.name.line)
 
     def _eval_assign(self, expr: AssignExpr):
         val = self._eval(expr.value)
-        self._current.assign(expr.name.origin, val, expr.name.line)
+        distance = self._locals.get(id(expr))
+        if distance is not None:
+            self._current.assign_at(distance, expr.name.origin, val)
+        else:
+            self._current.assign(expr.name.origin, val, expr.name.line)
         return val
 
     def _eval_grouping(self, expr: GroupingExpr):
@@ -139,7 +154,9 @@ class Executor:
                 return left + right
             if isinstance(left, str) and isinstance(right, str):
                 return left + right
-            raise LangRuntimeError(line, "피연산자는 반드시 숫자 또는 문자열이어야 합니다.")
+            raise LangRuntimeError(
+                line, "피연산자는 반드시 숫자 또는 문자열이어야 합니다."
+            )
         if op == TokenType.MINUS:
             self._check_numbers(expr.operator, left, right)
             return left - right

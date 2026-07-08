@@ -6,9 +6,11 @@ from interpreter.ast_nodes import (
     BlockStmt,
     ExpressionStmt,
     ForStmt,
+    GroupingExpr,
     IfStmt,
     LiteralExpr,
     PrintStmt,
+    UnaryExpr,
     VarDeclStmt,
     VariableExpr,
 )
@@ -168,3 +170,207 @@ def test_for_loop_variable_scope_is_allowed():
         )
     ]
     Checker(stmts).check()
+
+
+# ── 실행 전 최적화: 상수 폴딩 테스트 ─────────────────────────
+
+
+def test_binary_arithmetic_is_folded_to_single_literal():
+    # print 1 + 2 * 3; 은 (1 + 2 * 3) 통짜 리터럴 하나로 접히지는 않지만
+    # 개별 이항식 단위로는 접힌다. 여기서는 리터럴+리터럴 단일 이항식만 확인한다.
+    stmt = ExpressionStmt(
+        BinaryExpr(literal(2.0), Token(TokenType.STAR, "*"), literal(3.0))
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value == 6.0
+
+
+def test_string_concat_binary_is_folded():
+    stmt = ExpressionStmt(
+        BinaryExpr(literal("foo"), Token(TokenType.PLUS, "+"), literal("bar"))
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value == "foobar"
+
+
+def test_comparison_binary_is_folded():
+    stmt = ExpressionStmt(
+        BinaryExpr(literal(1.0), Token(TokenType.LESS, "<"), literal(2.0))
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value is True
+
+
+def test_nested_binary_expression_is_fully_folded():
+    # (1 + 2) * 3 -> 자식이 먼저 접히고, 그 결과로 부모도 접혀서 최종 9.0 하나가 된다.
+    stmt = ExpressionStmt(
+        BinaryExpr(
+            BinaryExpr(literal(1.0), Token(TokenType.PLUS, "+"), literal(2.0)),
+            Token(TokenType.STAR, "*"),
+            literal(3.0),
+        )
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value == 9.0
+
+
+def test_grouping_of_literal_is_unwrapped():
+    stmt = ExpressionStmt(GroupingExpr(literal(5.0)))
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value == 5.0
+
+
+def test_unary_minus_on_literal_is_folded():
+    stmt = ExpressionStmt(UnaryExpr(Token(TokenType.MINUS, "-"), literal(3.0)))
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value == -3.0
+
+
+def test_unary_bang_on_literal_is_folded():
+    stmt = ExpressionStmt(UnaryExpr(Token(TokenType.BANG, "!"), literal(True)))
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value is False
+
+
+def test_division_by_zero_is_not_folded():
+    # 0으로 나누면 런타임 에러가 나야 하므로, Checker는 절대 이 식을 접으면 안 된다.
+    stmt = ExpressionStmt(
+        BinaryExpr(literal(1.0), Token(TokenType.SLASH, "/"), literal(0.0))
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, BinaryExpr)
+
+
+def test_type_mismatched_addition_is_not_folded():
+    # 숫자 + 문자열은 런타임 에러가 나야 하므로 접으면 안 된다.
+    stmt = ExpressionStmt(
+        BinaryExpr(literal(1.0), Token(TokenType.PLUS, "+"), literal("a"))
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, BinaryExpr)
+
+
+def test_binary_with_variable_operand_is_not_folded():
+    # 리터럴이 아닌 피연산자(변수)가 있으면 접을 수 없다.
+    stmts = [
+        VarDeclStmt(ident("a"), literal(1.0)),
+        ExpressionStmt(
+            BinaryExpr(
+                VariableExpr(ident("a")), Token(TokenType.PLUS, "+"), literal(1.0)
+            )
+        ),
+    ]
+    Checker(stmts).check()
+    assert isinstance(stmts[1].expression, BinaryExpr)
+
+
+# ── 실행 전 최적화: 정적 바인딩 테스트 ─────────────────────────
+
+
+def test_variable_in_nested_block_resolves_with_correct_distance():
+    # { var a = 1; { var b = a + 1; print b; } }
+    a_ref = VariableExpr(ident("a"))
+    b_ref = VariableExpr(ident("b"))
+    inner = BlockStmt(
+        [
+            VarDeclStmt(
+                ident("b"), BinaryExpr(a_ref, Token(TokenType.PLUS, "+"), literal(1.0))
+            ),
+            PrintStmt(b_ref),
+        ]
+    )
+    outer = BlockStmt([VarDeclStmt(ident("a"), literal(1.0)), inner])
+    locals_map = Checker([outer]).check()
+
+    assert locals_map[id(a_ref)] == 1
+    assert locals_map[id(b_ref)] == 0
+
+
+def test_top_level_global_variable_is_not_resolved():
+    # var g = 1; print g; -> 전역 변수라서 locals_map에 안 남아야 한다.
+    g_ref = VariableExpr(ident("g"))
+    stmts = [VarDeclStmt(ident("g"), literal(1.0)), PrintStmt(g_ref)]
+    locals_map = Checker(stmts).check()
+
+    assert id(g_ref) not in locals_map
+
+
+def test_undefined_variable_reference_is_not_resolved():
+    ref = VariableExpr(ident("nope"))
+    stmts = [PrintStmt(ref)]
+    locals_map = Checker(stmts).check()
+
+    assert id(ref) not in locals_map
+
+
+def test_logical_expr_operands_are_checked_and_folded():
+    from interpreter.ast_nodes import LogicalExpr
+
+    stmt = ExpressionStmt(
+        LogicalExpr(
+            GroupingExpr(literal(True)),
+            Token(TokenType.OR, "or"),
+            GroupingExpr(literal(False)),
+        )
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression.left, LiteralExpr)
+    assert isinstance(stmt.expression.right, LiteralExpr)
+
+
+@pytest.mark.parametrize(
+    "op_type, op_text, left, right, expected",
+    [
+        (TokenType.MINUS, "-", 5.0, 2.0, 3.0),
+        (TokenType.SLASH, "/", 6.0, 2.0, 3.0),
+        (TokenType.GREATER, ">", 3.0, 2.0, True),
+        (TokenType.GREATER_EQUAL, ">=", 2.0, 2.0, True),
+        (TokenType.LESS_EQUAL, "<=", 2.0, 2.0, True),
+        (TokenType.EQUAL_EQUAL, "==", 2.0, 2.0, True),
+        (TokenType.BANG_EQUAL, "!=", 2.0, 3.0, True),
+    ],
+)
+def test_binary_operators_are_folded(op_type, op_text, left, right, expected):
+    stmt = ExpressionStmt(
+        BinaryExpr(literal(left), Token(op_type, op_text), literal(right))
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value == expected
+
+
+def test_unary_bang_on_nil_is_folded_to_true():
+    stmt = ExpressionStmt(UnaryExpr(Token(TokenType.BANG, "!"), literal(None)))
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value is True
+
+
+def test_unary_bang_on_truthy_non_bool_is_folded_to_false():
+    stmt = ExpressionStmt(UnaryExpr(Token(TokenType.BANG, "!"), literal("hi")))
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, LiteralExpr)
+    assert stmt.expression.value is False
+
+
+def test_assign_expr_in_nested_block_resolves_with_correct_distance():
+    # { var a = 1; { a = 2; } }
+    assign = AssignExpr(ident("a"), literal(2.0))
+    stmts = [
+        BlockStmt(
+            [
+                VarDeclStmt(ident("a"), literal(1.0)),
+                BlockStmt([ExpressionStmt(assign)]),
+            ]
+        )
+    ]
+    locals_map = Checker(stmts).check()
+
+    assert locals_map[id(assign)] == 1
