@@ -4,14 +4,17 @@ from .ast_nodes import (
     AssignExpr,
     BinaryExpr,
     BlockStmt,
+    CallExpr,
     Expr,
     ExpressionStmt,
     ForStmt,
+    FuncDeclStmt,
     GroupingExpr,
     IfStmt,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
+    ReturnStmt,
     Stmt,
     UnaryExpr,
     VarDeclStmt,
@@ -32,6 +35,8 @@ class Parser:
             TokenType.VAR: self._var_declaration,
             TokenType.LEFT_BRACE: self._block_statement,
             TokenType.PRINT: self._print_statement,
+            TokenType.FUNC: self._func_declaration,
+            TokenType.RETURN: self._return_statement,
         }
 
     def parse(self) -> list[Stmt]:
@@ -92,6 +97,31 @@ class Parser:
         if self._is_at_end():
             raise ParseError(self._peek().line, "문장이 필요합니다.", incomplete=True)
         return self._statement()
+
+    def _func_declaration(self) -> FuncDeclStmt:
+        name = self._consume(TokenType.IDENTIFIER, "함수 이름이 필요합니다.")
+        self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
+        params = self._parameters()
+        self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
+        self._consume(TokenType.LEFT_BRACE, "'{' 가 필요합니다.")
+        body = self._block()
+        return FuncDeclStmt(name, params, body)
+
+    def _parameters(self) -> list[Token]:
+        params: list[Token] = []
+        if not self._check(TokenType.RIGHT_PAREN):
+            params.append(self._consume(TokenType.IDENTIFIER, "파라미터 이름이 필요합니다."))
+            while self._match(TokenType.COMMA):
+                params.append(self._consume(TokenType.IDENTIFIER, "파라미터 이름이 필요합니다."))
+        return params
+
+    def _return_statement(self) -> ReturnStmt:
+        keyword = self._previous()
+        value = None
+        if not self._check(TokenType.SEMICOLON):
+            value = self._expression()
+        self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
+        return ReturnStmt(keyword, value)
 
     def _var_declaration(self) -> VarDeclStmt:
         name = self._consume(TokenType.IDENTIFIER, "변수 이름이 필요합니다.")
@@ -184,7 +214,22 @@ class Parser:
     def _unary(self) -> Expr:
         if self._match(TokenType.BANG, TokenType.MINUS):
             return UnaryExpr(self._previous(), self._unary())
-        return self._primary()
+        return self._call()
+
+    def _call(self) -> Expr:
+        expr = self._primary()
+        while self._match(TokenType.LEFT_PAREN):
+            expr = self._finish_call(expr)
+        return expr
+
+    def _finish_call(self, callee: Expr) -> CallExpr:
+        arguments: list[Expr] = []
+        if not self._check(TokenType.RIGHT_PAREN):
+            arguments.append(self._expression())
+            while self._match(TokenType.COMMA):
+                arguments.append(self._expression())
+        paren = self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
+        return CallExpr(callee, paren, arguments)
 
     def _primary(self) -> Expr:
         if self._match(TokenType.NUMBER, TokenType.STRING):
