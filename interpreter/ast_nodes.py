@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from .tokens import Token
@@ -12,6 +12,9 @@ class Expr:
 @dataclass
 class LiteralExpr(Expr):
     value: Any
+    # 디버그 모드가 Stmt의 줄 번호를 찾는 데만 쓰는 부가 정보라 동등 비교에서는 제외한다 —
+    # 기존 테스트들이 `LiteralExpr(3.0) == parsed_expr`처럼 line 없이 비교하고 있었다.
+    line: int = field(default=0, compare=False)
 
 
 @dataclass

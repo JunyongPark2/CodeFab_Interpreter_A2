@@ -40,11 +40,6 @@ def test_main_prints_usage_and_exits_on_invalid_args(monkeypatch, capsys, argv):
     assert capsys.readouterr().out.strip() == factory_shell.USAGE
 
 
-def test_run_debug_mode_not_implemented_yet():
-    with pytest.raises(NotImplementedError):
-        factory_shell.run_debug_mode("program.cf")
-
-
 def test_run_file_mode_exits_with_error_when_file_missing(tmp_path, capsys):
     missing = tmp_path / "does_not_exist.cf"
 
@@ -118,3 +113,133 @@ def test_run_file_mode_reports_error_line_where_semicolon_is_missing_mid_file(
 
     assert exc_info.value.code == 1
     assert capsys.readouterr().out.strip() == "[4번째줄] ';' 가 필요합니다."
+
+
+def _feed_input(monkeypatch, commands):
+    it = iter(commands)
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(it))
+
+
+def test_run_debug_mode_exits_with_error_when_file_missing(tmp_path, capsys):
+    missing = tmp_path / "does_not_exist.cf"
+
+    with pytest.raises(SystemExit) as exc_info:
+        factory_shell.run_debug_mode(str(missing))
+
+    assert exc_info.value.code == 1
+    assert "찾을 수 없습니다" in capsys.readouterr().out
+
+
+def test_run_debug_mode_prints_error_and_exits_one_on_parse_error(tmp_path, capsys):
+    path = tmp_path / "program.cf"
+    path.write_text("print 1 + 2", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        factory_shell.run_debug_mode(str(path))
+
+    assert exc_info.value.code == 1
+    assert "[1번째줄] ';' 가 필요합니다." in capsys.readouterr().out
+
+
+def test_run_debug_mode_steps_through_every_statement(tmp_path, capsys, monkeypatch):
+    path = tmp_path / "program.cf"
+    path.write_text("var a = 3;\nvar b = a + 1;\nprint b;\n", encoding="utf-8")
+
+    _feed_input(monkeypatch, ["step", "step", "step"])
+
+    factory_shell.run_debug_mode(str(path))
+
+    out = capsys.readouterr().out
+    assert "[DEBUG] 소스코드 로딩: " in out
+    assert "1번째 줄에서 정지" in out and "→ var a = 3;" in out
+    assert "2번째 줄에서 정지" in out and "→ var b = a + 1;" in out
+    assert "3번째 줄에서 정지" in out and "→ print b;" in out
+    assert "4" in out.splitlines()
+    assert "[DEBUG] 실행이 종료되었습니다." in out
+
+
+def test_run_debug_mode_breakpoint_and_continue_skips_intermediate_lines(
+    tmp_path, capsys, monkeypatch
+):
+    path = tmp_path / "program.cf"
+    path.write_text("var a = 0;\nvar b = 1;\nvar c = 2;\nprint c;\n", encoding="utf-8")
+
+    _feed_input(monkeypatch, ["break 3", "continue", "continue"])
+
+    factory_shell.run_debug_mode(str(path))
+
+    out = capsys.readouterr().out
+    assert "1번째 줄에서 정지" in out and "→ var a = 0;" in out
+    assert "3번째 줄에 breakpoint 설정" in out
+    assert "3번째 줄에서 정지" in out and "→ var c = 2;" in out
+    assert "2번째 줄에서 정지" not in out
+    assert "2" in out.splitlines()
+
+
+def test_run_debug_mode_next_skips_over_block_body(tmp_path, capsys, monkeypatch):
+    path = tmp_path / "program.cf"
+    path.write_text("var a = 0;\n{\n    a = 1;\n}\nprint a;\n", encoding="utf-8")
+
+    _feed_input(monkeypatch, ["next", "next", "continue"])
+
+    factory_shell.run_debug_mode(str(path))
+
+    out = capsys.readouterr().out
+    assert out.count("줄에서 정지") == 3
+    assert "1" in out.splitlines()
+
+
+def test_run_debug_mode_watch_prints_value_at_each_pause(tmp_path, capsys, monkeypatch):
+    path = tmp_path / "program.cf"
+    path.write_text("var a = 1;\nvar b = 2;\nprint a;\n", encoding="utf-8")
+
+    _feed_input(monkeypatch, ["watch a", "step", "step", "continue"])
+
+    factory_shell.run_debug_mode(str(path))
+
+    out = capsys.readouterr().out
+    assert "[WATCH] 'a' 감시 등록" in out
+    assert "[WATCH] a = 1" in out
+
+
+def test_run_debug_mode_inspect_prints_current_scope(tmp_path, capsys, monkeypatch):
+    path = tmp_path / "program.cf"
+    path.write_text("var a = 1;\nvar b = 2;\nprint b;\n", encoding="utf-8")
+
+    _feed_input(monkeypatch, ["step", "inspect", "continue"])
+
+    factory_shell.run_debug_mode(str(path))
+
+    out = capsys.readouterr().out
+    assert "[전역] a = 1 (Number)" in out
+
+
+def test_run_debug_mode_reports_runtime_error_with_line_number(
+    tmp_path, capsys, monkeypatch
+):
+    path = tmp_path / "program.cf"
+    path.write_text("var arr = Array(2);\nprint arr[5];\n", encoding="utf-8")
+
+    _feed_input(monkeypatch, ["continue"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        factory_shell.run_debug_mode(str(path))
+
+    assert exc_info.value.code == 1
+    assert "[2번째줄] 배열 인덱스가 범위를 벗어났습니다." in capsys.readouterr().out
+
+
+def test_run_debug_mode_exit_stops_without_running_remaining_statements(
+    tmp_path, capsys, monkeypatch
+):
+    path = tmp_path / "program.cf"
+    path.write_text("var a = 1;\nprint a;\n", encoding="utf-8")
+
+    _feed_input(monkeypatch, ["exit"])
+
+    factory_shell.run_debug_mode(str(path))  # 정상 종료(exit code 1로 죽지 않음)
+
+    out = capsys.readouterr().out
+    assert "디버그 세션을 종료합니다" in out
+    assert "1" not in out.splitlines()  # print a;가 실행되지 않았어야 한다
+    assert "[DEBUG] 실행이 종료되었습니다." not in out

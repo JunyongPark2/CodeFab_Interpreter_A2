@@ -201,6 +201,48 @@ bbq
 - `Ctrl+D`(Unix) / `Ctrl+Z` + `Enter`(Windows): 셸 종료
 - Tokenize/Parse/Check/Runtime 에러가 나도 셸이 죽지 않고 에러 메시지만 출력한 뒤 다음 입력을 받습니다.
 
+**3) 공장 제어 쉘 (Factory Shell)**
+
+`factory_shell.py`는 Interpreter Factory를 운용하는 인터페이스로, REPL/파일/디버그 세 가지 실행 모드를 제공합니다.
+
+```bash
+python factory_shell.py                     # 인자 없음 -> REPL 모드 (Prompt Shell과 동일)
+python factory_shell.py run <파일경로>        # 파일 모드
+python factory_shell.py debug <파일경로>      # 디버그 모드
+```
+
+**파일 모드**: `.txt` 소스 파일을 읽어 그대로 실행합니다. 파일이 없으면 명확한 오류 메시지를 출력하고 종료 코드 1을 반환하며, 실행 중 오류가 나면 오류 메시지(줄 번호 포함)를 출력한 뒤 즉시 종료합니다.
+
+```bash
+python factory_shell.py run scripts/import_demo.txt
+```
+
+**디버그 모드**: 소스 코드를 Stmt(문장) 단위로 멈춰가며 실행 상태를 점검합니다. 진입하면 첫 번째 문장에서 자동으로 멈추고, 아래 명령으로 실행을 제어합니다.
+
+| 명령어 | 설명 |
+| --- | --- |
+| `step` | 현재 Stmt 실행 후 다음 Stmt에서 정지 (블록 내부까지 진입) |
+| `next` | 현재 Stmt 실행 후 다음 Stmt에서 정지하되, 블록 내부로는 진입하지 않음 |
+| `break <줄번호>` | 해당 줄에 breakpoint 설정 |
+| `breakpoints` | 현재 설정된 breakpoint 목록 출력 |
+| `remove <줄번호>` | breakpoint 해제 |
+| `continue` | 다음 breakpoint(또는 프로그램 종료)까지 실행 |
+| `watch <변수명>` | 해당 변수를 감시 목록에 추가 (정지할 때마다 값 자동 출력) |
+| `unwatch <변수명>` | 감시 목록에서 제거 |
+| `watches` | 현재 감시 중인 변수 목록과 값 출력 |
+| `inspect` | 현재 스코프에서 보이는 모든 변수와 값(타입 포함) 출력 |
+| `exit`, `exit()`, `quit`, `quit()` | 남은 실행을 중단하고 디버그 세션 종료 (Prompt Shell의 종료 명령어와 동일) |
+
+```bash
+$ python factory_shell.py debug scripts/import_demo.txt
+[DEBUG] 소스코드 로딩: scripts/import_demo.txt
+[DEBUG] 1번째 줄에서 정지 → import "scripts/sum.txt" alias sum;
+> step
+...
+```
+
+breakpoint는 `continue`/`next`로 건너뛰는 도중에도 항상 우선 적용됩니다. 실행 중 런타임 오류가 발생하면 파일 모드와 동일하게 줄 번호와 함께 출력하고 종료 코드 1로 종료합니다.
+
 ## 지원 토큰
 
 `interpreter/tokens.py`의 `TokenType`에 정의된 토큰 종류입니다.

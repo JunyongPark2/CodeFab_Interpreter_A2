@@ -51,6 +51,24 @@ def test_module_environment_is_isolated_from_importing_scope(tmp_write):
         executor.execute()
 
 
+def test_on_stmt_hook_fires_for_statements_inside_imported_module(tmp_write):
+    # 디버그 모드(factory_shell)의 step/break/watch는 on_stmt 훅에 의존한다.
+    # import된 파일을 실행할 내부 Executor에도 on_stmt가 전달되지 않으면,
+    # import된 모듈 내부 문장들은 디버거 몰래 통째로 실행돼 버린다.
+    path = tmp_write("sum.txt", "var a = 1;\nvar b = 2;\n")
+    stmt = ImportStmt(path_tok(path), name_tok("sum"))
+    loader = Loader(Assembler())
+    seen_stmt_types = []
+
+    def on_stmt(stmt, depth, executor):
+        seen_stmt_types.append(type(stmt))
+
+    Executor([stmt], loader=loader, on_stmt=on_stmt).execute()
+
+    assert ImportStmt in seen_stmt_types
+    assert seen_stmt_types.count(VarDeclStmt) == 2
+
+
 def test_module_loader_error_propagates_with_line_number():
     stmt = ImportStmt(path_tok("없는파일.txt", line=7), name_tok("m"))
     loader = Loader(Assembler())

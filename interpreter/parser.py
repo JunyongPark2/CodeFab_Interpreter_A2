@@ -313,11 +313,11 @@ class Parser:
 
     def _primary(self) -> Expr:
         if self._match(TokenType.NUMBER, TokenType.STRING):
-            return LiteralExpr(self._previous().value)
+            return LiteralExpr(self._previous().value, self._previous().line)
         if self._match(TokenType.TRUE):
-            return LiteralExpr(True)
+            return LiteralExpr(True, self._previous().line)
         if self._match(TokenType.FALSE):
-            return LiteralExpr(False)
+            return LiteralExpr(False, self._previous().line)
         if self._match(TokenType.THIS):
             return ThisExpr(self._previous())
         if self._match(TokenType.SUPER):
