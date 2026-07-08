@@ -339,7 +339,8 @@ class Parser:
             TokenType.RIGHT_PAREN,
             TokenType.RIGHT_BRACE,
         )
-        raise ParseError(self._peek().line, msg, incomplete=incomplete)
+        # 마지막으로 읽은 토큰(previous)의 줄을 지정
+        raise ParseError(self._previous().line, msg, incomplete=incomplete)
 
     def _peek(self) -> Token:
         return self._tokens[self._current]
