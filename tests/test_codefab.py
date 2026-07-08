@@ -230,3 +230,164 @@ def test_nested_for_loop_same_var_shadowing(interp, capsys):
         "for (var i = 0; i < 2; i = i + 1) { for (var i = 10; i < 12; i = i + 1) { print i; } }"
     )
     assert capsys.readouterr().out == "10\n11\n10\n11\n"
+
+
+# ── Function ──────────────────────────────────────────────────────────────────
+
+
+def test_function_declaration_and_call(interp, capsys):
+    interp.run("Func greet() { print \"hi\"; } greet();")
+    assert capsys.readouterr().out == "hi\n"
+
+
+def test_function_with_params_and_return(interp, capsys):
+    interp.run("Func add(a, b) { return a + b; } print add(3, 4);")
+    assert capsys.readouterr().out == "7\n"
+
+
+def test_function_return_nil(interp, capsys):
+    interp.run("Func noop() { return; } print noop();")
+    assert capsys.readouterr().out == "nil\n"
+
+
+def test_function_no_return_is_nil(interp, capsys):
+    interp.run("Func noop() { } print noop();")
+    assert capsys.readouterr().out == "nil\n"
+
+
+def test_function_return_value_in_variable(interp, capsys):
+    interp.run("Func double(x) { return x * 2; } var r = double(5); print r;")
+    assert capsys.readouterr().out == "10\n"
+
+
+def test_recursive_factorial(interp, capsys):
+    source = """\
+Func fact(n) {
+  if (n < 2) return 1;
+  return n * fact(n - 1);
+}
+print fact(5);
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "120\n"
+
+
+def test_function_non_callable_raises(interp):
+    with pytest.raises(LangRuntimeError):
+        interp.run("var x = 1; x();")
+
+
+def test_function_arity_mismatch_raises(interp):
+    with pytest.raises(LangRuntimeError):
+        interp.run("Func add(a, b) { return a + b; } add(1);")
+
+
+def test_return_outside_function_raises_check_error(interp):
+    with pytest.raises(CheckError):
+        interp.run("return 5;")
+
+
+def test_duplicate_param_raises_check_error(interp):
+    with pytest.raises(CheckError):
+        interp.run("Func bad(x, x) { return x; }")
+
+
+# ── Class — 기본 기능 ──────────────────────────────────────────────────────────
+
+
+def test_empty_class_instance(interp, capsys):
+    interp.run("Class Robot { } var r = Robot(); print r;")
+    assert capsys.readouterr().out == "<Robot instance>\n"
+
+
+def test_field_write_and_read(interp, capsys):
+    interp.run("Class Robot { } var r = Robot(); r.speed = 10; print r.speed;")
+    assert capsys.readouterr().out == "10\n"
+
+
+def test_field_update(interp, capsys):
+    interp.run(
+        "Class Robot { } var r = Robot(); r.speed = 5; r.speed = r.speed + 3; print r.speed;"
+    )
+    assert capsys.readouterr().out == "8\n"
+
+
+def test_nonexistent_field_read_raises(interp):
+    with pytest.raises(LangRuntimeError):
+        interp.run("Class Robot { } var r = Robot(); print r.speed;")
+
+
+def test_method_with_this(interp, capsys):
+    source = """\
+Class Robot {
+  Func setSpeed(s) {
+    This.speed = s;
+  }
+  Func getSpeed() {
+    return This.speed;
+  }
+}
+var r = Robot();
+r.setSpeed(42);
+print r.getSpeed();
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "42\n"
+
+
+def test_method_calls_another_method(interp, capsys):
+    source = """\
+Class Counter {
+  Func init() {
+    This.count = 0;
+  }
+  Func increment() {
+    This.count = This.count + 1;
+  }
+  Func getCount() {
+    return This.count;
+  }
+}
+var c = Counter();
+c.increment();
+c.increment();
+print c.getCount();
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "2\n"
+
+
+def test_init_constructor_with_args(interp, capsys):
+    source = """\
+Class Robot {
+  Func init(name, speed) {
+    This.name = name;
+    This.speed = speed;
+  }
+}
+var r = Robot("AndOr", 10);
+print r.name;
+print r.speed;
+"""
+    interp.run(source)
+    assert capsys.readouterr().out == "AndOr\n10\n"
+
+
+def test_init_returns_instance(interp, capsys):
+    interp.run("Class Robot { Func init() { This.x = 1; } } var r = Robot(); print r.x;")
+    assert capsys.readouterr().out == "1\n"
+
+
+def test_this_outside_class_raises_check_error(interp):
+    with pytest.raises(CheckError):
+        interp.run("print This.x;")
+
+
+def test_init_return_value_raises_check_error(interp):
+    with pytest.raises(CheckError):
+        interp.run("Class Bad { Func init() { return 1; } }")
+
+
+def test_non_instance_field_access_raises(interp):
+    with pytest.raises(LangRuntimeError):
+        interp.run("var x = 42; print x.speed;")

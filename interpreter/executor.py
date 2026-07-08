@@ -1,59 +1,43 @@
+from __future__ import annotations
+
 from .ast_nodes import (
     ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
     CallExpr,
+    ClassDeclStmt,
     Expr,
     ExpressionStmt,
     ForStmt,
     FuncDeclStmt,
+    GetExpr,
     GroupingExpr,
     IfStmt,
     IndexGetExpr,
     IndexSetExpr,
+    InstanceOfExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
     ReturnStmt,
+    SetExpr,
     Stmt,
+    ThisExpr,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
 )
 from .environment import Environment
 from .errors import LangRuntimeError
+from .runtime import (
+    _ReturnSignal,
+    CodeFabCallable,
+    CodeFabClass,
+    CodeFabFunction,
+    CodeFabInstance,
+)
 from .tokens import TokenType
-
-
-class ReturnSignal(Exception):
-    """return 실행 시 함수 호출 프레임까지 한 번에 빠져나오기 위한 내부 제어 신호."""
-
-    def __init__(self, value):
-        self.value = value
-
-
-class LangFunction:
-    """Func 선언으로 만들어지는 런타임 함수 값. 정의 시점의 Environment를 closure로 캡처해서
-    재귀 호출(자기 자신을 다시 참조) 시에도 이름을 찾을 수 있게 한다."""
-
-    def __init__(self, decl: FuncDeclStmt, closure: Environment):
-        self.decl = decl
-        self.closure = closure
-
-    @property
-    def arity(self) -> int:
-        return len(self.decl.params)
-
-    def call(self, executor: "Executor", arguments: list):
-        env = Environment(parent=self.closure)
-        for param, value in zip(self.decl.params, arguments):
-            env.define(param.origin, value)
-        try:
-            executor._exec_block(self.decl.body, env)
-        except ReturnSignal as signal:
-            return signal.value
-        return None
 
 
 class Executor:
@@ -81,6 +65,7 @@ class Executor:
             ForStmt: self._exec_for,
             FuncDeclStmt: self._exec_func_decl,
             ReturnStmt: self._exec_return,
+            ClassDeclStmt: self._exec_class_decl,
         }
         self._expr_handlers = {
             LiteralExpr: self._eval_literal,
@@ -90,10 +75,14 @@ class Executor:
             UnaryExpr: self._eval_unary,
             BinaryExpr: self._eval_binary,
             LogicalExpr: self._eval_logical,
-            CallExpr: self._eval_call,
             ArrayExpr: self._eval_array,
             IndexGetExpr: self._eval_index_get,
             IndexSetExpr: self._eval_index_set,
+            CallExpr: self._eval_call,
+            GetExpr: self._eval_get,
+            SetExpr: self._eval_set,
+            ThisExpr: self._eval_this,
+            InstanceOfExpr: self._eval_instanceof,
         }
 
     def execute(self) -> None:
@@ -140,11 +129,41 @@ class Executor:
             self._current = prev
 
     def _exec_func_decl(self, stmt: FuncDeclStmt) -> None:
-        self._current.define(stmt.name.origin, LangFunction(stmt, self._current))
+        func = CodeFabFunction(stmt, self._current)
+        self._current.define(stmt.name.origin, func)
 
     def _exec_return(self, stmt: ReturnStmt) -> None:
         value = self._eval(stmt.value) if stmt.value is not None else None
-        raise ReturnSignal(value)
+        raise _ReturnSignal(value)
+
+    def _exec_class_decl(self, stmt: ClassDeclStmt) -> None:
+        superclass = None
+        if stmt.superclass is not None:
+            superclass = self._eval(stmt.superclass)
+            if not isinstance(superclass, CodeFabClass):
+                raise LangRuntimeError(
+                    stmt.superclass.name.line, "부모 클래스는 클래스여야 합니다."
+                )
+
+        self._current.define(stmt.name.origin, None)
+
+        if stmt.superclass is not None:
+            env = Environment(parent=self._current)
+            env.define("Super", superclass)
+            self._current = env
+
+        methods: dict[str, CodeFabFunction] = {}
+        for method in stmt.methods:
+            is_init = method.name.origin == "init"
+            func = CodeFabFunction(method, self._current, is_init)
+            methods[method.name.origin] = func
+
+        klass = CodeFabClass(stmt.name.origin, superclass, methods)
+
+        if stmt.superclass is not None:
+            self._current = self._current.parent  # type: ignore[assignment]
+
+        self._current.assign(stmt.name.origin, klass, stmt.name.line)
 
     def _exec_block(self, stmts: list[Stmt], env: Environment) -> None:
         prev = self._current
@@ -234,15 +253,6 @@ class Executor:
         if op == TokenType.BANG_EQUAL:
             return not self._is_equal(left, right)
 
-    def _eval_call(self, expr: CallExpr):
-        callee = self._eval(expr.callee)
-        if not isinstance(callee, LangFunction):
-            raise LangRuntimeError(expr.paren.line, "함수가 아닌 대상을 호출했습니다.")
-        arguments = [self._eval(arg) for arg in expr.arguments]
-        if len(arguments) != callee.arity:
-            raise LangRuntimeError(expr.paren.line, "인자 개수가 일치하지 않습니다.")
-        return callee.call(self, arguments)
-
     def _eval_logical(self, expr: LogicalExpr):
         left = self._eval(expr.left)
         if expr.operator.type == TokenType.OR:
@@ -288,6 +298,49 @@ class Executor:
         if i < 0 or i >= length:
             raise LangRuntimeError(bracket.line, "배열 인덱스가 범위를 벗어났습니다.")
         return i
+
+    def _eval_call(self, expr: CallExpr):
+        callee = self._eval(expr.callee)
+        arguments = [self._eval(arg) for arg in expr.arguments]
+
+        if not isinstance(callee, CodeFabCallable):
+            raise LangRuntimeError(expr.paren.line, "함수 또는 클래스만 호출할 수 있습니다.")
+
+        if len(arguments) != callee.arity():
+            raise LangRuntimeError(
+                expr.paren.line,
+                f"인자 수가 맞지 않습니다. 예상: {callee.arity()}, 전달: {len(arguments)}",
+            )
+
+        return callee.call(self, arguments)
+
+    def _eval_get(self, expr: GetExpr):
+        obj = self._eval(expr.object)
+        if not isinstance(obj, CodeFabInstance):
+            raise LangRuntimeError(expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다.")
+        return obj.get(expr.name)
+
+    def _eval_set(self, expr: SetExpr):
+        obj = self._eval(expr.object)
+        if not isinstance(obj, CodeFabInstance):
+            raise LangRuntimeError(expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다.")
+        value = self._eval(expr.value)
+        obj.set(expr.name, value)
+        return value
+
+    def _eval_this(self, expr: ThisExpr):
+        return self._current.get("This", expr.keyword.line)
+
+    def _eval_instanceof(self, expr: InstanceOfExpr):
+        obj = self._eval(expr.object)
+        if not isinstance(obj, CodeFabInstance):
+            return False
+        klass = obj.klass
+        while klass is not None:
+            if klass.name == expr.klass.origin:
+                return True
+            klass = klass.superclass
+        return False
 
     # ── 헬퍼 ─────────────────────────────────────────────
     def _is_truthy(self, val) -> bool:
