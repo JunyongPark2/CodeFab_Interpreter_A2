@@ -372,6 +372,9 @@ class Executor:
         return value
 
     def _eval_this(self, expr: ThisExpr):
+        distance = self._locals.get(id(expr))
+        if distance is not None:
+            return self._current.get_at(distance, "This")
         return self._current.get("This", expr.keyword.line)
 
     def _eval_super(self, expr: SuperExpr):

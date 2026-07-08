@@ -70,3 +70,34 @@ def test_folded_constant_expression_is_never_recomputed_in_loop(monkeypatch, cap
     assert calls["STAR"] == 0  # 상수 폴딩으로 곱셈 자체가 사라졌다
     # i < 3 은 변수가 껴 있어 폴딩 대상이 아니므로 조건 검사마다(참 3번 + 마지막 거짓 1번) 재계산된다
     assert calls["LESS"] == 4
+
+
+def test_this_reference_never_calls_dynamic_get(monkeypatch, capsys):
+    # Class A { Func setX(x) { This.x = x; } Func f() { print This.x; } }
+    # init()은 생성자 종료 후 인스턴스를 돌려주려고 런타임(CodeFabFunction.call)이
+    # 항상 closure에서 직접 This를 한 번 꺼내므로(AST의 ThisExpr와 무관, 항상
+    # distance 0이라 사실상 O(1)) 여기서는 일부러 init 없는 클래스로 검증해서
+    # ThisExpr 정적 바인딩 자체만 순수하게 확인한다.
+    calls = {"get_this": 0}
+    original_get = Environment.get
+
+    def spy_get(self, name, line=0):
+        if name == "This":
+            calls["get_this"] += 1
+        return original_get(self, name, line)
+
+    monkeypatch.setattr(Environment, "get", spy_get)
+
+    source = """
+Class A {
+    Func setX(x) { This.x = x; }
+    Func f() { print This.x; }
+}
+var a = A();
+a.setX(5);
+a.f();
+"""
+    CodeFabInterpreter().run(source)
+
+    assert capsys.readouterr().out == "5\n"
+    assert calls["get_this"] == 0
