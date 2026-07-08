@@ -1,7 +1,7 @@
 import pytest
 
 from interpreter.environment import Environment
-from interpreter.errors import LangRuntimeError
+from interpreter.errors import CodeFabRuntimeError
 
 
 def test_define_and_get_in_same_environment():
@@ -19,7 +19,7 @@ def test_get_falls_back_to_parent_chain():
 
 def test_get_undefined_raises():
     env = Environment()
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         env.get("nope")
 
 
@@ -34,7 +34,7 @@ def test_assign_updates_nearest_defining_ancestor():
 
 def test_assign_undefined_raises():
     env = Environment()
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         env.assign("nope", 1.0)
 
 

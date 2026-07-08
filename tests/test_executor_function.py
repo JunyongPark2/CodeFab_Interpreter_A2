@@ -29,7 +29,7 @@ from interpreter.ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from interpreter.errors import LangRuntimeError
+from interpreter.errors import CodeFabRuntimeError
 from interpreter.executor import Executor
 from interpreter.tokens import Token, TokenType
 
@@ -332,7 +332,7 @@ def test_calling_non_function_value_raises():
         ),
     ]
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 함수가 아닌 대상을 호출했습니다\."
+            CodeFabRuntimeError, match=rf"\[{line}번째줄\] 함수가 아닌 대상을 호출했습니다\."
     ):
         run(stmts)
 
@@ -360,7 +360,7 @@ def test_call_with_too_few_arguments_raises():
         )
     )
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
+            CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
     ):
         run([add, call])
 
@@ -388,7 +388,7 @@ def test_call_with_too_many_arguments_raises():
         )
     )
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
+            CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
     ):
         run([add, call])
 
@@ -487,7 +487,7 @@ def test_function_declared_inside_braced_block_is_scoped_to_block():
         ),
         ExpressionStmt(expression=make_call("f", [], line=line)),
     ]
-    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'f'"):
+    with pytest.raises(CodeFabRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'f'"):
         run(stmts)
 
 
@@ -661,7 +661,7 @@ def test_local_variable_does_not_leak_after_call():
         ExpressionStmt(expression=make_call("f", [])),
         PrintStmt(expression=VariableExpr(name_tok("local", line=line))),
     ]
-    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'local'"):
+    with pytest.raises(CodeFabRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'local'"):
         run(stmts)
 
 
@@ -672,7 +672,7 @@ def test_error_line_number_matches_call_site_not_declaration():
     )
     call = ExpressionStmt(expression=make_call("add", [lit(1.0)], line=call_line))
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{call_line}번째줄\] 인자 개수가 일치하지 않습니다\."
+            CodeFabRuntimeError, match=rf"\[{call_line}번째줄\] 인자 개수가 일치하지 않습니다\."
     ):
         run([add, call])
 
@@ -691,7 +691,7 @@ def test_runtime_error_inside_recursive_call_propagates():
     ]
     bad = make_func("bad", ["n"], bad_body)
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+            CodeFabRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
     ):
         run([bad, ExpressionStmt(expression=make_call("bad", [lit(5.0)]))])
 
@@ -754,6 +754,6 @@ def test_zero_arg_function_called_with_extra_argument_raises():
     greet = make_func("greet", [], [make_return(lit("hi"))])
     call = ExpressionStmt(expression=make_call("greet", [lit(1.0)], line=line))
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
+            CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
     ):
         run([greet, call])

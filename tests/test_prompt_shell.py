@@ -3,7 +3,7 @@ import builtins
 import pytest
 
 from interpreter.codefab import CodeFabInterpreter
-from interpreter.errors import CheckError, LangRuntimeError, ParseError, TokenizeError
+from interpreter.errors import CheckError, CodeFabRuntimeError, ParseError, TokenizeError
 from prompt_shell import _needs_more_input, main, run
 
 
@@ -309,19 +309,19 @@ ERROR_CASES = [
     (
         "미정의 변수 참조",
         "print notDefined;",
-        LangRuntimeError,
+        CodeFabRuntimeError,
         "[1번째줄] 미정의된 변수 'notDefined'",
     ),
     (
         "+ 연산 타입 혼용",
         'print 1 + "HI";',
-        LangRuntimeError,
+        CodeFabRuntimeError,
         "[1번째줄] 피연산자는 반드시 숫자 또는 문자열이어야 합니다.",
     ),
     (
         "단항 -에 비숫자 적용",
         'print -"FabCoding";',
-        LangRuntimeError,
+        CodeFabRuntimeError,
         "[1번째줄] 피연산자는 반드시 숫자여야 합니다.",
     ),
     (
