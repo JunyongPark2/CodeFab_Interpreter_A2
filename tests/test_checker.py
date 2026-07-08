@@ -4,12 +4,15 @@ from interpreter.ast_nodes import (
     AssignExpr,
     BinaryExpr,
     BlockStmt,
+    CallExpr,
     ExpressionStmt,
     ForStmt,
+    FuncDeclStmt,
     GroupingExpr,
     IfStmt,
     LiteralExpr,
     PrintStmt,
+    ReturnStmt,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
@@ -374,3 +377,148 @@ def test_assign_expr_in_nested_block_resolves_with_correct_distance():
     locals_map = Checker(stmts).check()
 
     assert locals_map[id(assign)] == 1
+
+
+# ── Function 정적 검사 (가이드 5-1) ────────────────────────────
+
+
+def keyword(text: str = "return", line: int = 1) -> Token:
+    return Token(TokenType.RETURN, text, None, line)
+
+
+def test_return_outside_function_raises():
+    # return 5;
+    stmts = [ReturnStmt(keyword(), literal(5.0))]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_return_inside_function_is_allowed():
+    # Func add(a, b) { return a + b; }
+    stmts = [
+        FuncDeclStmt(
+            ident("add"),
+            [ident("a"), ident("b")],
+            [
+                ReturnStmt(
+                    keyword(),
+                    BinaryExpr(
+                        VariableExpr(ident("a")),
+                        Token(TokenType.PLUS, "+"),
+                        VariableExpr(ident("b")),
+                    ),
+                )
+            ],
+        )
+    ]
+    Checker(stmts).check()  # 예외 없어야 함
+
+
+def test_return_without_value_inside_function_is_allowed():
+    # Func noop() { return; }
+    stmts = [FuncDeclStmt(ident("noop"), [], [ReturnStmt(keyword(), None)])]
+    Checker(stmts).check()
+
+
+def test_return_outside_function_after_function_body_ends_raises():
+    # Func f() { return; } return 1;  -- 함수 본문을 빠져나온 뒤의 return은 여전히 금지
+    stmts = [
+        FuncDeclStmt(ident("f"), [], [ReturnStmt(keyword(), None)]),
+        ReturnStmt(keyword(line=2), literal(1.0)),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_duplicate_parameter_names_raises():
+    # Func foo(a, a) {}
+    stmts = [FuncDeclStmt(ident("foo"), [ident("a"), ident("a")], [])]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_duplicate_function_declaration_in_same_scope_raises():
+    # Func foo() {} Func foo() {}
+    stmts = [
+        FuncDeclStmt(ident("foo"), [], []),
+        FuncDeclStmt(ident("foo"), [], []),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_function_name_colliding_with_existing_variable_raises():
+    # var foo = 1; Func foo() {}
+    stmts = [
+        VarDeclStmt(ident("foo"), literal(1.0)),
+        FuncDeclStmt(ident("foo"), [], []),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_function_declared_inside_nested_block_is_allowed():
+    # { Func inner() {} }
+    stmts = [BlockStmt([FuncDeclStmt(ident("inner"), [], [])])]
+    Checker(stmts).check()
+
+
+def test_recursive_self_call_inside_function_body_is_allowed():
+    # Func fact(n) { return fact(n - 1); }
+    recursive_call = CallExpr(
+        VariableExpr(ident("fact")),
+        Token(TokenType.LEFT_PAREN, "("),
+        [BinaryExpr(VariableExpr(ident("n")), Token(TokenType.MINUS, "-"), literal(1.0))],
+    )
+    stmts = [
+        FuncDeclStmt(
+            ident("fact"), [ident("n")], [ReturnStmt(keyword(), recursive_call)]
+        )
+    ]
+    Checker(stmts).check()  # 자기 자신 호출은 초기화식 자기참조 검사에 걸리면 안 됨
+
+
+def test_function_parameter_scope_is_local_to_body_and_does_not_leak():
+    # Func f(x) { print x; } print x;
+    inner_x = VariableExpr(ident("x"))
+    outer_x = VariableExpr(ident("x"))
+    stmts = [
+        FuncDeclStmt(ident("f"), [ident("x")], [PrintStmt(inner_x)]),
+        PrintStmt(outer_x),
+    ]
+    locals_map = Checker(stmts).check()
+
+    assert locals_map[id(inner_x)] == 0  # 함수 본문 스코프에서 바로 찾음
+    assert id(outer_x) not in locals_map  # 함수 밖에서는 파라미터가 안 보임(비지역 취급)
+
+
+def test_call_expr_callee_and_arguments_are_checked_and_folded():
+    # add(1 + 2, 3);
+    call = CallExpr(
+        VariableExpr(ident("add")),
+        Token(TokenType.LEFT_PAREN, "("),
+        [BinaryExpr(literal(1.0), Token(TokenType.PLUS, "+"), literal(2.0)), literal(3.0)],
+    )
+    stmt = ExpressionStmt(call)
+    Checker([stmt]).check()
+
+    assert isinstance(call.arguments[0], LiteralExpr)
+    assert call.arguments[0].value == 3.0
+    assert call.arguments[1] == literal(3.0)
+
+
+def test_call_expr_argument_referencing_local_variable_is_resolved():
+    # 함수 호출 인자 안의 변수도 일반 변수 참조와 동일하게 정적 바인딩 대상이다.
+    arg_ref = VariableExpr(ident("a"))
+    call = CallExpr(VariableExpr(ident("add")), Token(TokenType.LEFT_PAREN, "("), [arg_ref])
+    stmts = [
+        BlockStmt(
+            [
+                VarDeclStmt(ident("a"), literal(1.0)),
+                ExpressionStmt(call),
+            ]
+        )
+    ]
+    locals_map = Checker(stmts).check()
+
+    assert locals_map[id(arg_ref)] == 0
