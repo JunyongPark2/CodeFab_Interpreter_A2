@@ -28,15 +28,8 @@ from interpreter.ast_nodes import (
 )
 from interpreter.errors import CodeFabRuntimeError
 from interpreter.executor import Executor
-from interpreter.tokens import Token, TokenType
-
-
-def tok(type_, origin="", value=None, line=1, col=1):
-    return Token(type=type_, origin=origin, value=value, line=line, col=col)
-
-
-def name_tok(name, line=1):
-    return tok(TokenType.IDENTIFIER, origin=name, line=line)
+from interpreter.tokens import TokenType
+from tests.helpers import name_tok, tok
 
 
 def run(stmts):

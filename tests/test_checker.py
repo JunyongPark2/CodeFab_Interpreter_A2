@@ -29,18 +29,11 @@ from interpreter.ast_nodes import (
 from interpreter.checker import Checker
 from interpreter.errors import CheckError
 from interpreter.tokens import Token, TokenType
-
-
-def ident(name: str, line: int = 1) -> Token:
-    return Token(TokenType.IDENTIFIER, name, None, line)
+from tests.helpers import name_tok as ident, path_tok
 
 
 def literal(value) -> LiteralExpr:
     return LiteralExpr(value)
-
-
-def path_tok(value: str, line: int = 1) -> Token:
-    return Token(TokenType.STRING, f'"{value}"', value, line)
 
 
 # ── 에러 검출 테스트 (테스트 스크립트.md §2-2) ─────────────────
