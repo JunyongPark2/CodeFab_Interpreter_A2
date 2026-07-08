@@ -5,16 +5,25 @@ from interpreter.ast_nodes import (
     AssignExpr,
     BinaryExpr,
     BlockStmt,
+    CallExpr,
+    ClassDeclStmt,
     ExpressionStmt,
     ForStmt,
+    FuncDeclStmt,
+    GetExpr,
     GroupingExpr,
     IfStmt,
     ImportStmt,
     IndexGetExpr,
     IndexSetExpr,
+    InstanceOfExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
+    ReturnStmt,
+    SetExpr,
+    SuperExpr,
+    ThisExpr,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
@@ -60,6 +69,15 @@ BANG = Token(TokenType.BANG, "!")
 ARRAY_KW = Token(TokenType.ARRAY, "Array")
 LBRACKET = Token(TokenType.LEFT_BRACKET, "[")
 RBRACKET = Token(TokenType.RIGHT_BRACKET, "]")
+# 클래스 관련 토큰
+FUNC_KW = Token(TokenType.FUNC, "Func")
+CLASS_KW = Token(TokenType.CLASS, "Class")
+COLON = Token(TokenType.COLON, ":")
+DOT = Token(TokenType.DOT, ".")
+THIS_KW = Token(TokenType.THIS, "This")
+SUPER_KW = Token(TokenType.SUPER, "Super")
+INSTANCEOF_KW = Token(TokenType.INSTANCEOF, "instanceof")
+RETURN_KW = Token(TokenType.RETURN, "return")
 
 
 def ident(name: str) -> Token:
@@ -1384,3 +1402,154 @@ def test_import_forbidden_depth_restored_after_nested_for_loop():
     )
     assert len(stmts) == 2
     assert isinstance(stmts[1], ImportStmt)
+
+
+# ── Class 관련 파싱 테스트 ──────────────────────────────────────────
+
+
+def test_class_empty_declaration():
+    # Class Robot { }
+    stmts = parse_stmts(CLASS_KW, ident("Robot"), LBRACE, RBRACE)
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ClassDeclStmt)
+    assert stmt.name.origin == "Robot"
+    assert stmt.superclass is None
+    assert stmt.methods == []
+
+
+def test_class_with_method():
+    # Class Robot { Func move(dist) { } }
+    stmts = parse_stmts(
+        CLASS_KW, ident("Robot"), LBRACE,
+        FUNC_KW, ident("move"), LPAREN, ident("dist"), RPAREN, LBRACE, RBRACE,
+        RBRACE,
+    )
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ClassDeclStmt)
+    assert stmt.name.origin == "Robot"
+    assert len(stmt.methods) == 1
+    method = stmt.methods[0]
+    assert isinstance(method, FuncDeclStmt)
+    assert method.name.origin == "move"
+    assert len(method.params) == 1
+    assert method.params[0].origin == "dist"
+
+
+def test_class_with_inheritance():
+    # Class SpeedRobot : Robot { }
+    stmts = parse_stmts(
+        CLASS_KW, ident("SpeedRobot"), COLON, ident("Robot"), LBRACE, RBRACE
+    )
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ClassDeclStmt)
+    assert stmt.name.origin == "SpeedRobot"
+    assert isinstance(stmt.superclass, VariableExpr)
+    assert stmt.superclass.name.origin == "Robot"
+    assert stmt.methods == []
+
+
+def test_class_with_init_method():
+    # Class Robot { Func init(name) { } }
+    stmts = parse_stmts(
+        CLASS_KW, ident("Robot"), LBRACE,
+        FUNC_KW, ident("init"), LPAREN, ident("name"), RPAREN, LBRACE, RBRACE,
+        RBRACE,
+    )
+
+    stmt = stmts[0]
+    assert isinstance(stmt, ClassDeclStmt)
+    init_method = stmt.methods[0]
+    assert init_method.name.origin == "init"
+    assert init_method.params[0].origin == "name"
+
+
+def test_field_get_expr():
+    # r.name;  →  ExpressionStmt( GetExpr(VariableExpr("r"), "name") )
+    stmts = parse_stmts(ident("r"), DOT, ident("name"), SEMI)
+
+    assert len(stmts) == 1
+    expr = stmts[0].expression
+    assert isinstance(expr, GetExpr)
+    assert isinstance(expr.object, VariableExpr)
+    assert expr.object.name.origin == "r"
+    assert expr.name.origin == "name"
+
+
+def test_field_set_expr():
+    # r.name = "R1";  →  ExpressionStmt( SetExpr(VariableExpr("r"), "name", LiteralExpr("R1")) )
+    stmts = parse_stmts(ident("r"), DOT, ident("name"), EQUAL, string("R1"), SEMI)
+
+    assert len(stmts) == 1
+    expr = stmts[0].expression
+    assert isinstance(expr, SetExpr)
+    assert isinstance(expr.object, VariableExpr)
+    assert expr.object.name.origin == "r"
+    assert expr.name.origin == "name"
+    assert expr.value == LiteralExpr("R1")
+
+
+def test_this_expr():
+    # print This;  →  PrintStmt( ThisExpr )
+    stmts = parse_stmts(PRINT, THIS_KW, SEMI)
+
+    assert len(stmts) == 1
+    assert isinstance(stmts[0], PrintStmt)
+    assert isinstance(stmts[0].expression, ThisExpr)
+    assert stmts[0].expression.keyword.type == TokenType.THIS
+
+
+def test_this_field_get_expr():
+    # print This.speed;  →  PrintStmt( GetExpr(ThisExpr, "speed") )
+    stmts = parse_stmts(PRINT, THIS_KW, DOT, ident("speed"), SEMI)
+
+    assert len(stmts) == 1
+    expr = stmts[0].expression
+    assert isinstance(expr, GetExpr)
+    assert isinstance(expr.object, ThisExpr)
+    assert expr.name.origin == "speed"
+
+
+def test_super_method_call_expr():
+    # Super.move(3);  →  ExpressionStmt( CallExpr( SuperExpr(SUPER, "move"), [3.0] ) )
+    stmts = parse_stmts(
+        SUPER_KW, DOT, ident("move"), LPAREN, num(3), RPAREN, SEMI
+    )
+
+    assert len(stmts) == 1
+    expr = stmts[0].expression
+    assert isinstance(expr, CallExpr)
+    assert isinstance(expr.callee, SuperExpr)
+    assert expr.callee.keyword.type == TokenType.SUPER
+    assert expr.callee.method.origin == "move"
+    assert len(expr.arguments) == 1
+    assert expr.arguments[0] == LiteralExpr(3.0)
+
+
+def test_instanceof_expr():
+    # print w instanceof Robot;  →  PrintStmt( InstanceOfExpr(VariableExpr("w"), "Robot") )
+    stmts = parse_stmts(PRINT, ident("w"), INSTANCEOF_KW, ident("Robot"), SEMI)
+
+    assert len(stmts) == 1
+    expr = stmts[0].expression
+    assert isinstance(expr, InstanceOfExpr)
+    assert isinstance(expr.object, VariableExpr)
+    assert expr.object.name.origin == "w"
+    assert expr.klass.origin == "Robot"
+
+
+def test_class_instantiation_call_expr():
+    # Robot();  →  ExpressionStmt( CallExpr(VariableExpr("Robot"), []) )
+    stmts = parse_stmts(ident("Robot"), LPAREN, RPAREN, SEMI)
+
+    assert len(stmts) == 1
+    expr = stmts[0].expression
+    assert isinstance(expr, CallExpr)
+    assert isinstance(expr.callee, VariableExpr)
+    assert expr.callee.name.origin == "Robot"
+    assert expr.arguments == []
