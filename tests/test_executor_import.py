@@ -7,21 +7,7 @@ from interpreter.errors import CodeFabRuntimeError, ModuleImportError
 from interpreter.executor import Executor
 from interpreter.loader import Loader
 from interpreter.runtime import CodeFabFunction, CodeFabModule
-from interpreter.tokens import Token, TokenType
-
-
-def write(tmp_path, name: str, content: str) -> str:
-    path = tmp_path / name
-    path.write_text(content, encoding="utf-8")
-    return str(path)
-
-
-def path_tok(value: str, line: int = 1) -> Token:
-    return Token(TokenType.STRING, f'"{value}"', value, line)
-
-
-def name_tok(name: str, line: int = 1) -> Token:
-    return Token(TokenType.IDENTIFIER, name, None, line)
+from tests.helpers import name_tok, path_tok
 
 
 # ── Executor 단독 단위 테스트 (Loader를 직접 주입) ──────────────
@@ -33,10 +19,8 @@ def test_import_without_loader_raises_runtime_error():
         Executor([stmt]).execute()
 
 
-def test_import_defines_alias_as_codefab_module(tmp_path):
-    path = write(
-        tmp_path, "sum.txt", "Func add(a, b) { return a + b; }\nvar VERSION = 1;\n"
-    )
+def test_import_defines_alias_as_codefab_module(tmp_write):
+    path = tmp_write("sum.txt", "Func add(a, b) { return a + b; }\nvar VERSION = 1;\n")
     stmt = ImportStmt(path_tok(path), name_tok("sum"))
     loader = Loader(Assembler())
 
@@ -51,11 +35,11 @@ def test_import_defines_alias_as_codefab_module(tmp_path):
     assert module.fields["VERSION"] == 1.0
 
 
-def test_module_environment_is_isolated_from_importing_scope(tmp_path):
+def test_module_environment_is_isolated_from_importing_scope(tmp_write):
     # 모듈 파일 안에서 밖의(importing 쪽) 변수를 볼 수 없어야 한다 (독립된 네임스페이스).
     # outer는 실행 중인 스코프에는 존재하지만 모듈 실행 환경의 부모가 아니므로,
     # 모듈이 격리돼 있다면 그래도 "미정의된 변수" 오류가 나야 한다.
-    path = write(tmp_path, "needs_outer.txt", "var seen = outer;\n")
+    path = tmp_write("needs_outer.txt", "var seen = outer;\n")
     loader = Loader(Assembler())
     executor = Executor(
         [
@@ -68,7 +52,7 @@ def test_module_environment_is_isolated_from_importing_scope(tmp_path):
         executor.execute()
 
 
-def test_module_loader_error_propagates_with_line_number(tmp_path):
+def test_module_loader_error_propagates_with_line_number():
     stmt = ImportStmt(path_tok("없는파일.txt", line=7), name_tok("m"))
     loader = Loader(Assembler())
     with pytest.raises(ModuleImportError, match=r"\[7번째줄\]"):
@@ -78,8 +62,8 @@ def test_module_loader_error_propagates_with_line_number(tmp_path):
 # ── CodeFabInterpreter 전체 파이프라인 end-to-end ────────────────
 
 
-def test_end_to_end_import_via_codefab_interpreter(tmp_path, capsys):
-    path = write(tmp_path, "sum.txt", "Func add(a, b) { return a + b; }\n")
+def test_end_to_end_import_via_codefab_interpreter(tmp_write, capsys):
+    path = tmp_write("sum.txt", "Func add(a, b) { return a + b; }\n")
     interp = CodeFabInterpreter()
     interp.run(f'import "{path}" alias sum;\n')
 
@@ -92,47 +76,46 @@ def test_end_to_end_import_via_codefab_interpreter(tmp_path, capsys):
     assert result == 5.0
 
 
-def test_end_to_end_circular_import_raises(tmp_path):
+def test_end_to_end_circular_import_raises(tmp_path, tmp_write):
     a_path = str(tmp_path / "a.txt")
     b_path = str(tmp_path / "b.txt")
-    write(tmp_path, "a.txt", f'import "{b_path}" alias b;\n')
-    write(tmp_path, "b.txt", f'import "{a_path}" alias a;\n')
+    tmp_write("a.txt", f'import "{b_path}" alias b;\n')
+    tmp_write("b.txt", f'import "{a_path}" alias a;\n')
 
     with pytest.raises(ModuleImportError, match="순환 import"):
         CodeFabInterpreter().run(f'import "{a_path}" alias a;\n')
 
 
-def test_end_to_end_missing_file_raises(tmp_path):
+def test_end_to_end_missing_file_raises():
     with pytest.raises(ModuleImportError, match="파일이 없습니다"):
         CodeFabInterpreter().run('import "이런파일없음.txt" alias x;\n')
 
 
-def test_end_to_end_module_with_non_declaration_statement_raises(tmp_path):
-    write(tmp_path, "bad.txt", 'print "hi";\n')
-    path = str(tmp_path / "bad.txt")
+def test_end_to_end_module_with_non_declaration_statement_raises(tmp_write):
+    path = tmp_write("bad.txt", 'print "hi";\n')
     with pytest.raises(ModuleImportError, match="선언"):
         CodeFabInterpreter().run(f'import "{path}" alias bad;\n')
 
 
-def test_end_to_end_reimport_same_file_in_nested_scope_raises(tmp_path):
-    path = write(tmp_path, "sum.txt", "var x = 1;\n")
+def test_end_to_end_reimport_same_file_in_nested_scope_raises(tmp_write):
+    path = tmp_write("sum.txt", "var x = 1;\n")
     src = f'import "{path}" alias sum;\n{{ import "{path}" alias sum2; }}\n'
     with pytest.raises(Exception):  # CheckError
         CodeFabInterpreter().run(src)
 
 
-def test_end_to_end_import_forbidden_inside_for_loop_raises(tmp_path):
-    path = write(tmp_path, "sum.txt", "var x = 1;\n")
+def test_end_to_end_import_forbidden_inside_for_loop_raises(tmp_write):
+    path = tmp_write("sum.txt", "var x = 1;\n")
     src = f'for (var i = 0; i < 1; i = i + 1) {{ import "{path}" alias sum; }}\n'
     with pytest.raises(Exception):  # ParseError
         CodeFabInterpreter().run(src)
 
 
-def test_end_to_end_nested_module_import_chain_works(tmp_path):
+def test_end_to_end_nested_module_import_chain_works(tmp_write):
     # base.txt는 함수 하나를 정의하고, mid.txt는 base.txt를 import한다.
-    base_path = write(tmp_path, "base.txt", "Func double(n) { return n * 2; }\n")
-    mid_path = write(
-        tmp_path, "mid.txt", f'import "{base_path}" alias base;\nvar tag = "mid";\n'
+    base_path = tmp_write("base.txt", "Func double(n) { return n * 2; }\n")
+    mid_path = tmp_write(
+        "mid.txt", f'import "{base_path}" alias base;\nvar tag = "mid";\n'
     )
 
     interp = CodeFabInterpreter()
@@ -146,10 +129,10 @@ def test_end_to_end_nested_module_import_chain_works(tmp_path):
     assert isinstance(base_module.fields["double"], CodeFabFunction)
 
 
-def test_end_to_end_reimporting_after_repl_line_boundary_reuses_global_env(tmp_path):
+def test_end_to_end_reimporting_after_repl_line_boundary_reuses_global_env(tmp_write):
     # REPL처럼 CodeFabInterpreter.run()을 여러 줄에 걸쳐 호출해도, 이미 최상위에서
     # import한 alias 이름을 다음 줄에서 다시 import하려 하면 여전히 중복으로 잡혀야 한다.
-    path = write(tmp_path, "sum.txt", "var x = 1;\n")
+    path = tmp_write("sum.txt", "var x = 1;\n")
     interp = CodeFabInterpreter()
     interp.run(f'import "{path}" alias sum;\n')
     with pytest.raises(Exception):  # CheckError (alias 이름 충돌)

@@ -10,16 +10,8 @@ def make_loader() -> Loader:
     return Loader(Assembler())
 
 
-def write(tmp_path, name: str, content: str) -> str:
-    path = tmp_path / name
-    path.write_text(content, encoding="utf-8")
-    return str(path)
-
-
-def test_load_returns_parsed_statements(tmp_path):
-    path = write(
-        tmp_path, "sum.txt", "Func add(a, b) { return a + b; }\nvar VERSION = 1;\n"
-    )
+def test_load_returns_parsed_statements(tmp_write):
+    path = tmp_write("sum.txt", "Func add(a, b) { return a + b; }\nvar VERSION = 1;\n")
     stmts = make_loader().load(path, line=1)
 
     assert len(stmts) == 2
@@ -32,24 +24,24 @@ def test_load_missing_file_raises():
         make_loader().load("이런_파일은_없다.txt", line=3)
 
 
-def test_load_rejects_non_declaration_top_level_statement(tmp_path):
-    path = write(tmp_path, "bad.txt", 'print "hello";\n')
+def test_load_rejects_non_declaration_top_level_statement(tmp_write):
+    path = tmp_write("bad.txt", 'print "hello";\n')
     with pytest.raises(ModuleImportError):
         make_loader().load(path, line=1)
 
 
-def test_load_allows_nested_import_declaration(tmp_path):
+def test_load_allows_nested_import_declaration(tmp_write):
     # import 대상 파일 안에서 또 다른 파일을 import하는 것도 "선언"으로 허용된다.
-    inner = write(tmp_path, "inner.txt", "var x = 1;\n")
-    outer = write(tmp_path, "outer.txt", f'import "{inner}" alias inner;\n')
+    inner = tmp_write("inner.txt", "var x = 1;\n")
+    outer = tmp_write("outer.txt", f'import "{inner}" alias inner;\n')
 
     stmts = make_loader().load(outer, line=1)
     assert len(stmts) == 1
     assert isinstance(stmts[0], ImportStmt)
 
 
-def test_load_propagates_parse_error_from_malformed_source(tmp_path):
-    path = write(tmp_path, "broken.txt", "var = ;\n")
+def test_load_propagates_parse_error_from_malformed_source(tmp_write):
+    path = tmp_write("broken.txt", "var = ;\n")
     with pytest.raises(Exception):
         make_loader().load(path, line=1)
 
