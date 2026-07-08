@@ -5,16 +5,19 @@ from .ast_nodes import (
     AssignExpr,
     BinaryExpr,
     BlockStmt,
+    CallExpr,
     Expr,
     ExpressionStmt,
     ForStmt,
+    FuncDeclStmt,
     GroupingExpr,
     IfStmt,
-    IndexAssignExpr,
-    IndexExpr,
+    IndexGetExpr,
+    IndexSetExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
+    ReturnStmt,
     Stmt,
     UnaryExpr,
     VarDeclStmt,
@@ -35,6 +38,8 @@ class Parser:
             TokenType.VAR: self._var_declaration,
             TokenType.LEFT_BRACE: self._block_statement,
             TokenType.PRINT: self._print_statement,
+            TokenType.FUNC: self._func_declaration,
+            TokenType.RETURN: self._return_statement,
         }
 
     def parse(self) -> list[Stmt]:
@@ -96,6 +101,31 @@ class Parser:
             raise ParseError(self._peek().line, "문장이 필요합니다.", incomplete=True)
         return self._statement()
 
+    def _func_declaration(self) -> FuncDeclStmt:
+        name = self._consume(TokenType.IDENTIFIER, "함수 이름이 필요합니다.")
+        self._consume(TokenType.LEFT_PAREN, "'(' 가 필요합니다.")
+        params = self._parameters()
+        self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
+        self._consume(TokenType.LEFT_BRACE, "'{' 가 필요합니다.")
+        body = self._block()
+        return FuncDeclStmt(name, params, body)
+
+    def _parameters(self) -> list[Token]:
+        params: list[Token] = []
+        if not self._check(TokenType.RIGHT_PAREN):
+            params.append(self._consume(TokenType.IDENTIFIER, "파라미터 이름이 필요합니다."))
+            while self._match(TokenType.COMMA):
+                params.append(self._consume(TokenType.IDENTIFIER, "파라미터 이름이 필요합니다."))
+        return params
+
+    def _return_statement(self) -> ReturnStmt:
+        keyword = self._previous()
+        value = None
+        if not self._check(TokenType.SEMICOLON):
+            value = self._expression()
+        self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
+        return ReturnStmt(keyword, value)
+
     def _var_declaration(self) -> VarDeclStmt:
         name = self._consume(TokenType.IDENTIFIER, "변수 이름이 필요합니다.")
         initializer = None
@@ -133,8 +163,8 @@ class Parser:
             if isinstance(expr, VariableExpr):
                 return AssignExpr(expr.name, value)
             # 정적배열 기능: arr[index] = value
-            if isinstance(expr, IndexExpr):
-                return IndexAssignExpr(expr.array, expr.index, value, expr.bracket)
+            if isinstance(expr, IndexGetExpr):
+                return IndexSetExpr(expr.array, expr.bracket, expr.index, value)
             raise ParseError(self._previous().line, "대입 대상이 올바르지 않습니다.")
         return expr
 
@@ -190,7 +220,22 @@ class Parser:
     def _unary(self) -> Expr:
         if self._match(TokenType.BANG, TokenType.MINUS):
             return UnaryExpr(self._previous(), self._unary())
-        return self._index()
+        return self._call()
+
+    def _call(self) -> Expr:
+        expr = self._index()
+        while self._match(TokenType.LEFT_PAREN):
+            expr = self._finish_call(expr)
+        return expr
+
+    def _finish_call(self, callee: Expr) -> CallExpr:
+        arguments: list[Expr] = []
+        if not self._check(TokenType.RIGHT_PAREN):
+            arguments.append(self._expression())
+            while self._match(TokenType.COMMA):
+                arguments.append(self._expression())
+        paren = self._consume(TokenType.RIGHT_PAREN, "')' 가 필요합니다.")
+        return CallExpr(callee, paren, arguments)
 
     # ── 정적배열 기능: arr[index] 읽기 (연쇄 인덱싱도 허용) ────
     def _index(self) -> Expr:
@@ -199,7 +244,7 @@ class Parser:
             bracket = self._previous()
             index = self._expression()
             self._consume(TokenType.RIGHT_BRACKET, "']' 가 필요합니다.")
-            expr = IndexExpr(expr, index, bracket)
+            expr = IndexGetExpr(expr, bracket, index)
         return expr
 
     def _primary(self) -> Expr:

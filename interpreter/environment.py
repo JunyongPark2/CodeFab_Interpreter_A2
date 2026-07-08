@@ -32,3 +32,17 @@ class Environment:
             self.parent.assign(name, value, line)
             return
         raise LangRuntimeError(line, f"미정의된 변수 '{name}'")
+
+    def get_at(self, distance: int, name: str) -> Any:
+        """정적 바인딩으로 미리 계산된 distance만큼만 올라가 즉시 조회한다 (O(1))."""
+        return self._ancestor(distance)._values[name]
+
+    def assign_at(self, distance: int, name: str, value: Any) -> None:
+        """정적 바인딩으로 미리 계산된 distance만큼만 올라가 즉시 대입한다 (O(1))."""
+        self._ancestor(distance)._values[name] = value
+
+    def _ancestor(self, distance: int) -> "Environment":
+        env = self
+        for _ in range(distance):
+            env = env.parent
+        return env

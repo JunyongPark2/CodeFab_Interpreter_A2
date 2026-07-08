@@ -5,12 +5,15 @@ from interpreter.ast_nodes import (
     AssignExpr,
     BinaryExpr,
     BlockStmt,
+    CallExpr,
     ExpressionStmt,
     ForStmt,
+    FuncDeclStmt,
     GroupingExpr,
     IfStmt,
     LiteralExpr,
     PrintStmt,
+    ReturnStmt,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
@@ -475,6 +478,204 @@ for (var j = 0; j < 3; j = j + 1) { print j; }
 
     def test_empty_source_returns_empty_statement_list(self):
         assert assemble("") == []
+
+
+# ─────────────────────────────────────────────────────────
+# Function — 선언 / 호출 / return
+# ─────────────────────────────────────────────────────────
+
+
+def test_function_declaration_no_params():
+    # Func greet() { print "hi"; }
+    stmts = assemble('Func greet() { print "hi"; }')
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, FuncDeclStmt)
+    assert stmt.name.origin == "greet"
+    assert stmt.params == []
+    assert len(stmt.body) == 1
+    assert isinstance(stmt.body[0], PrintStmt)
+    assert stmt.body[0].expression == LiteralExpr("hi")
+
+
+def test_function_declaration_with_params():
+    # Func add(a, b) { return a + b; }
+    stmts = assemble("Func add(a, b) { return a + b; }")
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, FuncDeclStmt)
+    assert stmt.name.origin == "add"
+    assert [p.origin for p in stmt.params] == ["a", "b"]
+
+    assert len(stmt.body) == 1
+    ret = stmt.body[0]
+    assert isinstance(ret, ReturnStmt)
+    assert isinstance(ret.value, BinaryExpr)
+    assert ret.value.operator.type == TokenType.PLUS
+    assert isinstance(ret.value.left, VariableExpr)
+    assert ret.value.left.name.origin == "a"
+    assert isinstance(ret.value.right, VariableExpr)
+    assert ret.value.right.name.origin == "b"
+
+
+def test_function_declaration_single_param():
+    # Func square(x) { return x * x; }
+    stmts = assemble("Func square(x) { return x * x; }")
+
+    stmt = stmts[0]
+    assert isinstance(stmt, FuncDeclStmt)
+    assert [p.origin for p in stmt.params] == ["x"]
+
+
+def test_return_without_value():
+    # Func noop() { return; }
+    stmts = assemble("Func noop() { return; }")
+
+    ret = stmts[0].body[0]
+    assert isinstance(ret, ReturnStmt)
+    assert ret.value is None
+
+
+def test_function_call_no_args():
+    # add();
+    stmts = assemble("add();")
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ExpressionStmt)
+    call = stmt.expression
+    assert isinstance(call, CallExpr)
+    assert isinstance(call.callee, VariableExpr)
+    assert call.callee.name.origin == "add"
+    assert call.arguments == []
+
+
+def test_function_call_with_args():
+    # add(1, 2);
+    stmts = assemble("add(1, 2);")
+
+    call = stmts[0].expression
+    assert isinstance(call, CallExpr)
+    assert call.callee.name.origin == "add"
+    assert call.arguments == [LiteralExpr(1.0), LiteralExpr(2.0)]
+
+
+def test_function_call_inside_print():
+    # print add(1, 2);
+    expr = assemble_print("print add(1, 2);")
+
+    assert isinstance(expr, CallExpr)
+    assert expr.callee.name.origin == "add"
+    assert expr.arguments == [LiteralExpr(1.0), LiteralExpr(2.0)]
+
+
+def test_nested_function_call_as_argument():
+    # add(add(1, 2), 3);
+    stmts = assemble("add(add(1, 2), 3);")
+
+    outer = stmts[0].expression
+    assert isinstance(outer, CallExpr)
+    assert outer.callee.name.origin == "add"
+    assert len(outer.arguments) == 2
+
+    inner = outer.arguments[0]
+    assert isinstance(inner, CallExpr)
+    assert inner.callee.name.origin == "add"
+    assert inner.arguments == [LiteralExpr(1.0), LiteralExpr(2.0)]
+
+    assert outer.arguments[1] == LiteralExpr(3.0)
+
+
+def test_recursive_function_body_can_reference_itself():
+    # Func fact(n) {
+    #   if (n < 2) return 1;
+    #   return n * fact(n - 1);
+    # }
+    source = (
+        "Func fact(n) {\n"
+        "  if (n < 2) return 1;\n"
+        "  return n * fact(n - 1);\n"
+        "}\n"
+    )
+    stmts = assemble(source)
+
+    stmt = stmts[0]
+    assert isinstance(stmt, FuncDeclStmt)
+    assert stmt.name.origin == "fact"
+    assert [p.origin for p in stmt.params] == ["n"]
+    assert len(stmt.body) == 2
+
+    assert isinstance(stmt.body[0], IfStmt)
+
+    second_return = stmt.body[1]
+    assert isinstance(second_return, ReturnStmt)
+    mult = second_return.value
+    assert isinstance(mult, BinaryExpr)
+    assert mult.operator.type == TokenType.STAR
+
+    recursive_call = mult.right
+    assert isinstance(recursive_call, CallExpr)
+    assert recursive_call.callee.name.origin == "fact"
+    assert isinstance(recursive_call.arguments[0], BinaryExpr)
+
+
+def test_return_outside_function_parses_without_error():
+    # return의 함수 외부 사용 금지는 Checker의 정적 검사 몫이므로,
+    # Parser/Assembler 단계에서는 문법적으로 허용되어야 한다.
+    stmts = assemble("return 5;")
+
+    assert len(stmts) == 1
+    assert isinstance(stmts[0], ReturnStmt)
+    assert stmts[0].value == LiteralExpr(5.0)
+
+
+def test_function_declaration_and_call_full_script():
+    source = """\
+Func add(a, b) {
+  return a + b;
+}
+
+print add(1, 2);            // expect: 3
+"""
+    stmts = assemble(source)
+
+    assert len(stmts) == 2
+    assert isinstance(stmts[0], FuncDeclStmt)
+    assert stmts[0].name.origin == "add"
+
+    assert isinstance(stmts[1], PrintStmt)
+    call = stmts[1].expression
+    assert isinstance(call, CallExpr)
+    assert call.callee.name.origin == "add"
+    assert call.arguments == [LiteralExpr(1.0), LiteralExpr(2.0)]
+
+
+class TestFunctionErrorPropagation:
+    def test_function_declaration_missing_name_raises_parse_error(self):
+        with pytest.raises(ParseError):
+            assemble("Func () { return 1; }")
+
+    def test_function_declaration_missing_left_paren_raises_parse_error(self):
+        with pytest.raises(ParseError):
+            assemble("Func add a, b) { return a + b; }")
+
+    def test_function_declaration_missing_right_paren_raises_parse_error(self):
+        with pytest.raises(ParseError):
+            assemble("Func add(a, b { return a + b; }")
+
+    def test_function_declaration_missing_body_raises_parse_error(self):
+        with pytest.raises(ParseError):
+            assemble("Func add(a, b);")
+
+    def test_function_call_missing_closing_paren_raises_parse_error(self):
+        with pytest.raises(ParseError):
+            assemble("add(1, 2;")
+
+    def test_function_call_missing_semicolon_raises_parse_error(self):
+        with pytest.raises(ParseError):
+            assemble("add(1, 2)")
 
 
 # ─────────────────────────────────────────────────────────

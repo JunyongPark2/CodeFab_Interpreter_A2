@@ -9,8 +9,8 @@ from interpreter.ast_nodes import (
     ForStmt,
     GroupingExpr,
     IfStmt,
-    IndexAssignExpr,
-    IndexExpr,
+    IndexGetExpr,
+    IndexSetExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
@@ -599,7 +599,7 @@ def test_lang_runtime_error_message_includes_line():
 def test_bool_operand_raises():
     line = 1
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+        LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
     ):
         run(
             [
@@ -617,7 +617,7 @@ def test_bool_operand_raises():
 def test_number_minus_string_raises():
     line = 1
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+        LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
     ):
         run(
             [
@@ -636,7 +636,7 @@ def test_number_minus_string_raises():
 def test_assign_to_undefined_variable_raises():
     line = 1
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
+        LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
     ):
         run(
             [
@@ -653,7 +653,7 @@ def test_assign_to_undefined_variable_raises():
 def test_read_undefined_variable_raises():
     line = 1
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
+        LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
     ):
         run([PrintStmt(expression=VariableExpr(name=name_tok("undefined", line=line)))])
 
@@ -673,6 +673,49 @@ def test_division_by_zero_raises():
                 )
             ]
         )
+
+
+# ── 실행 전 최적화: 정적 바인딩(locals) 적용 ────────────────────────
+def test_resolved_variable_read_uses_get_at(capsys):
+    # { var a = 1; print a; } -> a의 VariableExpr을 Checker가 계산해준 것처럼
+    # locals에 distance=0으로 직접 넣어주고, Executor가 get_at 경로를 타는지 확인한다.
+    var_ref = VariableExpr(name=name_tok("a"))
+    stmts = [
+        BlockStmt(
+            statements=[
+                VarDeclStmt(name=name_tok("a"), initializer=LiteralExpr(value=1.0)),
+                PrintStmt(expression=var_ref),
+            ]
+        )
+    ]
+    Executor(stmts, locals={id(var_ref): 0}).execute()
+    assert capsys.readouterr().out == "1\n"
+
+
+def test_resolved_variable_assign_uses_assign_at(capsys):
+    assign = AssignExpr(name=name_tok("a"), value=LiteralExpr(value=9.0))
+    stmts = [
+        BlockStmt(
+            statements=[
+                VarDeclStmt(name=name_tok("a"), initializer=LiteralExpr(value=1.0)),
+                ExpressionStmt(expression=assign),
+                PrintStmt(expression=VariableExpr(name=name_tok("a"))),
+            ]
+        )
+    ]
+    Executor(stmts, locals={id(assign): 0}).execute()
+    assert capsys.readouterr().out == "9\n"
+
+
+def test_unresolved_variable_still_falls_back_to_dynamic_lookup(capsys):
+    # locals에 없는 참조는 기존처럼 Environment 체인을 동적으로 거슬러 올라가야 한다.
+    run(
+        [
+            VarDeclStmt(name=name_tok("g"), initializer=LiteralExpr(value=7.0)),
+            PrintStmt(expression=VariableExpr(name=name_tok("g"))),
+        ]
+    )
+    assert capsys.readouterr().out == "7\n"
 
 
 # ── 정적배열 기능 ─────────────────────────────────────────────────
@@ -708,18 +751,18 @@ def test_index_write_then_read(capsys):
                 initializer=ArrayExpr(size=LiteralExpr(3.0), keyword=array_tok()),
             ),
             ExpressionStmt(
-                expression=IndexAssignExpr(
+                expression=IndexSetExpr(
                     array=VariableExpr(name=name_tok("arr")),
+                    bracket=bracket_tok(),
                     index=LiteralExpr(0.0),
                     value=LiteralExpr(10.0),
-                    bracket=bracket_tok(),
                 )
             ),
             PrintStmt(
-                expression=IndexExpr(
+                expression=IndexGetExpr(
                     array=VariableExpr(name=name_tok("arr")),
-                    index=LiteralExpr(0.0),
                     bracket=bracket_tok(),
+                    index=LiteralExpr(0.0),
                 )
             ),
         ]
@@ -737,15 +780,15 @@ def test_index_write_with_dynamic_index(capsys):
             ),
             VarDeclStmt(name=name_tok("i"), initializer=LiteralExpr(2.0)),
             ExpressionStmt(
-                expression=IndexAssignExpr(
+                expression=IndexSetExpr(
                     array=VariableExpr(name=name_tok("arr")),
+                    bracket=bracket_tok(),
                     index=BinaryExpr(
                         left=VariableExpr(name=name_tok("i")),
                         operator=tok(TokenType.MINUS, line=1),
                         right=LiteralExpr(1.0),
                     ),
                     value=LiteralExpr(7.0),
-                    bracket=bracket_tok(),
                 )
             ),
             PrintStmt(expression=VariableExpr(name=name_tok("arr"))),
@@ -768,10 +811,10 @@ def test_index_out_of_range_raises():
                     ),
                 ),
                 ExpressionStmt(
-                    expression=IndexExpr(
+                    expression=IndexGetExpr(
                         array=VariableExpr(name=name_tok("arr")),
-                        index=LiteralExpr(5.0),
                         bracket=bracket_tok(line),
+                        index=LiteralExpr(5.0),
                     )
                 ),
             ]
@@ -792,10 +835,10 @@ def test_non_number_index_raises():
                     ),
                 ),
                 ExpressionStmt(
-                    expression=IndexExpr(
+                    expression=IndexGetExpr(
                         array=VariableExpr(name=name_tok("arr")),
-                        index=LiteralExpr("hello"),
                         bracket=bracket_tok(line),
+                        index=LiteralExpr("hello"),
                     )
                 ),
             ]
@@ -812,10 +855,10 @@ def test_indexing_non_array_raises():
             [
                 VarDeclStmt(name=name_tok("x"), initializer=LiteralExpr(10.0)),
                 ExpressionStmt(
-                    expression=IndexExpr(
+                    expression=IndexGetExpr(
                         array=VariableExpr(name=name_tok("x")),
-                        index=LiteralExpr(0.0),
                         bracket=bracket_tok(line),
+                        index=LiteralExpr(0.0),
                     )
                 ),
             ]

@@ -50,26 +50,63 @@ class LogicalExpr(Expr):
     right: Expr
 
 
-# ── 정적배열 기능 ────────────────────────────────────────────
 @dataclass
-class ArrayExpr(Expr):
-    size: Expr
+class CallExpr(Expr):
+    callee: Expr
+    paren: Token  # 인자 개수 오류 등에서 라인 번호로 사용
+    arguments: list[Expr]
+
+
+@dataclass
+class GetExpr(Expr):
+    object: Expr
+    name: Token
+
+
+@dataclass
+class SetExpr(Expr):
+    object: Expr
+    name: Token
+    value: Expr
+
+
+@dataclass
+class ThisExpr(Expr):
     keyword: Token
 
 
 @dataclass
-class IndexExpr(Expr):
-    array: Expr
-    index: Expr
-    bracket: Token
+class SuperExpr(Expr):
+    keyword: Token
+    method: Token
 
 
 @dataclass
-class IndexAssignExpr(Expr):
+class InstanceOfExpr(Expr):
+    object: Expr
+    klass: Token
+
+
+@dataclass
+class IndexGetExpr(Expr):
     array: Expr
+    bracket: Token  # 에러 라인용
+    index: Expr
+
+
+@dataclass
+class IndexSetExpr(Expr):
+    array: Expr
+    bracket: Token
     index: Expr
     value: Expr
-    bracket: Token
+
+
+# ── 정적배열 기능: 배열 생성 (인덱스 읽기/쓰기는 위의 IndexGetExpr/IndexSetExpr 사용) ──
+@dataclass
+class ArrayExpr(Expr):
+    size: Expr
+    keyword: Token
 
 
 # ── Stmt ─────────────────────────────────────────────────────
@@ -111,3 +148,29 @@ class ForStmt(Stmt):
     condition: Optional[Expr]
     increment: Optional[Expr]
     body: Stmt
+
+
+@dataclass
+class FuncDeclStmt(Stmt):
+    name: Token
+    params: list[Token]
+    body: list[Stmt]  # BlockStmt.statements 재사용
+
+
+@dataclass
+class ReturnStmt(Stmt):
+    keyword: Token  # 에러 라인 번호용
+    value: Optional[Expr]
+
+
+@dataclass
+class ClassDeclStmt(Stmt):
+    name: Token
+    superclass: Optional[VariableExpr]
+    methods: list[FuncDeclStmt]
+
+
+@dataclass
+class ImportStmt(Stmt):
+    path: Token  # STRING 토큰
+    alias: Token  # IDENTIFIER

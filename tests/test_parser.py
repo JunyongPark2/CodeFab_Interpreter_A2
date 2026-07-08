@@ -9,8 +9,8 @@ from interpreter.ast_nodes import (
     ForStmt,
     GroupingExpr,
     IfStmt,
-    IndexAssignExpr,
-    IndexExpr,
+    IndexGetExpr,
+    IndexSetExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
@@ -1145,10 +1145,10 @@ def test_array_creation():
 def test_index_read():
     # print arr[0];
     #
-    # 기대 트리:  IndexExpr(array=VariableExpr("arr"), index=0)
+    # 기대 트리:  IndexGetExpr(array=VariableExpr("arr"), index=0)
     expr = parse_print(ident("arr"), LBRACKET, num(0), RBRACKET)
 
-    assert isinstance(expr, IndexExpr)
+    assert isinstance(expr, IndexGetExpr)
     assert isinstance(expr.array, VariableExpr)
     assert expr.array.name.origin == "arr"
     assert expr.index == LiteralExpr(0.0)
@@ -1158,7 +1158,7 @@ def test_index_write():
     # arr[0] = 10;
     #
     # 기대 트리:  ExpressionStmt
-    #              └── IndexAssignExpr(array="arr", index=0, value=10)
+    #              └── IndexSetExpr(array="arr", index=0, value=10)
     stmts = parse_stmts(
         ident("arr"), LBRACKET, num(0), RBRACKET, EQUAL, num(10), SEMI
     )
@@ -1167,7 +1167,7 @@ def test_index_write():
     stmt = stmts[0]
     assert isinstance(stmt, ExpressionStmt)
     expr = stmt.expression
-    assert isinstance(expr, IndexAssignExpr)
+    assert isinstance(expr, IndexSetExpr)
     assert isinstance(expr.array, VariableExpr)
     assert expr.array.name.origin == "arr"
     assert expr.index == LiteralExpr(0.0)
@@ -1192,7 +1192,7 @@ def test_index_write_with_expression_index():
 
     assert len(stmts) == 1
     expr = stmts[0].expression
-    assert isinstance(expr, IndexAssignExpr)
+    assert isinstance(expr, IndexSetExpr)
     assert isinstance(expr.index, BinaryExpr)
     assert expr.index.operator.type == TokenType.MINUS
     assert expr.value == LiteralExpr(7.0)
