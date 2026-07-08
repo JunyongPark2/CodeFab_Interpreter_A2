@@ -1,0 +1,72 @@
+"""실행 전 최적화(정적 바인딩 / 상수 폴딩)를 Test Double(스파이)로 검증한다.
+
+Assembler -> Checker -> Executor 전체 파이프라인을 CodeFabInterpreter로 돌려서,
+"최적화가 실제로 런타임 동작을 바꿨는지"를 실제 호출 횟수로 확인한다.
+"""
+
+from interpreter.codefab import CodeFabInterpreter
+from interpreter.environment import Environment
+from interpreter.executor import Executor
+from interpreter.tokens import TokenType
+
+
+def test_resolved_local_variable_never_calls_dynamic_get(monkeypatch, capsys):
+    # { var a = 1; { var b = a + 1; print b; } }
+    # a의 참조는 정적 바인딩으로 distance가 계산되므로 Executor는 get_at()만 써야 하고
+    # Environment.get()(동적 조회)은 한 번도 호출되면 안 된다.
+    calls = {"get": 0}
+    original_get = Environment.get
+
+    def spy_get(self, name, line=0):
+        calls["get"] += 1
+        return original_get(self, name, line)
+
+    monkeypatch.setattr(Environment, "get", spy_get)
+
+    source = "{ var a = 1; { var b = a + 1; print b; } }"
+    CodeFabInterpreter().run(source)
+
+    assert capsys.readouterr().out == "2\n"
+    assert calls["get"] == 0
+
+
+def test_top_level_global_variable_still_uses_dynamic_get(monkeypatch, capsys):
+    # 대조군: 전역 변수는 정적 바인딩 대상이 아니므로 여전히 get()이 호출돼야 한다.
+    # (위 스파이 테스트가 "우연히 get이 항상 0번 호출되는" 구현이 아님을 보증한다.)
+    calls = {"get": 0}
+    original_get = Environment.get
+
+    def spy_get(self, name, line=0):
+        calls["get"] += 1
+        return original_get(self, name, line)
+
+    monkeypatch.setattr(Environment, "get", spy_get)
+
+    CodeFabInterpreter().run("var g = 1; print g;")
+
+    assert capsys.readouterr().out == "1\n"
+    assert calls["get"] == 1
+
+
+def test_folded_constant_expression_is_never_recomputed_in_loop(monkeypatch, capsys):
+    # for (var i = 0; i < 3; i = i + 1) { print (2 * 3); }
+    # (2 * 3)은 Checker 단계에서 이미 LiteralExpr(6.0)으로 접혀야 하므로, 루프를 3번
+    # 돌아도 Executor._eval_binary가 STAR 연산자로 호출되는 일이 없어야 한다.
+    calls = {"STAR": 0, "LESS": 0}
+    original_eval_binary = Executor._eval_binary
+
+    def spy_eval_binary(self, expr):
+        op_name = expr.operator.type.name
+        if op_name in calls:
+            calls[op_name] += 1
+        return original_eval_binary(self, expr)
+
+    monkeypatch.setattr(Executor, "_eval_binary", spy_eval_binary)
+
+    source = "for (var i = 0; i < 3; i = i + 1) { print (2 * 3); }"
+    CodeFabInterpreter().run(source)
+
+    assert capsys.readouterr().out == "6\n6\n6\n"
+    assert calls["STAR"] == 0  # 상수 폴딩으로 곱셈 자체가 사라졌다
+    # i < 3 은 변수가 껴 있어 폴딩 대상이 아니므로 조건 검사마다(참 3번 + 마지막 거짓 1번) 재계산된다
+    assert calls["LESS"] == 4
