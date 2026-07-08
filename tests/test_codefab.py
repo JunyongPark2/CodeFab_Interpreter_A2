@@ -325,10 +325,10 @@ def test_nonexistent_field_read_raises(interp):
 def test_method_with_this(interp, capsys):
     source = """\
 Class Robot {
-  Func setSpeed(s) {
+  setSpeed(s) {
     This.speed = s;
   }
-  Func getSpeed() {
+  getSpeed() {
     return This.speed;
   }
 }
@@ -343,13 +343,13 @@ print r.getSpeed();
 def test_method_calls_another_method(interp, capsys):
     source = """\
 Class Counter {
-  Func init() {
+  init() {
     This.count = 0;
   }
-  Func increment() {
+  increment() {
     This.count = This.count + 1;
   }
-  Func getCount() {
+  getCount() {
     return This.count;
   }
 }
@@ -365,7 +365,7 @@ print c.getCount();
 def test_init_constructor_with_args(interp, capsys):
     source = """\
 Class Robot {
-  Func init(name, speed) {
+  init(name, speed) {
     This.name = name;
     This.speed = speed;
   }
@@ -380,7 +380,7 @@ print r.speed;
 
 def test_init_returns_instance(interp, capsys):
     interp.run(
-        "Class Robot { Func init() { This.x = 1; } } var r = Robot(); print r.x;"
+        "Class Robot { init() { This.x = 1; } } var r = Robot(); print r.x;"
     )
     assert capsys.readouterr().out == "1\n"
 
@@ -392,7 +392,7 @@ def test_this_outside_class_raises_check_error(interp):
 
 def test_init_return_value_raises_check_error(interp):
     with pytest.raises(CheckError):
-        interp.run("Class Bad { Func init() { return 1; } }")
+        interp.run("Class Bad { init() { return 1; } }")
 
 
 def test_non_instance_field_access_raises(interp):
@@ -406,7 +406,7 @@ def test_non_instance_field_access_raises(interp):
 def test_child_inherits_parent_method(interp, capsys):
     source = """\
 Class Animal {
-  Func speak() { print "..."; }
+  speak() { print "..."; }
 }
 Class Dog : Animal { }
 var d = Dog();
@@ -419,10 +419,10 @@ d.speak();
 def test_child_overrides_parent_method(interp, capsys):
     source = """\
 Class Animal {
-  Func speak() { print "..."; }
+  speak() { print "..."; }
 }
 Class Dog : Animal {
-  Func speak() { print "woof"; }
+  speak() { print "woof"; }
 }
 var d = Dog();
 d.speak();
@@ -434,10 +434,10 @@ d.speak();
 def test_super_calls_parent_method(interp, capsys):
     source = """\
 Class Robot {
-  Func greet() { print "Robot"; }
+  greet() { print "Robot"; }
 }
 Class SpeedRobot : Robot {
-  Func greet() {
+  greet() {
     Super.greet();
     print "SpeedRobot";
   }
@@ -452,19 +452,19 @@ r.greet();
 def test_super_with_this_fields(interp, capsys):
     source = """\
 Class Robot {
-  Func init(name) {
+  init(name) {
     This.name = name;
   }
-  Func greet() {
+  greet() {
     print This.name;
   }
 }
 Class SpeedRobot : Robot {
-  Func init(name, speed) {
+  init(name, speed) {
     This.name = name;
     This.speed = speed;
   }
-  Func greet() {
+  greet() {
     Super.greet();
     print This.speed;
   }
@@ -526,7 +526,7 @@ def test_super_outside_class_raises_check_error(interp):
 
 def test_super_without_parent_raises_check_error(interp):
     with pytest.raises(CheckError):
-        interp.run("Class A { Func greet() { Super.greet(); } }")
+        interp.run("Class A { greet() { Super.greet(); } }")
 
 
 def test_super_missing_method_raises_runtime_error(interp):
@@ -534,7 +534,7 @@ def test_super_missing_method_raises_runtime_error(interp):
         source = """\
 Class A { }
 Class B : A {
-  Func test() { Super.nope(); }
+  test() { Super.nope(); }
 }
 var b = B();
 b.test();

@@ -705,8 +705,8 @@ def test_empty_class_declaration():
 
 
 def test_class_declaration_with_method():
-    # Class Robot { Func move(dist) { return dist; } }
-    stmts = assemble("Class Robot { Func move(dist) { return dist; } }")
+    # Class Robot { move(dist) { return dist; } }
+    stmts = assemble("Class Robot { move(dist) { return dist; } }")
 
     stmt = stmts[0]
     assert isinstance(stmt, ClassDeclStmt)
@@ -756,8 +756,8 @@ def test_set_expr():
 
 
 def test_this_expr():
-    # Class Robot { Func getX() { return This.x; } }
-    stmts = assemble("Class Robot { Func getX() { return This.x; } }")
+    # Class Robot { getX() { return This.x; } }
+    stmts = assemble("Class Robot { getX() { return This.x; } }")
 
     method = stmts[0].methods[0]
     ret = method.body[0]
