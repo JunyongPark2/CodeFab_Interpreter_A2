@@ -1,18 +1,27 @@
+import os
 import sys
 
+from interpreter.codefab import CodeFabInterpreter
+from interpreter.errors import CheckError, CodeFabRuntimeError, ParseError, TokenizeError
 from prompt_shell import main as run_repl_mode
 
 USAGE = "사용법: factory_shell.py [run|debug] <파일경로>"
 
 
 def run_file_mode(path: str) -> None:
-    """파일 모드: `python factory_shell.py run <path>`.
+    """파일 모드: `python factory_shell.py run <path>`."""
+    if not os.path.exists(path):
+        print(f"파일을 찾을 수 없습니다: '{path}'")
+        sys.exit(1)
 
-    TODO: 파일을 읽어 CodeFabInterpreter().run()으로 실행하고,
-    TokenizeError/ParseError/CheckError/CodeFabRuntimeError를 잡아
-    줄 번호와 함께 출력한 뒤 적절한 exit code로 종료한다 (5-6 파일 모드 스펙).
-    """
-    raise NotImplementedError("파일 모드는 아직 구현되지 않았습니다.")
+    with open(path, encoding="utf-8") as f:
+        source = f.read()
+
+    try:
+        CodeFabInterpreter().run(source)
+    except (TokenizeError, ParseError, CheckError, CodeFabRuntimeError) as e:
+        print(e)
+        sys.exit(1)
 
 
 def run_debug_mode(path: str) -> None:
