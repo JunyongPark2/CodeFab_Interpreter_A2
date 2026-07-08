@@ -1,4 +1,5 @@
 from .ast_nodes import (
+    ArrayExpr,
     AssignExpr,
     BinaryExpr,
     BlockStmt,
@@ -7,6 +8,8 @@ from .ast_nodes import (
     ForStmt,
     GroupingExpr,
     IfStmt,
+    IndexGetExpr,
+    IndexSetExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
@@ -52,6 +55,10 @@ class Executor:
             UnaryExpr: self._eval_unary,
             BinaryExpr: self._eval_binary,
             LogicalExpr: self._eval_logical,
+            # 정적배열 기능
+            ArrayExpr: self._eval_array,
+            IndexGetExpr: self._eval_index_get,
+            IndexSetExpr: self._eval_index_set,
         }
 
     def execute(self) -> None:
@@ -191,6 +198,46 @@ class Executor:
             return left if self._is_truthy(left) else self._eval(expr.right)
         return self._eval(expr.right) if self._is_truthy(left) else left
 
+    # ── 정적배열 기능 ─────────────────────────────────────
+    def _eval_array(self, expr: ArrayExpr):
+        size = self._eval(expr.size)
+        self._check_array_size(expr.keyword, size)
+        return [None] * int(size)
+
+    def _eval_index_get(self, expr: IndexGetExpr):
+        array = self._eval(expr.array)
+        self._check_is_array(expr.bracket, array)
+        index = self._check_index(expr.bracket, self._eval(expr.index), len(array))
+        return array[index]
+
+    def _eval_index_set(self, expr: IndexSetExpr):
+        array = self._eval(expr.array)
+        self._check_is_array(expr.bracket, array)
+        index = self._check_index(expr.bracket, self._eval(expr.index), len(array))
+        val = self._eval(expr.value)
+        array[index] = val
+        return val
+
+    def _check_array_size(self, keyword, size) -> None:
+        if not isinstance(size, float):
+            raise LangRuntimeError(keyword.line, "배열의 크기는 숫자여야 합니다.")
+        if size < 0 or size != int(size):
+            raise LangRuntimeError(keyword.line, "배열의 크기는 0 이상의 정수여야 합니다.")
+
+    def _check_is_array(self, bracket, val) -> None:
+        if not isinstance(val, list):
+            raise LangRuntimeError(bracket.line, "배열이 아닌 값에는 인덱스로 접근할 수 없습니다.")
+
+    def _check_index(self, bracket, index, length: int) -> int:
+        if not isinstance(index, float):
+            raise LangRuntimeError(bracket.line, "배열 인덱스는 숫자여야 합니다.")
+        if index != int(index):
+            raise LangRuntimeError(bracket.line, "배열 인덱스는 정수여야 합니다.")
+        i = int(index)
+        if i < 0 or i >= length:
+            raise LangRuntimeError(bracket.line, "배열 인덱스가 범위를 벗어났습니다.")
+        return i
+
     # ── 헬퍼 ─────────────────────────────────────────────
     def _is_truthy(self, val) -> bool:
         if val is None:
@@ -220,4 +267,7 @@ class Executor:
         if isinstance(val, float):
             s = str(val)
             return s[:-2] if s.endswith(".0") else s
+        # 정적배열 기능: [10, 20, 30] 형태로 출력
+        if isinstance(val, list):
+            return "[" + ", ".join(self._stringify(v) for v in val) + "]"
         return str(val)

@@ -56,6 +56,9 @@ class TokenType(Enum):
     IMPORT = auto()
     ALIAS = auto()
 
+    # 정적배열 기능
+    ARRAY = auto()
+
     EOF = auto()
 
 
@@ -78,6 +81,7 @@ KEYWORDS: dict[str, TokenType] = {
     "instanceof": TokenType.INSTANCEOF,
     "import": TokenType.IMPORT,
     "alias": TokenType.ALIAS,
+    "Array": TokenType.ARRAY,  # 정적배열 기능: Array(n) 생성자
 }
 
 

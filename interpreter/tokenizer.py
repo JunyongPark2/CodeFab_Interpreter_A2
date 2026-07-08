@@ -34,6 +34,7 @@ class Tokenizer:
                 self._add_token(TokenType.LEFT_BRACE)
             case "}":
                 self._add_token(TokenType.RIGHT_BRACE)
+            # 정적배열 기능
             case "[":
                 self._add_token(TokenType.LEFT_BRACKET)
             case "]":
