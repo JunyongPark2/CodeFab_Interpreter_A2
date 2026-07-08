@@ -6,20 +6,26 @@ from .ast_nodes import (
     BinaryExpr,
     BlockStmt,
     CallExpr,
+    ClassDeclStmt,
     Expr,
     ExpressionStmt,
     ForStmt,
     FuncDeclStmt,
+    GetExpr,
     GroupingExpr,
     IfStmt,
     ImportStmt,
     IndexGetExpr,
     IndexSetExpr,
+    InstanceOfExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
     ReturnStmt,
+    SetExpr,
     Stmt,
+    SuperExpr,
+    ThisExpr,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
@@ -46,6 +52,7 @@ class Parser:
             TokenType.FUNC: self._func_declaration,
             TokenType.RETURN: self._return_statement,
             TokenType.IMPORT: self._import_statement,
+            TokenType.CLASS: self._class_declaration,
         }
 
     def parse(self) -> list[Stmt]:
@@ -153,6 +160,22 @@ class Parser:
         self._consume(TokenType.SEMICOLON, "';' 가 필요합니다.")
         return ReturnStmt(keyword, value)
 
+    def _class_declaration(self) -> ClassDeclStmt:
+        name = self._consume(TokenType.IDENTIFIER, "클래스 이름이 필요합니다.")
+        superclass = None
+        if self._match(TokenType.COLON):
+            sc_tok = self._consume(
+                TokenType.IDENTIFIER, "부모 클래스 이름이 필요합니다."
+            )
+            superclass = VariableExpr(sc_tok)
+        self._consume(TokenType.LEFT_BRACE, "'{' 가 필요합니다.")
+        methods: list[FuncDeclStmt] = []
+        while not self._check(TokenType.RIGHT_BRACE) and not self._is_at_end():
+            self._consume(TokenType.FUNC, "메서드는 'Func' 키워드로 시작해야 합니다.")
+            methods.append(self._func_declaration())
+        self._consume(TokenType.RIGHT_BRACE, "'}' 가 필요합니다.")
+        return ClassDeclStmt(name, superclass, methods)
+
     def _var_declaration(self) -> VarDeclStmt:
         name = self._consume(TokenType.IDENTIFIER, "변수 이름이 필요합니다.")
         initializer = None
@@ -189,9 +212,10 @@ class Parser:
             value = self._assignment()  # 오른쪽 결합: a = b = 1
             if isinstance(expr, VariableExpr):
                 return AssignExpr(expr.name, value)
-            # 정적배열 기능: arr[index] = value
             if isinstance(expr, IndexGetExpr):
                 return IndexSetExpr(expr.array, expr.bracket, expr.index, value)
+            if isinstance(expr, GetExpr):
+                return SetExpr(expr.object, expr.name, value)
             raise ParseError(self._previous().line, "대입 대상이 올바르지 않습니다.")
         return expr
 
@@ -224,8 +248,15 @@ class Parser:
 
     def _equality(self) -> Expr:
         return self._binary(
-            (TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL), self._comparison
+            (TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL), self._instanceof
         )
+
+    def _instanceof(self) -> Expr:
+        expr = self._comparison()
+        if self._match(TokenType.INSTANCEOF):
+            klass = self._consume(TokenType.IDENTIFIER, "클래스 이름이 필요합니다.")
+            return InstanceOfExpr(expr, klass)
+        return expr
 
     def _comparison(self) -> Expr:
         return self._binary(
@@ -251,8 +282,14 @@ class Parser:
 
     def _call(self) -> Expr:
         expr = self._index()
-        while self._match(TokenType.LEFT_PAREN):
-            expr = self._finish_call(expr)
+        while True:
+            if self._match(TokenType.LEFT_PAREN):
+                expr = self._finish_call(expr)
+            elif self._match(TokenType.DOT):
+                name = self._consume(TokenType.IDENTIFIER, "속성 이름이 필요합니다.")
+                expr = GetExpr(expr, name)
+            else:
+                break
         return expr
 
     def _finish_call(self, callee: Expr) -> CallExpr:
@@ -281,6 +318,13 @@ class Parser:
             return LiteralExpr(True)
         if self._match(TokenType.FALSE):
             return LiteralExpr(False)
+        if self._match(TokenType.THIS):
+            return ThisExpr(self._previous())
+        if self._match(TokenType.SUPER):
+            keyword = self._previous()
+            self._consume(TokenType.DOT, "'.' 가 필요합니다.")
+            method = self._consume(TokenType.IDENTIFIER, "메서드 이름이 필요합니다.")
+            return SuperExpr(keyword, method)
         if self._match(TokenType.IDENTIFIER):
             return VariableExpr(self._previous())
         # 정적배열 기능: Array(size)

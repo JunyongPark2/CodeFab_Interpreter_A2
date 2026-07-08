@@ -8,7 +8,7 @@ class Assembler:
     """소스코드 문자열 → list[Token] → list[Stmt] 파이프라인을 수행한다."""
 
     def __init__(
-            self, tokenizer: type[Tokenizer] = Tokenizer, parser: type[Parser] = Parser
+        self, tokenizer: type[Tokenizer] = Tokenizer, parser: type[Parser] = Parser
     ):
         # 클래스 자체를 받는다 (assemble()마다 새 소스로 새 인스턴스를 만들기 위해).
         # 테스트 시 가짜(mock) 클래스를 넣으면 Assembler의 연결 로직만 따로 검증할 수 있다.

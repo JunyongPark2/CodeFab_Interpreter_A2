@@ -29,7 +29,7 @@ from interpreter.ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from interpreter.errors import LangRuntimeError
+from interpreter.errors import CodeFabRuntimeError
 from interpreter.executor import Executor
 from interpreter.tokens import Token, TokenType
 
@@ -93,7 +93,14 @@ def test_call_returns_computed_value(capsys):
             )
         ],
     )
-    run([add, PrintStmt(expression=make_call("add", [LiteralExpr(1.0), LiteralExpr(2.0)]))])
+    run(
+        [
+            add,
+            PrintStmt(
+                expression=make_call("add", [LiteralExpr(1.0), LiteralExpr(2.0)])
+            ),
+        ]
+    )
     assert capsys.readouterr().out == "3\n"
 
 
@@ -105,13 +112,13 @@ def test_function_declaration_itself_prints_nothing(capsys):
 # ── return 값 유무에 따른 결과 ──────────────────────────────────────
 def test_function_without_return_yields_nil(capsys):
     run([make_func("noop", [], []), PrintStmt(expression=make_call("noop", []))])
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 def test_bare_return_yields_nil(capsys):
     early = make_func("early", [], [make_return(None)])
     run([early, PrintStmt(expression=make_call("early", []))])
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 def test_return_skips_remaining_statements(capsys):
@@ -158,7 +165,9 @@ def test_return_exits_nested_for_and_if(capsys):
                             operator=tok(TokenType.EQUAL_EQUAL),
                             right=LiteralExpr(2.0),
                         ),
-                        then_branch=BlockStmt([make_return(VariableExpr(name_tok("i")))]),
+                        then_branch=BlockStmt(
+                            [make_return(VariableExpr(name_tok("i")))]
+                        ),
                         else_branch=None,
                     )
                 ]
@@ -208,7 +217,12 @@ def test_recursive_call_via_closure(capsys):
             )
         ),
     ]
-    run([make_func("fact", ["n"], body), PrintStmt(expression=make_call("fact", [LiteralExpr(5.0)]))])
+    run(
+        [
+            make_func("fact", ["n"], body),
+            PrintStmt(expression=make_call("fact", [LiteralExpr(5.0)])),
+        ]
+    )
     assert capsys.readouterr().out == "120\n"
 
 
@@ -312,7 +326,11 @@ def test_function_can_call_another_function(capsys):
         [
             square,
             sum_of_squares,
-            PrintStmt(expression=make_call("sum_of_squares", [LiteralExpr(3.0), LiteralExpr(4.0)])),
+            PrintStmt(
+                expression=make_call(
+                    "sum_of_squares", [LiteralExpr(3.0), LiteralExpr(4.0)]
+                )
+            ),
         ]
     )
     assert capsys.readouterr().out == "25\n"
@@ -332,7 +350,8 @@ def test_calling_non_function_value_raises():
         ),
     ]
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 함수가 아닌 대상을 호출했습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 함수가 아닌 대상을 호출했습니다\.",
     ):
         run(stmts)
 
@@ -360,7 +379,7 @@ def test_call_with_too_few_arguments_raises():
         )
     )
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
     ):
         run([add, call])
 
@@ -388,12 +407,13 @@ def test_call_with_too_many_arguments_raises():
         )
     )
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
     ):
         run([add, call])
 
 
 # ── 추가: 더 복잡한 시나리오 ──────────────────────────────────────────
+
 
 def test_mutual_recursion_is_even_is_odd(capsys):
     is_even = make_func(
@@ -405,7 +425,9 @@ def test_mutual_recursion_is_even_is_odd(capsys):
                 then_branch=BlockStmt([make_return(lit(True))]),
                 else_branch=None,
             ),
-            make_return(make_call("is_odd", [bin_(var("n"), TokenType.MINUS, lit(1.0))])),
+            make_return(
+                make_call("is_odd", [bin_(var("n"), TokenType.MINUS, lit(1.0))])
+            ),
         ],
     )
     is_odd = make_func(
@@ -417,7 +439,9 @@ def test_mutual_recursion_is_even_is_odd(capsys):
                 then_branch=BlockStmt([make_return(lit(False))]),
                 else_branch=None,
             ),
-            make_return(make_call("is_even", [bin_(var("n"), TokenType.MINUS, lit(1.0))])),
+            make_return(
+                make_call("is_even", [bin_(var("n"), TokenType.MINUS, lit(1.0))])
+            ),
         ],
     )
     run(
@@ -446,7 +470,12 @@ def test_fibonacci_recursive(capsys):
             )
         ),
     ]
-    run([make_func("fib", ["n"], fib_body), PrintStmt(expression=make_call("fib", [lit(10.0)]))])
+    run(
+        [
+            make_func("fib", ["n"], fib_body),
+            PrintStmt(expression=make_call("fib", [lit(10.0)])),
+        ]
+    )
     assert capsys.readouterr().out == "55\n"
 
 
@@ -466,7 +495,13 @@ def test_function_returning_boolean(capsys):
 
 def test_function_returning_concatenated_string(capsys):
     greet_body = [
-        make_return(bin_(bin_(lit("Hello, "), TokenType.PLUS, var("name")), TokenType.PLUS, lit("!")))
+        make_return(
+            bin_(
+                bin_(lit("Hello, "), TokenType.PLUS, var("name")),
+                TokenType.PLUS,
+                lit("!"),
+            )
+        )
     ]
     run(
         [
@@ -487,7 +522,9 @@ def test_function_declared_inside_braced_block_is_scoped_to_block():
         ),
         ExpressionStmt(expression=make_call("f", [], line=line)),
     ]
-    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'f'"):
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'f'"
+    ):
         run(stmts)
 
 
@@ -506,7 +543,9 @@ def test_function_declared_as_bare_if_body_leaks_into_outer_scope(capsys):
 
 
 def test_parameter_shadows_outer_function_name(capsys):
-    add = make_func("add", ["a", "b"], [make_return(bin_(var("a"), TokenType.PLUS, var("b")))])
+    add = make_func(
+        "add", ["a", "b"], [make_return(bin_(var("a"), TokenType.PLUS, var("b")))]
+    )
     # trick의 파라미터 이름이 전역 함수 add와 같아서, 함수 본문 안에서는
     # 전역 함수가 아니라 파라미터 값을 가리켜야 한다.
     trick = make_func("trick", ["add"], [make_return(var("add"))])
@@ -541,19 +580,29 @@ def test_function_can_mutate_outer_variable(capsys):
 
 
 def test_call_with_expression_arguments(capsys):
-    square = make_func("square", ["x"], [make_return(bin_(var("x"), TokenType.STAR, var("x")))])
+    square = make_func(
+        "square", ["x"], [make_return(bin_(var("x"), TokenType.STAR, var("x")))]
+    )
     run(
         [
             square,
-            PrintStmt(expression=make_call("square", [bin_(lit(2.0), TokenType.PLUS, lit(3.0))])),
+            PrintStmt(
+                expression=make_call(
+                    "square", [bin_(lit(2.0), TokenType.PLUS, lit(3.0))]
+                )
+            ),
         ]
     )
     assert capsys.readouterr().out == "25\n"
 
 
 def test_nested_call_as_argument(capsys):
-    inc = make_func("inc", ["x"], [make_return(bin_(var("x"), TokenType.PLUS, lit(1.0)))])
-    double = make_func("double", ["x"], [make_return(bin_(var("x"), TokenType.STAR, lit(2.0)))])
+    inc = make_func(
+        "inc", ["x"], [make_return(bin_(var("x"), TokenType.PLUS, lit(1.0)))]
+    )
+    double = make_func(
+        "double", ["x"], [make_return(bin_(var("x"), TokenType.STAR, lit(2.0)))]
+    )
     run(
         [
             inc,
@@ -565,11 +614,15 @@ def test_nested_call_as_argument(capsys):
 
 
 def test_function_called_repeatedly_in_loop(capsys):
-    square = make_func("square", ["x"], [make_return(bin_(var("x"), TokenType.STAR, var("x")))])
+    square = make_func(
+        "square", ["x"], [make_return(bin_(var("x"), TokenType.STAR, var("x")))]
+    )
     loop = ForStmt(
         initializer=VarDeclStmt(name=name_tok("i"), initializer=lit(0.0)),
         condition=bin_(var("i"), TokenType.LESS, lit(4.0)),
-        increment=AssignExpr(name=name_tok("i"), value=bin_(var("i"), TokenType.PLUS, lit(1.0))),
+        increment=AssignExpr(
+            name=name_tok("i"), value=bin_(var("i"), TokenType.PLUS, lit(1.0))
+        ),
         body=PrintStmt(expression=make_call("square", [var("i")])),
     )
     run([square, loop])
@@ -577,14 +630,20 @@ def test_function_called_repeatedly_in_loop(capsys):
 
 
 def test_higher_order_function_receives_function_as_argument(capsys):
-    square = make_func("square", ["x"], [make_return(bin_(var("x"), TokenType.STAR, var("x")))])
+    square = make_func(
+        "square", ["x"], [make_return(bin_(var("x"), TokenType.STAR, var("x")))]
+    )
     apply_twice_body = [
         make_return(
             CallExpr(
                 callee=var("f"),
                 paren=tok(TokenType.RIGHT_PAREN),
                 arguments=[
-                    CallExpr(callee=var("f"), paren=tok(TokenType.RIGHT_PAREN), arguments=[var("x")])
+                    CallExpr(
+                        callee=var("f"),
+                        paren=tok(TokenType.RIGHT_PAREN),
+                        arguments=[var("x")],
+                    )
                 ],
             )
         )
@@ -602,15 +661,21 @@ def test_higher_order_function_receives_function_as_argument(capsys):
 
 def test_closure_captures_enclosing_function_parameter(capsys):
     # Func make_adder(x) { Func adder(y) { return x + y; } return adder; }
-    adder = make_func("adder", ["y"], [make_return(bin_(var("x"), TokenType.PLUS, var("y")))])
+    adder = make_func(
+        "adder", ["y"], [make_return(bin_(var("x"), TokenType.PLUS, var("y")))]
+    )
     make_adder = make_func("make_adder", ["x"], [adder, make_return(var("adder"))])
     run(
         [
             make_adder,
-            VarDeclStmt(name=name_tok("add5"), initializer=make_call("make_adder", [lit(5.0)])),
+            VarDeclStmt(
+                name=name_tok("add5"), initializer=make_call("make_adder", [lit(5.0)])
+            ),
             PrintStmt(
                 expression=CallExpr(
-                    callee=var("add5"), paren=tok(TokenType.RIGHT_PAREN), arguments=[lit(3.0)]
+                    callee=var("add5"),
+                    paren=tok(TokenType.RIGHT_PAREN),
+                    arguments=[lit(3.0)],
                 )
             ),
         ]
@@ -619,26 +684,38 @@ def test_closure_captures_enclosing_function_parameter(capsys):
 
 
 def test_closures_from_separate_calls_are_independent(capsys):
-    adder = make_func("adder", ["y"], [make_return(bin_(var("x"), TokenType.PLUS, var("y")))])
+    adder = make_func(
+        "adder", ["y"], [make_return(bin_(var("x"), TokenType.PLUS, var("y")))]
+    )
     make_adder = make_func("make_adder", ["x"], [adder, make_return(var("adder"))])
     run(
         [
             make_adder,
-            VarDeclStmt(name=name_tok("add5"), initializer=make_call("make_adder", [lit(5.0)])),
-            VarDeclStmt(name=name_tok("add10"), initializer=make_call("make_adder", [lit(10.0)])),
+            VarDeclStmt(
+                name=name_tok("add5"), initializer=make_call("make_adder", [lit(5.0)])
+            ),
+            VarDeclStmt(
+                name=name_tok("add10"), initializer=make_call("make_adder", [lit(10.0)])
+            ),
             PrintStmt(
                 expression=CallExpr(
-                    callee=var("add5"), paren=tok(TokenType.RIGHT_PAREN), arguments=[lit(1.0)]
+                    callee=var("add5"),
+                    paren=tok(TokenType.RIGHT_PAREN),
+                    arguments=[lit(1.0)],
                 )
             ),
             PrintStmt(
                 expression=CallExpr(
-                    callee=var("add10"), paren=tok(TokenType.RIGHT_PAREN), arguments=[lit(1.0)]
+                    callee=var("add10"),
+                    paren=tok(TokenType.RIGHT_PAREN),
+                    arguments=[lit(1.0)],
                 )
             ),
             PrintStmt(
                 expression=CallExpr(
-                    callee=var("add5"), paren=tok(TokenType.RIGHT_PAREN), arguments=[lit(2.0)]
+                    callee=var("add5"),
+                    paren=tok(TokenType.RIGHT_PAREN),
+                    arguments=[lit(2.0)],
                 )
             ),
         ]
@@ -661,18 +738,24 @@ def test_local_variable_does_not_leak_after_call():
         ExpressionStmt(expression=make_call("f", [])),
         PrintStmt(expression=VariableExpr(name_tok("local", line=line))),
     ]
-    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'local'"):
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'local'"
+    ):
         run(stmts)
 
 
 def test_error_line_number_matches_call_site_not_declaration():
     call_line = 10
     add = make_func(
-        "add", ["a", "b"], [make_return(bin_(var("a"), TokenType.PLUS, var("b")))], line=1
+        "add",
+        ["a", "b"],
+        [make_return(bin_(var("a"), TokenType.PLUS, var("b")))],
+        line=1,
     )
     call = ExpressionStmt(expression=make_call("add", [lit(1.0)], line=call_line))
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{call_line}번째줄\] 인자 개수가 일치하지 않습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{call_line}번째줄\] 인자 개수가 일치하지 않습니다\.",
     ):
         run([add, call])
 
@@ -683,7 +766,13 @@ def test_runtime_error_inside_recursive_call_propagates():
         IfStmt(
             condition=bin_(var("n"), TokenType.EQUAL_EQUAL, lit(0.0)),
             then_branch=BlockStmt(
-                [make_return(UnaryExpr(operator=tok(TokenType.MINUS, line=line), right=lit("oops")))]
+                [
+                    make_return(
+                        UnaryExpr(
+                            operator=tok(TokenType.MINUS, line=line), right=lit("oops")
+                        )
+                    )
+                ]
             ),
             else_branch=None,
         ),
@@ -691,7 +780,8 @@ def test_runtime_error_inside_recursive_call_propagates():
     ]
     bad = make_func("bad", ["n"], bad_body)
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\.",
     ):
         run([bad, ExpressionStmt(expression=make_call("bad", [lit(5.0)]))])
 
@@ -704,7 +794,11 @@ def test_independent_recursive_calls_in_same_expression(capsys):
             else_branch=None,
         ),
         make_return(
-            bin_(var("n"), TokenType.STAR, make_call("fact", [bin_(var("n"), TokenType.MINUS, lit(1.0))]))
+            bin_(
+                var("n"),
+                TokenType.STAR,
+                make_call("fact", [bin_(var("n"), TokenType.MINUS, lit(1.0))]),
+            )
         ),
     ]
     fact = make_func("fact", ["n"], fact_body)
@@ -713,7 +807,9 @@ def test_independent_recursive_calls_in_same_expression(capsys):
             fact,
             PrintStmt(
                 expression=bin_(
-                    make_call("fact", [lit(3.0)]), TokenType.PLUS, make_call("fact", [lit(4.0)])
+                    make_call("fact", [lit(3.0)]),
+                    TokenType.PLUS,
+                    make_call("fact", [lit(4.0)]),
                 )
             ),
         ]
@@ -727,7 +823,10 @@ def test_argument_evaluation_order_is_left_to_right(capsys):
         ["x"],
         [
             ExpressionStmt(
-                expression=AssignExpr(name=name_tok("log"), value=bin_(var("log"), TokenType.PLUS, var("x")))
+                expression=AssignExpr(
+                    name=name_tok("log"),
+                    value=bin_(var("log"), TokenType.PLUS, var("x")),
+                )
             ),
             make_return(var("x")),
         ],
@@ -740,7 +839,8 @@ def test_argument_evaluation_order_is_left_to_right(capsys):
             noop2,
             ExpressionStmt(
                 expression=make_call(
-                    "noop2", [make_call("record", [lit("A")]), make_call("record", [lit("B")])]
+                    "noop2",
+                    [make_call("record", [lit("A")]), make_call("record", [lit("B")])],
                 )
             ),
             PrintStmt(expression=var("log")),
@@ -754,6 +854,6 @@ def test_zero_arg_function_called_with_extra_argument_raises():
     greet = make_func("greet", [], [make_return(lit("hi"))])
     call = ExpressionStmt(expression=make_call("greet", [lit(1.0)], line=line))
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인자 개수가 일치하지 않습니다\."
     ):
         run([greet, call])

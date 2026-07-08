@@ -4,20 +4,26 @@ from .ast_nodes import (
     BinaryExpr,
     BlockStmt,
     CallExpr,
+    ClassDeclStmt,
     Expr,
     ExpressionStmt,
     ForStmt,
     FuncDeclStmt,
+    GetExpr,
     GroupingExpr,
     IfStmt,
     ImportStmt,
     IndexGetExpr,
     IndexSetExpr,
+    InstanceOfExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
     ReturnStmt,
+    SetExpr,
     Stmt,
+    SuperExpr,
+    ThisExpr,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
@@ -52,6 +58,9 @@ class Checker:
         # import돼 있으면 재import를 막기 위함 (PDF 세부규칙 2: 상위 scope에서 이미
         # import된 파일은 하위에서 재import 불가, 단 스코프가 끝나면 그 기록도 사라짐).
         self._imported_paths: list[set[str]] = [set()]
+        self._in_class = 0
+        self._in_init = False
+        self._in_super = 0  # 부모 클래스가 있는 클래스 본문 깊이
 
         self._stmt_handlers = {
             VarDeclStmt: self._check_var_decl,
@@ -63,6 +72,7 @@ class Checker:
             FuncDeclStmt: self._check_func_decl,
             ReturnStmt: self._check_return,
             ImportStmt: self._check_import,
+            ClassDeclStmt: self._check_class_decl,
         }
         self._expr_handlers = {
             VariableExpr: self._check_variable,
@@ -75,6 +85,11 @@ class Checker:
             IndexGetExpr: self._check_index_get,
             IndexSetExpr: self._check_index_set,
             CallExpr: self._check_call,
+            GetExpr: lambda expr: self._check_expr(expr.object),
+            SetExpr: self._check_set_expr,
+            ThisExpr: self._check_this,
+            SuperExpr: self._check_super,
+            InstanceOfExpr: lambda expr: self._check_expr(expr.object),
         }
 
     def check(self) -> dict[int, int]:
@@ -102,14 +117,14 @@ class Checker:
             stmt.initializer = self._check_expr(stmt.initializer)
 
         if self._current_scope is not None:
-            self._current_scope[stmt.name.origin] = True  # 초기화 완료
+            self._current_scope[stmt.name.origin] = True
 
     def _declare(self, line: int, name: str, scope: dict[str, bool]) -> None:
         if name in scope:
             raise CheckError(
                 line, f"변수 '{name}'이(가) 이미 이 스코프에 선언되어 있습니다."
             )
-        scope[name] = False  # 초기화 미완
+        scope[name] = False
 
     def _check_block(self, stmt: BlockStmt) -> None:
         self._begin_scope()
@@ -134,7 +149,7 @@ class Checker:
         self._check_stmt(stmt.body)
         self._end_scope()
 
-    def _check_func_decl(self, stmt: FuncDeclStmt) -> None:
+    def _check_func_decl(self, stmt: FuncDeclStmt, is_init: bool = False) -> None:
         if self._current_scope is not None:
             self._declare(stmt.name.line, stmt.name.origin, self._current_scope)
             # 재귀 호출을 위해 본문을 검사하기 전에 즉시 정의 완료로 표시한다
@@ -143,6 +158,8 @@ class Checker:
 
         self._check_duplicate_params(stmt.params)
 
+        prev_in_init = self._in_init
+        self._in_init = is_init
         self._function_depth += 1
         self._begin_scope()
         for param in stmt.params:
@@ -153,6 +170,7 @@ class Checker:
             self._check_stmt(body_stmt)
         self._end_scope()
         self._function_depth -= 1
+        self._in_init = prev_in_init
 
     def _check_duplicate_params(self, params: list) -> None:
         seen: set[str] = set()
@@ -167,6 +185,10 @@ class Checker:
         if self._function_depth == 0:
             raise CheckError(
                 stmt.keyword.line, "함수 외부에서는 return을 사용할 수 없습니다."
+            )
+        if self._in_init and stmt.value is not None:
+            raise CheckError(
+                stmt.keyword.line, "init 메서드는 값을 반환할 수 없습니다."
             )
         if stmt.value is not None:
             stmt.value = self._check_expr(stmt.value)
@@ -183,6 +205,33 @@ class Checker:
         if self._current_scope is not None:
             self._declare(stmt.alias.line, stmt.alias.origin, self._current_scope)
             self._current_scope[stmt.alias.origin] = True
+
+    def _check_class_decl(self, stmt: ClassDeclStmt) -> None:
+        if (
+            stmt.superclass is not None
+            and stmt.superclass.name.origin == stmt.name.origin
+        ):
+            raise CheckError(stmt.name.line, "클래스는 자기 자신을 상속할 수 없습니다.")
+
+        self._in_class += 1
+
+        if stmt.superclass is not None:
+            self._check_expr(stmt.superclass)
+            self._begin_scope()
+            self._current_scope["Super"] = True
+            self._in_super += 1
+
+        self._begin_scope()
+        self._current_scope["This"] = True
+        for method in stmt.methods:
+            self._check_func_decl(method, is_init=(method.name.origin == "init"))
+        self._end_scope()
+
+        if stmt.superclass is not None:
+            self._end_scope()
+            self._in_super -= 1
+
+        self._in_class -= 1
 
     # ── Expr 방문 (검사 + 최적화) ────────────────────────────
     def _check_expr(self, expr: Expr) -> Expr:
@@ -235,6 +284,28 @@ class Checker:
     def _check_call(self, expr: CallExpr) -> None:
         expr.callee = self._check_expr(expr.callee)
         expr.arguments = [self._check_expr(arg) for arg in expr.arguments]
+
+    def _check_set_expr(self, expr: SetExpr) -> None:
+        self._check_expr(expr.object)
+        self._check_expr(expr.value)
+
+    def _check_this(self, expr: ThisExpr) -> None:
+        if self._in_class == 0:
+            raise CheckError(
+                expr.keyword.line, "클래스 외부에서 'This'를 사용할 수 없습니다."
+            )
+
+    def _check_super(self, expr: SuperExpr) -> None:
+        if self._in_class == 0:
+            raise CheckError(
+                expr.keyword.line, "클래스 외부에서 'Super'를 사용할 수 없습니다."
+            )
+        if self._in_super == 0:
+            raise CheckError(
+                expr.keyword.line,
+                "부모 클래스가 없는 클래스에서 'Super'를 사용할 수 없습니다.",
+            )
+        self._resolve_local(expr, "Super")
 
     # ── 실행 전 최적화: 정적 바인딩 ────────────────────────────
     def _resolve_local(self, expr: Expr, name: str) -> None:

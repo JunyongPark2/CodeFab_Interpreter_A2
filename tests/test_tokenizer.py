@@ -4,7 +4,6 @@ from interpreter.errors import TokenizeError
 from interpreter.tokenizer import Tokenizer
 from interpreter.tokens import TokenType
 
-
 # ── 헬퍼 ──────────────────────────────────────────────────────────────
 
 
@@ -767,7 +766,11 @@ def test_index_access_tokens():
 def test_array_keyword_is_case_sensitive():
     # 'array' (소문자)는 키워드가 아니라 그냥 식별자여야 한다.
     tokens = tokenize("array;")
-    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+    assert [t.type for t in tokens] == [
+        TokenType.IDENTIFIER,
+        TokenType.SEMICOLON,
+        TokenType.EOF,
+    ]
 
 
 def test_and_with_comparison_expressions():
@@ -863,7 +866,11 @@ def test_func_and_return_keywords():
 def test_identifiers_starting_with_return_are_not_keywords():
     # 'returnValue' 처럼 return으로 "시작"할 뿐인 식별자는 IDENTIFIER로 인식되어야 한다.
     tokens = tokenize("returnValue;\n")
-    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+    assert [t.type for t in tokens] == [
+        TokenType.IDENTIFIER,
+        TokenType.SEMICOLON,
+        TokenType.EOF,
+    ]
 
 
 # ── Class 관련 신규 키워드 ──────────────────────────────────────────
@@ -913,7 +920,11 @@ def test_instanceof_keyword():
 def test_class_lowercase_is_not_keyword():
     # PDF 예시 표기(대문자 시작)와 다르게 소문자로 쓰면 키워드가 아니라 식별자다.
     tokens = tokenize("class;\n")
-    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+    assert [t.type for t in tokens] == [
+        TokenType.IDENTIFIER,
+        TokenType.SEMICOLON,
+        TokenType.EOF,
+    ]
 
 
 # ── import 관련 신규 키워드 ─────────────────────────────────────────

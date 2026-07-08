@@ -3,9 +3,10 @@ import pytest
 from interpreter.assembler import Assembler
 from interpreter.ast_nodes import ImportStmt, LiteralExpr, VarDeclStmt
 from interpreter.codefab import CodeFabInterpreter
-from interpreter.errors import LangRuntimeError, ModuleImportError
-from interpreter.executor import Executor, LangFunction, LangModule
+from interpreter.errors import CodeFabRuntimeError, ModuleImportError
+from interpreter.executor import Executor
 from interpreter.loader import Loader
+from interpreter.runtime import CodeFabFunction, CodeFabModule
 from interpreter.tokens import Token, TokenType
 
 
@@ -28,11 +29,11 @@ def name_tok(name: str, line: int = 1) -> Token:
 
 def test_import_without_loader_raises_runtime_error():
     stmt = ImportStmt(path_tok("sum.txt"), name_tok("sum"))
-    with pytest.raises(LangRuntimeError, match="import를 사용할 수 없습니다"):
+    with pytest.raises(CodeFabRuntimeError, match="import를 사용할 수 없습니다"):
         Executor([stmt]).execute()
 
 
-def test_import_defines_alias_as_lang_module(tmp_path):
+def test_import_defines_alias_as_codefab_module(tmp_path):
     path = write(
         tmp_path, "sum.txt", "Func add(a, b) { return a + b; }\nvar VERSION = 1;\n"
     )
@@ -43,10 +44,10 @@ def test_import_defines_alias_as_lang_module(tmp_path):
     executor.execute()
 
     module = executor._global.get("sum")
-    assert isinstance(module, LangModule)
+    assert isinstance(module, CodeFabModule)
     assert module.name == "sum"
     assert set(module.fields.keys()) == {"add", "VERSION"}
-    assert isinstance(module.fields["add"], LangFunction)
+    assert isinstance(module.fields["add"], CodeFabFunction)
     assert module.fields["VERSION"] == 1.0
 
 
@@ -63,7 +64,7 @@ def test_module_environment_is_isolated_from_importing_scope(tmp_path):
         ],
         loader=loader,
     )
-    with pytest.raises(LangRuntimeError, match="미정의된 변수 'outer'"):
+    with pytest.raises(CodeFabRuntimeError, match="미정의된 변수 'outer'"):
         executor.execute()
 
 
@@ -83,8 +84,8 @@ def test_end_to_end_import_via_codefab_interpreter(tmp_path, capsys):
     interp.run(f'import "{path}" alias sum;\n')
 
     module = interp._global_env.get("sum")
-    assert isinstance(module, LangModule)
-    # `.` 문법(GetExpr)은 Class 기능이 들어와야 파싱/실행되므로, 지금은 LangFunction을
+    assert isinstance(module, CodeFabModule)
+    # `.` 문법(GetExpr)은 Class 기능이 들어와야 파싱/실행되므로, 지금은 CodeFabFunction을
     # 직접 꺼내 실행기 내부 API로 호출해서 모듈이 올바르게 구성됐는지만 검증한다.
     add_fn = module.fields["add"]
     result = add_fn.call(Executor([]), [2.0, 3.0])
@@ -138,11 +139,11 @@ def test_end_to_end_nested_module_import_chain_works(tmp_path):
     interp.run(f'import "{mid_path}" alias mid;\n')
 
     mid_module = interp._global_env.get("mid")
-    assert isinstance(mid_module, LangModule)
+    assert isinstance(mid_module, CodeFabModule)
     assert mid_module.fields["tag"] == "mid"
     base_module = mid_module.fields["base"]
-    assert isinstance(base_module, LangModule)
-    assert isinstance(base_module.fields["double"], LangFunction)
+    assert isinstance(base_module, CodeFabModule)
+    assert isinstance(base_module.fields["double"], CodeFabFunction)
 
 
 def test_end_to_end_reimporting_after_repl_line_boundary_reuses_global_env(tmp_path):

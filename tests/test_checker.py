@@ -6,6 +6,7 @@ from interpreter.ast_nodes import (
     BinaryExpr,
     BlockStmt,
     CallExpr,
+    ClassDeclStmt,
     ExpressionStmt,
     ForStmt,
     FuncDeclStmt,
@@ -17,6 +18,8 @@ from interpreter.ast_nodes import (
     LiteralExpr,
     PrintStmt,
     ReturnStmt,
+    SuperExpr,
+    ThisExpr,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
@@ -665,3 +668,120 @@ def test_importing_different_files_with_different_alias_in_same_scope_is_allowed
         ImportStmt(path_tok("math.txt"), ident("math")),
     ]
     Checker(stmts).check()  # 예외 없어야 함
+
+
+# ── Class / This / Super 정적 검사 ────────────────────────────────
+
+
+def kw_this(line: int = 1) -> Token:
+    return Token(TokenType.THIS, "This", None, line)
+
+
+def kw_super(line: int = 1) -> Token:
+    return Token(TokenType.SUPER, "Super", None, line)
+
+
+def test_this_outside_class_raises():
+    stmts = [PrintStmt(ThisExpr(kw_this()))]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_this_inside_class_method_is_allowed():
+    # Class A { Func f() { print This; } }
+    stmts = [
+        ClassDeclStmt(
+            ident("A"),
+            None,
+            [FuncDeclStmt(ident("f"), [], [PrintStmt(ThisExpr(kw_this()))])],
+        )
+    ]
+    Checker(stmts).check()
+
+
+def test_super_outside_class_raises():
+    stmts = [ExpressionStmt(SuperExpr(kw_super(), ident("greet")))]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_super_in_class_without_parent_raises():
+    # Class A { Func f() { Super.greet(); } }
+    stmts = [
+        ClassDeclStmt(
+            ident("A"),
+            None,
+            [
+                FuncDeclStmt(
+                    ident("f"),
+                    [],
+                    [ExpressionStmt(SuperExpr(kw_super(), ident("greet")))],
+                )
+            ],
+        )
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_super_in_class_with_parent_is_allowed():
+    # Class A {} Class B : A { Func f() { Super.greet(); } }
+    super_expr = SuperExpr(kw_super(), ident("greet"))
+    stmts = [
+        ClassDeclStmt(ident("A"), None, []),
+        ClassDeclStmt(
+            ident("B"),
+            VariableExpr(ident("A")),
+            [FuncDeclStmt(ident("f"), [], [ExpressionStmt(super_expr)])],
+        ),
+    ]
+    locals_map = Checker(stmts).check()
+    assert id(super_expr) in locals_map
+
+
+def test_self_inheritance_raises():
+    stmts = [ClassDeclStmt(ident("A"), VariableExpr(ident("A")), [])]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_init_return_with_value_raises():
+    # Class A { Func init() { return 1; } }
+    stmts = [
+        ClassDeclStmt(
+            ident("A"),
+            None,
+            [FuncDeclStmt(ident("init"), [], [ReturnStmt(keyword(), literal(1.0))])],
+        )
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_init_return_without_value_is_allowed():
+    # Class A { Func init() { return; } }
+    stmts = [
+        ClassDeclStmt(
+            ident("A"),
+            None,
+            [FuncDeclStmt(ident("init"), [], [ReturnStmt(keyword(), None)])],
+        )
+    ]
+    Checker(stmts).check()
+
+
+def test_super_static_binding_distance_is_correct():
+    # Class A {} Class B : A { Func f() { Super.m(); } }
+    # Super scope는 This scope보다 1단계 바깥이므로 distance가 This(1)보다 1 커야 한다.
+    super_expr = SuperExpr(kw_super(), ident("m"))
+    stmts = [
+        ClassDeclStmt(ident("A"), None, []),
+        ClassDeclStmt(
+            ident("B"),
+            VariableExpr(ident("A")),
+            [FuncDeclStmt(ident("f"), [], [ExpressionStmt(super_expr)])],
+        ),
+    ]
+    locals_map = Checker(stmts).check()
+    # Super 스코프는 This 스코프보다 1단계 위 → distance >= 1
+    assert locals_map[id(super_expr)] >= 1

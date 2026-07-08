@@ -3,7 +3,12 @@ import builtins
 import pytest
 
 from interpreter.codefab import CodeFabInterpreter
-from interpreter.errors import CheckError, LangRuntimeError, ParseError, TokenizeError
+from interpreter.errors import (
+    CheckError,
+    CodeFabRuntimeError,
+    ParseError,
+    TokenizeError,
+)
 from prompt_shell import _needs_more_input, main, run
 
 
@@ -309,19 +314,19 @@ ERROR_CASES = [
     (
         "미정의 변수 참조",
         "print notDefined;",
-        LangRuntimeError,
+        CodeFabRuntimeError,
         "[1번째줄] 미정의된 변수 'notDefined'",
     ),
     (
         "+ 연산 타입 혼용",
         'print 1 + "HI";',
-        LangRuntimeError,
+        CodeFabRuntimeError,
         "[1번째줄] 피연산자는 반드시 숫자 또는 문자열이어야 합니다.",
     ),
     (
         "단항 -에 비숫자 적용",
         'print -"FabCoding";',
-        LangRuntimeError,
+        CodeFabRuntimeError,
         "[1번째줄] 피연산자는 반드시 숫자여야 합니다.",
     ),
     (
@@ -339,11 +344,11 @@ ERROR_CASES = [
     ids=[desc for desc, *_ in ERROR_CASES],
 )
 def test_interpreter_run_raises_expected_exception_type_and_message(
-        interpreter,
-        desc,
-        source,
-        error_cls,
-        expected_msg,
+    interpreter,
+    desc,
+    source,
+    error_cls,
+    expected_msg,
 ):
     with pytest.raises(error_cls) as exc_info:
         interpreter.run(source)
@@ -356,12 +361,12 @@ def test_interpreter_run_raises_expected_exception_type_and_message(
     ids=[desc for desc, *_ in ERROR_CASES],
 )
 def test_prompt_shell_run_prints_error_message_without_raising(
-        interpreter,
-        capsys,
-        desc,
-        source,
-        error_cls,
-        expected_msg,
+    interpreter,
+    capsys,
+    desc,
+    source,
+    error_cls,
+    expected_msg,
 ):
     run(interpreter, source)  # 예외가 여기서 새어나오면 테스트 자체가 실패한다.
     assert capsys.readouterr().out.strip() == expected_msg
@@ -412,7 +417,7 @@ def test_needs_more_input_true_when_closing_bracket_missing_at_eof(source):
     ],
 )
 def test_needs_more_input_false_when_wrong_token_appears_instead_of_closing_bracket(
-        source,
+    source,
 ):
     assert _needs_more_input(source) is False
 
@@ -559,7 +564,7 @@ def test_main_exits_on_exit_command_without_running_later_lines(monkeypatch, cap
 
 
 def test_main_preserves_variables_across_multiline_and_single_line_input(
-        monkeypatch, capsys
+    monkeypatch, capsys
 ):
     _feed_lines(
         monkeypatch,

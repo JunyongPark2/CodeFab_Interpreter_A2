@@ -18,7 +18,7 @@ from interpreter.ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from interpreter.errors import LangRuntimeError
+from interpreter.errors import CodeFabRuntimeError
 from interpreter.executor import Executor
 from interpreter.tokens import Token, TokenType
 
@@ -53,7 +53,7 @@ def test_print_string(capsys):
 
 def test_print_nil(capsys):
     run([PrintStmt(expression=LiteralExpr(value=None))])
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 def test_print_bool(capsys):
@@ -84,7 +84,7 @@ def test_var_decl_without_initializer_is_nil(capsys):
             PrintStmt(expression=VariableExpr(name=name_tok("x"))),
         ]
     )
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 def test_assign_updates_existing_variable(capsys):
@@ -155,7 +155,7 @@ def test_block_restores_environment_after_error():
         ]
     )
     executor.execute()
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         executor._exec_block(
             [
                 ExpressionStmt(
@@ -298,7 +298,7 @@ def test_add_strings(capsys):
 
 
 def test_add_mismatched_types_raises():
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         run(
             [
                 ExpressionStmt(
@@ -347,7 +347,7 @@ def test_arithmetic_operators(op, left, right, expected, capsys):
     ],
 )
 def test_arithmetic_non_number_operand_raises(op):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         run(
             [
                 ExpressionStmt(
@@ -411,7 +411,7 @@ def test_greater_equal_and_less_equal_comparisons(op, left, right, expected, cap
 
 @pytest.mark.parametrize("op", [TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL])
 def test_greater_equal_and_less_equal_non_number_operand_raises(op):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         run(
             [
                 ExpressionStmt(
@@ -493,7 +493,7 @@ def test_unary_minus(capsys):
 
 
 def test_unary_minus_non_number_raises():
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         run(
             [
                 ExpressionStmt(
@@ -591,7 +591,7 @@ def test_logical_and_evaluates_right_when_left_truthy(capsys):
 
 # ── LangRuntimeError ──────────────────────────────────────────────
 def test_lang_runtime_error_message_includes_line():
-    err = LangRuntimeError(12, "문제 발생")
+    err = CodeFabRuntimeError(12, "문제 발생")
     assert str(err) == "[12번째줄] 문제 발생"
 
 
@@ -599,7 +599,8 @@ def test_lang_runtime_error_message_includes_line():
 def test_bool_operand_raises():
     line = 1
     with pytest.raises(
-        LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\.",
     ):
         run(
             [
@@ -617,7 +618,8 @@ def test_bool_operand_raises():
 def test_number_minus_string_raises():
     line = 1
     with pytest.raises(
-        LangRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\.",
     ):
         run(
             [
@@ -636,7 +638,7 @@ def test_number_minus_string_raises():
 def test_assign_to_undefined_variable_raises():
     line = 1
     with pytest.raises(
-        LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
     ):
         run(
             [
@@ -653,7 +655,7 @@ def test_assign_to_undefined_variable_raises():
 def test_read_undefined_variable_raises():
     line = 1
     with pytest.raises(
-        LangRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 미정의된 변수 'undefined'"
     ):
         run([PrintStmt(expression=VariableExpr(name=name_tok("undefined", line=line)))])
 
@@ -661,7 +663,7 @@ def test_read_undefined_variable_raises():
 # ── PDF p.88 요구사항: 0으로 나누는 경우 런타임 오류 ──────
 def test_division_by_zero_raises():
     line = 1
-    with pytest.raises(LangRuntimeError, match=rf"\[{line}번째줄\] 0으로 나눈 오류"):
+    with pytest.raises(CodeFabRuntimeError, match=rf"\[{line}번째줄\] 0으로 나눈 오류"):
         run(
             [
                 ExpressionStmt(
@@ -730,7 +732,7 @@ def bracket_tok(line=1):
     return tok(TokenType.LEFT_BRACKET, "[", line=line)
 
 
-def test_array_creation_is_fixed_size_filled_with_nil(capsys):
+def test_array_creation_is_fixed_size_filled_with_null(capsys):
     run(
         [
             VarDeclStmt(
@@ -740,7 +742,7 @@ def test_array_creation_is_fixed_size_filled_with_nil(capsys):
             PrintStmt(expression=VariableExpr(name=name_tok("arr"))),
         ]
     )
-    assert capsys.readouterr().out == "[nil, nil, nil]\n"
+    assert capsys.readouterr().out == "[null, null, null]\n"
 
 
 def test_index_write_then_read(capsys):
@@ -794,13 +796,14 @@ def test_index_write_with_dynamic_index(capsys):
             PrintStmt(expression=VariableExpr(name=name_tok("arr"))),
         ]
     )
-    assert capsys.readouterr().out == "[nil, 7, nil]\n"
+    assert capsys.readouterr().out == "[null, 7, null]\n"
 
 
 def test_index_out_of_range_raises():
     line = 1
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스가 범위를 벗어났습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열 인덱스가 범위를 벗어났습니다\.",
     ):
         run(
             [
@@ -824,7 +827,7 @@ def test_index_out_of_range_raises():
 def test_non_number_index_raises():
     line = 1
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스는 숫자여야 합니다\."
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스는 숫자여야 합니다\."
     ):
         run(
             [
@@ -848,8 +851,8 @@ def test_non_number_index_raises():
 def test_indexing_non_array_raises():
     line = 1
     with pytest.raises(
-            LangRuntimeError,
-            match=rf"\[{line}번째줄\] 배열이 아닌 값에는 인덱스로 접근할 수 없습니다\.",
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열이 아닌 값에는 인덱스로 접근할 수 없습니다\.",
     ):
         run(
             [
@@ -868,7 +871,7 @@ def test_indexing_non_array_raises():
 def test_non_number_array_size_raises():
     line = 1
     with pytest.raises(
-            LangRuntimeError, match=rf"\[{line}번째줄\] 배열의 크기는 숫자여야 합니다\."
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열의 크기는 숫자여야 합니다\."
     ):
         run(
             [

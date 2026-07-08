@@ -6,14 +6,19 @@ from interpreter.ast_nodes import (
     BinaryExpr,
     BlockStmt,
     CallExpr,
+    ClassDeclStmt,
     ExpressionStmt,
     ForStmt,
     FuncDeclStmt,
+    GetExpr,
     GroupingExpr,
     IfStmt,
+    InstanceOfExpr,
     LiteralExpr,
     PrintStmt,
     ReturnStmt,
+    SetExpr,
+    ThisExpr,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
@@ -22,7 +27,6 @@ from interpreter.errors import ParseError, TokenizeError
 from interpreter.parser import Parser
 from interpreter.tokenizer import Tokenizer
 from interpreter.tokens import TokenType
-
 
 # ─────────────────────────────────────────────────────────
 # 헬퍼 — Tokenizer/Parser 클래스를 주입해 Assembler를 만든다
@@ -681,6 +685,122 @@ class TestFunctionErrorPropagation:
 # ─────────────────────────────────────────────────────────
 # 오류 전파 — Tokenizer / Parser 오류가 Assembler를 통해 그대로 올라온다
 # ─────────────────────────────────────────────────────────
+
+
+# ─────────────────────────────────────────────────────────
+# Class — 선언 / 필드 / 메서드 / This / instanceof
+# ─────────────────────────────────────────────────────────
+
+
+def test_empty_class_declaration():
+    # Class Robot { }
+    stmts = assemble("Class Robot { }")
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ClassDeclStmt)
+    assert stmt.name.origin == "Robot"
+    assert stmt.superclass is None
+    assert stmt.methods == []
+
+
+def test_class_declaration_with_method():
+    # Class Robot { Func move(dist) { return dist; } }
+    stmts = assemble("Class Robot { Func move(dist) { return dist; } }")
+
+    stmt = stmts[0]
+    assert isinstance(stmt, ClassDeclStmt)
+    assert stmt.name.origin == "Robot"
+    assert len(stmt.methods) == 1
+    method = stmt.methods[0]
+    assert isinstance(method, FuncDeclStmt)
+    assert method.name.origin == "move"
+    assert [p.origin for p in method.params] == ["dist"]
+
+
+def test_class_with_superclass():
+    # Class SpeedRobot : Robot { }
+    stmts = assemble("Class SpeedRobot : Robot { }")
+
+    stmt = stmts[0]
+    assert isinstance(stmt, ClassDeclStmt)
+    assert stmt.name.origin == "SpeedRobot"
+    assert stmt.superclass is not None
+    assert isinstance(stmt.superclass, VariableExpr)
+    assert stmt.superclass.name.origin == "Robot"
+
+
+def test_get_expr():
+    # print r.speed;
+    expr = assemble_print("print r.speed;")
+
+    assert isinstance(expr, GetExpr)
+    assert isinstance(expr.object, VariableExpr)
+    assert expr.object.name.origin == "r"
+    assert expr.name.origin == "speed"
+
+
+def test_set_expr():
+    # r.speed = 10;
+    stmts = assemble("r.speed = 10;")
+
+    assert len(stmts) == 1
+    stmt = stmts[0]
+    assert isinstance(stmt, ExpressionStmt)
+    expr = stmt.expression
+    assert isinstance(expr, SetExpr)
+    assert isinstance(expr.object, VariableExpr)
+    assert expr.object.name.origin == "r"
+    assert expr.name.origin == "speed"
+    assert expr.value == LiteralExpr(10.0)
+
+
+def test_this_expr():
+    # Class Robot { Func getX() { return This.x; } }
+    stmts = assemble("Class Robot { Func getX() { return This.x; } }")
+
+    method = stmts[0].methods[0]
+    ret = method.body[0]
+    get_expr = ret.value
+    assert isinstance(get_expr, GetExpr)
+    assert isinstance(get_expr.object, ThisExpr)
+    assert get_expr.name.origin == "x"
+
+
+def test_instanceof_expr():
+    # print r instanceof Robot;
+    expr = assemble_print("print r instanceof Robot;")
+
+    assert isinstance(expr, InstanceOfExpr)
+    assert isinstance(expr.object, VariableExpr)
+    assert expr.object.name.origin == "r"
+    assert expr.klass.origin == "Robot"
+
+
+def test_chained_method_call():
+    # r.move(5);
+    stmts = assemble("r.move(5);")
+
+    stmt = stmts[0]
+    assert isinstance(stmt, ExpressionStmt)
+    call = stmt.expression
+    assert isinstance(call, CallExpr)
+    assert isinstance(call.callee, GetExpr)
+    assert call.callee.name.origin == "move"
+    assert call.arguments == [LiteralExpr(5.0)]
+
+
+def test_class_instance_creation():
+    # var r = Robot();
+    stmts = assemble("var r = Robot();")
+
+    stmt = stmts[0]
+    assert isinstance(stmt, VarDeclStmt)
+    call = stmt.initializer
+    assert isinstance(call, CallExpr)
+    assert isinstance(call.callee, VariableExpr)
+    assert call.callee.name.origin == "Robot"
+    assert call.arguments == []
 
 
 class TestErrorPropagation:

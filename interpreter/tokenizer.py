@@ -96,7 +96,7 @@ class Tokenizer:
     def _identifier(self) -> None:
         while not self._is_at_end() and (self._peek().isalnum() or self._peek() == "_"):
             self._advance()
-        origin = self._source[self._start: self._current]
+        origin = self._source[self._start : self._current]
         token_type = KEYWORDS.get(origin, TokenType.IDENTIFIER)
         self._add_token(token_type)
 
@@ -104,14 +104,14 @@ class Tokenizer:
         while not self._is_at_end() and self._peek().isdigit():
             self._advance()
         if (
-                not self._is_at_end()
-                and self._peek() == "."
-                and self._peek_next().isdigit()
+            not self._is_at_end()
+            and self._peek() == "."
+            and self._peek_next().isdigit()
         ):
             self._advance()  # '.' 소비
             while not self._is_at_end() and self._peek().isdigit():
                 self._advance()
-        origin = self._source[self._start: self._current]
+        origin = self._source[self._start : self._current]
         self._add_token(TokenType.NUMBER, float(origin))
 
     def _string(self, quote: str) -> None:
@@ -122,7 +122,7 @@ class Tokenizer:
         if self._is_at_end():
             raise TokenizeError(self._line, "문자열이 닫히지 않았습니다.")
         self._advance()  # 닫는 따옴표 소비
-        value = self._source[self._start + 1: self._current - 1]
+        value = self._source[self._start + 1 : self._current - 1]
         self._add_token(TokenType.STRING, value)
 
     # ── 헬퍼 메서드 ──────────────────────────────────────────
@@ -147,7 +147,7 @@ class Tokenizer:
         return True
 
     def _add_token(self, token_type: TokenType, value=None) -> None:
-        origin = self._source[self._start: self._current]
+        origin = self._source[self._start : self._current]
         self._tokens.append(Token(token_type, origin, value, self._line, self._col))
 
     def _is_at_end(self) -> bool:
