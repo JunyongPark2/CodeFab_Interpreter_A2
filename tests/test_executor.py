@@ -599,7 +599,8 @@ def test_lang_runtime_error_message_includes_line():
 def test_bool_operand_raises():
     line = 1
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\.",
     ):
         run(
             [
@@ -617,7 +618,8 @@ def test_bool_operand_raises():
 def test_number_minus_string_raises():
     line = 1
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 피연산자는 반드시 숫자여야 합니다\.",
     ):
         run(
             [
@@ -800,7 +802,8 @@ def test_index_write_with_dynamic_index(capsys):
 def test_index_out_of_range_raises():
     line = 1
     with pytest.raises(
-            CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스가 범위를 벗어났습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열 인덱스가 범위를 벗어났습니다\.",
     ):
         run(
             [
@@ -824,7 +827,7 @@ def test_index_out_of_range_raises():
 def test_non_number_index_raises():
     line = 1
     with pytest.raises(
-            CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스는 숫자여야 합니다\."
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스는 숫자여야 합니다\."
     ):
         run(
             [
@@ -848,8 +851,8 @@ def test_non_number_index_raises():
 def test_indexing_non_array_raises():
     line = 1
     with pytest.raises(
-            CodeFabRuntimeError,
-            match=rf"\[{line}번째줄\] 배열이 아닌 값에는 인덱스로 접근할 수 없습니다\.",
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열이 아닌 값에는 인덱스로 접근할 수 없습니다\.",
     ):
         run(
             [
@@ -868,7 +871,7 @@ def test_indexing_non_array_raises():
 def test_non_number_array_size_raises():
     line = 1
     with pytest.raises(
-            CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열의 크기는 숫자여야 합니다\."
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열의 크기는 숫자여야 합니다\."
     ):
         run(
             [

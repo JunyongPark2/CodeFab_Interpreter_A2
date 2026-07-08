@@ -12,6 +12,7 @@ from .ast_nodes import (
     GetExpr,
     GroupingExpr,
     IfStmt,
+    ImportStmt,
     IndexGetExpr,
     IndexSetExpr,
     InstanceOfExpr,
@@ -52,6 +53,11 @@ class Checker:
         self._locals: dict[int, int] = {}
         # 현재 몇 겹의 함수 본문 안에 있는지 (함수 외부 return 검출용).
         self._function_depth = 0
+        # 스코프별로 "이 스코프에서 새로 import된 파일 경로" 집합. self._scopes와 1:1로
+        # push/pop된다 — 같은 파일이 현재 위치에서 "보이는" 스코프 체인 어딘가에 이미
+        # import돼 있으면 재import를 막기 위함 (PDF 세부규칙 2: 상위 scope에서 이미
+        # import된 파일은 하위에서 재import 불가, 단 스코프가 끝나면 그 기록도 사라짐).
+        self._imported_paths: list[set[str]] = [set()]
         self._in_class = 0
         self._in_init = False
         self._in_super = 0  # 부모 클래스가 있는 클래스 본문 깊이
@@ -65,6 +71,7 @@ class Checker:
             ExpressionStmt: self._check_expression_stmt,
             FuncDeclStmt: self._check_func_decl,
             ReturnStmt: self._check_return,
+            ImportStmt: self._check_import,
             ClassDeclStmt: self._check_class_decl,
         }
         self._expr_handlers = {
@@ -156,7 +163,9 @@ class Checker:
         self._function_depth += 1
         self._begin_scope()
         for param in stmt.params:
-            self._current_scope[param.origin] = True  # 파라미터는 이미 초기화된 것으로 취급
+            self._current_scope[param.origin] = (
+                True  # 파라미터는 이미 초기화된 것으로 취급
+            )
         for body_stmt in stmt.body:
             self._check_stmt(body_stmt)
         self._end_scope()
@@ -178,12 +187,30 @@ class Checker:
                 stmt.keyword.line, "함수 외부에서는 return을 사용할 수 없습니다."
             )
         if self._in_init and stmt.value is not None:
-            raise CheckError(stmt.keyword.line, "init 메서드는 값을 반환할 수 없습니다.")
+            raise CheckError(
+                stmt.keyword.line, "init 메서드는 값을 반환할 수 없습니다."
+            )
         if stmt.value is not None:
             stmt.value = self._check_expr(stmt.value)
 
+    def _check_import(self, stmt: ImportStmt) -> None:
+        path = stmt.path.value
+        for scope_paths in self._imported_paths:
+            if path in scope_paths:
+                raise CheckError(stmt.path.line, f"이미 import된 파일입니다: '{path}'")
+        self._imported_paths[-1].add(path)
+
+        # alias도 var/함수 선언처럼 현재 스코프에 등록되는 이름으로 취급한다
+        # (같은 스코프 안에서 alias 이름이 변수/함수와 충돌하면 CheckError).
+        if self._current_scope is not None:
+            self._declare(stmt.alias.line, stmt.alias.origin, self._current_scope)
+            self._current_scope[stmt.alias.origin] = True
+
     def _check_class_decl(self, stmt: ClassDeclStmt) -> None:
-        if stmt.superclass is not None and stmt.superclass.name.origin == stmt.name.origin:
+        if (
+            stmt.superclass is not None
+            and stmt.superclass.name.origin == stmt.name.origin
+        ):
             raise CheckError(stmt.name.line, "클래스는 자기 자신을 상속할 수 없습니다.")
 
         self._in_class += 1
@@ -264,14 +291,19 @@ class Checker:
 
     def _check_this(self, expr: ThisExpr) -> None:
         if self._in_class == 0:
-            raise CheckError(expr.keyword.line, "클래스 외부에서 'This'를 사용할 수 없습니다.")
+            raise CheckError(
+                expr.keyword.line, "클래스 외부에서 'This'를 사용할 수 없습니다."
+            )
 
     def _check_super(self, expr: SuperExpr) -> None:
         if self._in_class == 0:
-            raise CheckError(expr.keyword.line, "클래스 외부에서 'Super'를 사용할 수 없습니다.")
+            raise CheckError(
+                expr.keyword.line, "클래스 외부에서 'Super'를 사용할 수 없습니다."
+            )
         if self._in_super == 0:
             raise CheckError(
-                expr.keyword.line, "부모 클래스가 없는 클래스에서 'Super'를 사용할 수 없습니다."
+                expr.keyword.line,
+                "부모 클래스가 없는 클래스에서 'Super'를 사용할 수 없습니다.",
             )
         self._resolve_local(expr, "Super")
 
@@ -364,6 +396,8 @@ class Checker:
 
     def _begin_scope(self) -> None:
         self._scopes.append({})
+        self._imported_paths.append(set())
 
     def _end_scope(self) -> None:
         self._scopes.pop()
+        self._imported_paths.pop()

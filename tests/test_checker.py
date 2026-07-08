@@ -12,6 +12,7 @@ from interpreter.ast_nodes import (
     FuncDeclStmt,
     GroupingExpr,
     IfStmt,
+    ImportStmt,
     IndexGetExpr,
     IndexSetExpr,
     LiteralExpr,
@@ -34,6 +35,10 @@ def ident(name: str, line: int = 1) -> Token:
 
 def literal(value) -> LiteralExpr:
     return LiteralExpr(value)
+
+
+def path_tok(value: str, line: int = 1) -> Token:
+    return Token(TokenType.STRING, f'"{value}"', value, line)
 
 
 # ── 에러 검출 테스트 (테스트 스크립트.md §2-2) ─────────────────
@@ -385,7 +390,6 @@ def test_assign_expr_in_nested_block_resolves_with_correct_distance():
     assert locals_map[id(assign)] == 1
 
 
-
 # ── 정적배열 기능 — checker는 값 검증은 안 하고 하위 표현식만 순회한다 ──
 
 
@@ -396,13 +400,16 @@ def test_self_reference_inside_array_size_raises():
             [
                 VarDeclStmt(
                     ident("a"),
-                    ArrayExpr(VariableExpr(ident("a")), Token(TokenType.ARRAY, "Array")),
+                    ArrayExpr(
+                        VariableExpr(ident("a")), Token(TokenType.ARRAY, "Array")
+                    ),
                 ),
             ]
         )
     ]
     with pytest.raises(CheckError):
         Checker(stmts).check()
+
 
 # ── Function 정적 검사 (가이드 5-1) ────────────────────────────
 
@@ -455,7 +462,6 @@ def test_return_outside_function_after_function_body_ends_raises():
         Checker(stmts).check()
 
 
-
 def test_self_reference_inside_index_get_expr_raises():
     # { var a = arr[a]; }  — 인덱스 표현식 안의 자기참조도 잡아야 한다.
     stmts = [
@@ -476,6 +482,7 @@ def test_self_reference_inside_index_get_expr_raises():
     with pytest.raises(CheckError):
         Checker(stmts).check()
 
+
 def test_duplicate_parameter_names_raises():
     # Func foo(a, a) {}
     stmts = [FuncDeclStmt(ident("foo"), [ident("a"), ident("a")], [])]
@@ -492,6 +499,7 @@ def test_duplicate_function_declaration_in_same_scope_raises():
     with pytest.raises(CheckError):
         Checker(stmts).check()
 
+
 def test_index_set_with_defined_variables_is_allowed():
     # var arr = 0; var i = 0; arr[i] = 1;
     stmts = [
@@ -507,6 +515,7 @@ def test_index_set_with_defined_variables_is_allowed():
         ),
     ]
     Checker(stmts).check()
+
 
 def test_function_name_colliding_with_existing_variable_raises():
     # var foo = 1; Func foo() {}
@@ -529,7 +538,11 @@ def test_recursive_self_call_inside_function_body_is_allowed():
     recursive_call = CallExpr(
         VariableExpr(ident("fact")),
         Token(TokenType.LEFT_PAREN, "("),
-        [BinaryExpr(VariableExpr(ident("n")), Token(TokenType.MINUS, "-"), literal(1.0))],
+        [
+            BinaryExpr(
+                VariableExpr(ident("n")), Token(TokenType.MINUS, "-"), literal(1.0)
+            )
+        ],
     )
     stmts = [
         FuncDeclStmt(
@@ -550,7 +563,9 @@ def test_function_parameter_scope_is_local_to_body_and_does_not_leak():
     locals_map = Checker(stmts).check()
 
     assert locals_map[id(inner_x)] == 0  # 함수 본문 스코프에서 바로 찾음
-    assert id(outer_x) not in locals_map  # 함수 밖에서는 파라미터가 안 보임(비지역 취급)
+    assert (
+        id(outer_x) not in locals_map
+    )  # 함수 밖에서는 파라미터가 안 보임(비지역 취급)
 
 
 def test_call_expr_callee_and_arguments_are_checked_and_folded():
@@ -558,7 +573,10 @@ def test_call_expr_callee_and_arguments_are_checked_and_folded():
     call = CallExpr(
         VariableExpr(ident("add")),
         Token(TokenType.LEFT_PAREN, "("),
-        [BinaryExpr(literal(1.0), Token(TokenType.PLUS, "+"), literal(2.0)), literal(3.0)],
+        [
+            BinaryExpr(literal(1.0), Token(TokenType.PLUS, "+"), literal(2.0)),
+            literal(3.0),
+        ],
     )
     stmt = ExpressionStmt(call)
     Checker([stmt]).check()
@@ -571,7 +589,9 @@ def test_call_expr_callee_and_arguments_are_checked_and_folded():
 def test_call_expr_argument_referencing_local_variable_is_resolved():
     # 함수 호출 인자 안의 변수도 일반 변수 참조와 동일하게 정적 바인딩 대상이다.
     arg_ref = VariableExpr(ident("a"))
-    call = CallExpr(VariableExpr(ident("add")), Token(TokenType.LEFT_PAREN, "("), [arg_ref])
+    call = CallExpr(
+        VariableExpr(ident("add")), Token(TokenType.LEFT_PAREN, "("), [arg_ref]
+    )
     stmts = [
         BlockStmt(
             [
@@ -583,6 +603,71 @@ def test_call_expr_argument_referencing_local_variable_is_resolved():
     locals_map = Checker(stmts).check()
 
     assert locals_map[id(arg_ref)] == 0
+
+
+# ── import 정적 검사 (가이드 5-5) ────────────────────────────
+
+
+def test_top_level_import_is_allowed():
+    # import "sum.txt" alias sum;
+    stmts = [ImportStmt(path_tok("sum.txt"), ident("sum"))]
+    Checker(stmts).check()  # 예외 없어야 함
+
+
+def test_import_alias_colliding_with_existing_variable_raises():
+    # var foo = 1; import "sum.txt" alias foo;
+    stmts = [
+        VarDeclStmt(ident("foo"), literal(1.0)),
+        ImportStmt(path_tok("sum.txt"), ident("foo")),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_duplicate_import_of_same_file_in_same_scope_raises():
+    # import "sum.txt" alias sum; import "sum.txt" alias sum2;
+    stmts = [
+        ImportStmt(path_tok("sum.txt"), ident("sum")),
+        ImportStmt(path_tok("sum.txt"), ident("sum2")),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_reimport_of_already_imported_file_in_nested_block_raises():
+    # import "sum.txt" alias sum; { import "sum.txt" alias sum2; }
+    stmts = [
+        ImportStmt(path_tok("sum.txt"), ident("sum")),
+        BlockStmt([ImportStmt(path_tok("sum.txt"), ident("sum2"))]),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_sibling_blocks_each_importing_same_file_is_allowed():
+    # { import "sum.txt" alias sum; } { import "sum.txt" alias sum; }
+    stmts = [
+        BlockStmt([ImportStmt(path_tok("sum.txt"), ident("sum"))]),
+        BlockStmt([ImportStmt(path_tok("sum.txt"), ident("sum"))]),
+    ]
+    Checker(stmts).check()  # 예외 없어야 함
+
+
+def test_reimport_after_block_scope_ends_is_allowed():
+    # { import "sum.txt" alias sum; } import "sum.txt" alias sum;
+    stmts = [
+        BlockStmt([ImportStmt(path_tok("sum.txt"), ident("sum"))]),
+        ImportStmt(path_tok("sum.txt"), ident("sum")),
+    ]
+    Checker(stmts).check()  # 예외 없어야 함
+
+
+def test_importing_different_files_with_different_alias_in_same_scope_is_allowed():
+    stmts = [
+        ImportStmt(path_tok("sum.txt"), ident("sum")),
+        ImportStmt(path_tok("math.txt"), ident("math")),
+    ]
+    Checker(stmts).check()  # 예외 없어야 함
 
 
 # ── Class / This / Super 정적 검사 ────────────────────────────────

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from .errors import CodeFabRuntimeError
 from .tokens import Token
@@ -109,10 +109,37 @@ class CodeFabInstance:
         method = self.klass.find_method(name.origin)
         if method is not None:
             return method.bind(self)
-        raise CodeFabRuntimeError(name.line, f"'{name.origin}' 속성이 존재하지 않습니다.")
+        raise CodeFabRuntimeError(
+            name.line, f"'{name.origin}' 속성이 존재하지 않습니다."
+        )
 
     def set(self, name: Token, value) -> None:
         self._fields[name.origin] = value
 
     def __str__(self) -> str:
         return f"<{self.klass.name} instance>"
+
+
+class CodeFabModule:
+    """import 문으로 만들어지는 런타임 "네임스페이스 객체".
+
+    import된 파일의 최상위 선언(함수/전역변수)들을 fields에 담아 alias 이름으로
+    현재 스코프에 정의한다. `.` 로 멤버에 접근하는 문법(GetExpr)은 Class 기능의
+    CodeFabInstance를 위해 만들어졌으므로, 그걸 재사용하려면 Executor._eval_get이
+    CodeFabModule도 함께 처리하도록 확장해야 한다 (아직 범위 밖) — 그 전까지는
+    fields를 직접 조회하는 용도로만 쓰인다.
+    """
+
+    def __init__(self, name: str):
+        self.name = name
+        self.fields: dict = {}
+
+    def get(self, name: str, line: int):
+        if name in self.fields:
+            return self.fields[name]
+        raise CodeFabRuntimeError(
+            line, f"모듈 '{self.name}'에 '{name}'이(가) 없습니다."
+        )
+
+    def __str__(self) -> str:
+        return f"<module {self.name}>"

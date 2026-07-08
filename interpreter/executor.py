@@ -14,6 +14,7 @@ from .ast_nodes import (
     GetExpr,
     GroupingExpr,
     IfStmt,
+    ImportStmt,
     IndexGetExpr,
     IndexSetExpr,
     InstanceOfExpr,
@@ -29,14 +30,17 @@ from .ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
+from .checker import Checker
 from .environment import Environment
 from .errors import CodeFabRuntimeError
+from .loader import Loader
 from .runtime import (
-    _ReturnSignal,
     CodeFabCallable,
     CodeFabClass,
     CodeFabFunction,
     CodeFabInstance,
+    CodeFabModule,
+    _ReturnSignal,
 )
 from .tokens import TokenType
 
@@ -47,6 +51,7 @@ class Executor:
         stmts: list[Stmt],
         environment: Environment | None = None,
         locals: dict[int, int] | None = None,
+        loader: Loader | None = None,
     ):
         # environment를 넘기지 않으면 매번 새 전역 스코프로 시작한다 (기존 동작 그대로 유지).
         # REPL처럼 "이전 실행에서 선언한 변수를 다음 실행에서도 써야 하는" 경우엔
@@ -57,6 +62,9 @@ class Executor:
         # Checker.check()가 계산해둔 정적 바인딩 결과 (id(expr) -> distance).
         # 여기 없는 변수 참조는 기존처럼 Environment 체인을 동적으로 거슬러 올라간다.
         self._locals = locals if locals is not None else {}
+        # import 실행에 쓰는 파일 로더. None이면(예: 손으로 AST를 만든 단위테스트)
+        # ImportStmt를 만나도 실행할 수 없다는 명확한 에러를 낸다.
+        self._loader = loader
         self._stmt_handlers = {
             PrintStmt: self._exec_print,
             VarDeclStmt: self._exec_var_decl,
@@ -66,6 +74,7 @@ class Executor:
             ForStmt: self._exec_for,
             FuncDeclStmt: self._exec_func_decl,
             ReturnStmt: self._exec_return,
+            ImportStmt: self._exec_import,
             ClassDeclStmt: self._exec_class_decl,
         }
         self._expr_handlers = {
@@ -166,6 +175,29 @@ class Executor:
             self._current = self._current.parent  # type: ignore[assignment]
 
         self._current.assign(stmt.name.origin, klass, stmt.name.line)
+
+    def _exec_import(self, stmt: ImportStmt) -> None:
+        if self._loader is None:
+            raise CodeFabRuntimeError(
+                stmt.path.line, "이 실행 환경에서는 import를 사용할 수 없습니다."
+            )
+        path = stmt.path.value
+        # 순환 import 탐지 구간은 "이 파일을 로드하고 실행하는 동안 전체"여야 한다.
+        # 실행 중에 이 파일을 다시 import하려는 시도까지 잡아내야 하기 때문.
+        with self._loader.loading(path, stmt.path.line):
+            stmts = self._loader.load(path, stmt.path.line)
+
+            # import된 파일은 독립된 네임스페이스(부모 없는 Environment)에서 실행한다 —
+            # 현재 실행 중인 스코프의 변수를 보거나 건드리면 안 되기 때문.
+            module_locals = Checker(stmts).check()
+            module_env = Environment()
+            Executor(
+                stmts, environment=module_env, locals=module_locals, loader=self._loader
+            ).execute()
+
+        module = CodeFabModule(stmt.alias.origin)
+        module.fields.update(module_env.snapshot())
+        self._current.define(stmt.alias.origin, module)
 
     def _exec_block(self, stmts: list[Stmt], env: Environment) -> None:
         prev = self._current
@@ -285,11 +317,15 @@ class Executor:
         if not isinstance(size, float):
             raise CodeFabRuntimeError(keyword.line, "배열의 크기는 숫자여야 합니다.")
         if size < 0 or size != int(size):
-            raise CodeFabRuntimeError(keyword.line, "배열의 크기는 0 이상의 정수여야 합니다.")
+            raise CodeFabRuntimeError(
+                keyword.line, "배열의 크기는 0 이상의 정수여야 합니다."
+            )
 
     def _check_is_array(self, bracket, val) -> None:
         if not isinstance(val, list):
-            raise CodeFabRuntimeError(bracket.line, "배열이 아닌 값에는 인덱스로 접근할 수 없습니다.")
+            raise CodeFabRuntimeError(
+                bracket.line, "배열이 아닌 값에는 인덱스로 접근할 수 없습니다."
+            )
 
     def _check_index(self, bracket, index, length: int) -> int:
         if not isinstance(index, float):
@@ -298,7 +334,9 @@ class Executor:
             raise CodeFabRuntimeError(bracket.line, "배열 인덱스는 정수여야 합니다.")
         i = int(index)
         if i < 0 or i >= length:
-            raise CodeFabRuntimeError(bracket.line, "배열 인덱스가 범위를 벗어났습니다.")
+            raise CodeFabRuntimeError(
+                bracket.line, "배열 인덱스가 범위를 벗어났습니다."
+            )
         return i
 
     def _eval_call(self, expr: CallExpr):
@@ -306,7 +344,9 @@ class Executor:
         arguments = [self._eval(arg) for arg in expr.arguments]
 
         if not isinstance(callee, CodeFabCallable):
-            raise CodeFabRuntimeError(expr.paren.line, "함수가 아닌 대상을 호출했습니다.")
+            raise CodeFabRuntimeError(
+                expr.paren.line, "함수가 아닌 대상을 호출했습니다."
+            )
 
         if len(arguments) != callee.arity():
             raise CodeFabRuntimeError(expr.paren.line, "인자 개수가 일치하지 않습니다.")
@@ -316,13 +356,17 @@ class Executor:
     def _eval_get(self, expr: GetExpr):
         obj = self._eval(expr.object)
         if not isinstance(obj, CodeFabInstance):
-            raise CodeFabRuntimeError(expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다.")
+            raise CodeFabRuntimeError(
+                expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다."
+            )
         return obj.get(expr.name)
 
     def _eval_set(self, expr: SetExpr):
         obj = self._eval(expr.object)
         if not isinstance(obj, CodeFabInstance):
-            raise CodeFabRuntimeError(expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다.")
+            raise CodeFabRuntimeError(
+                expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다."
+            )
         value = self._eval(expr.value)
         obj.set(expr.name, value)
         return value

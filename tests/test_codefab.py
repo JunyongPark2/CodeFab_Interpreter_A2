@@ -1,7 +1,12 @@
 import pytest
 
 from interpreter.codefab import CodeFabInterpreter
-from interpreter.errors import CheckError, CodeFabRuntimeError, ParseError, TokenizeError
+from interpreter.errors import (
+    CheckError,
+    CodeFabRuntimeError,
+    ParseError,
+    TokenizeError,
+)
 
 
 @pytest.fixture
@@ -236,7 +241,7 @@ def test_nested_for_loop_same_var_shadowing(interp, capsys):
 
 
 def test_function_declaration_and_call(interp, capsys):
-    interp.run("Func greet() { print \"hi\"; } greet();")
+    interp.run('Func greet() { print "hi"; } greet();')
     assert capsys.readouterr().out == "hi\n"
 
 
@@ -247,12 +252,12 @@ def test_function_with_params_and_return(interp, capsys):
 
 def test_function_return_nil(interp, capsys):
     interp.run("Func noop() { return; } print noop();")
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 def test_function_no_return_is_nil(interp, capsys):
     interp.run("Func noop() { } print noop();")
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 def test_function_return_value_in_variable(interp, capsys):
@@ -374,7 +379,9 @@ print r.speed;
 
 
 def test_init_returns_instance(interp, capsys):
-    interp.run("Class Robot { Func init() { This.x = 1; } } var r = Robot(); print r.x;")
+    interp.run(
+        "Class Robot { Func init() { This.x = 1; } } var r = Robot(); print r.x;"
+    )
     assert capsys.readouterr().out == "1\n"
 
 
