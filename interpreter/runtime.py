@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
-from .errors import LangRuntimeError
+from .errors import CodeFabRuntimeError
 from .tokens import Token
 
 if TYPE_CHECKING:
@@ -109,7 +109,7 @@ class CodeFabInstance:
         method = self.klass.find_method(name.origin)
         if method is not None:
             return method.bind(self)
-        raise LangRuntimeError(name.line, f"'{name.origin}' 속성이 존재하지 않습니다.")
+        raise CodeFabRuntimeError(name.line, f"'{name.origin}' 속성이 존재하지 않습니다.")
 
     def set(self, name: Token, value) -> None:
         self._fields[name.origin] = value

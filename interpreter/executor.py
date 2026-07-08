@@ -30,7 +30,7 @@ from .ast_nodes import (
     VariableExpr,
 )
 from .environment import Environment
-from .errors import LangRuntimeError
+from .errors import CodeFabRuntimeError
 from .runtime import (
     _ReturnSignal,
     CodeFabCallable,
@@ -143,7 +143,7 @@ class Executor:
         if stmt.superclass is not None:
             superclass = self._eval(stmt.superclass)
             if not isinstance(superclass, CodeFabClass):
-                raise LangRuntimeError(
+                raise CodeFabRuntimeError(
                     stmt.superclass.name.line, "부모 클래스는 클래스여야 합니다."
                 )
 
@@ -181,7 +181,7 @@ class Executor:
         handler = self._expr_handlers.get(type(expr))
         if handler:
             return handler(expr)
-        raise LangRuntimeError(0, "알 수 없는 Expr 타입")
+        raise CodeFabRuntimeError(0, "알 수 없는 Expr 타입")
 
     def _eval_literal(self, expr: LiteralExpr):
         return expr.value
@@ -224,7 +224,7 @@ class Executor:
                 return left + right
             if isinstance(left, str) and isinstance(right, str):
                 return left + right
-            raise LangRuntimeError(
+            raise CodeFabRuntimeError(
                 line, "피연산자는 반드시 숫자 또는 문자열이어야 합니다."
             )
         if op == TokenType.MINUS:
@@ -236,7 +236,7 @@ class Executor:
         if op == TokenType.SLASH:
             self._check_numbers(expr.operator, left, right)
             if right == 0:
-                raise LangRuntimeError(line, "0으로 나눈 오류")
+                raise CodeFabRuntimeError(line, "0으로 나눈 오류")
             return left / right
         if op == TokenType.GREATER:
             self._check_numbers(expr.operator, left, right)
@@ -283,22 +283,22 @@ class Executor:
 
     def _check_array_size(self, keyword, size) -> None:
         if not isinstance(size, float):
-            raise LangRuntimeError(keyword.line, "배열의 크기는 숫자여야 합니다.")
+            raise CodeFabRuntimeError(keyword.line, "배열의 크기는 숫자여야 합니다.")
         if size < 0 or size != int(size):
-            raise LangRuntimeError(keyword.line, "배열의 크기는 0 이상의 정수여야 합니다.")
+            raise CodeFabRuntimeError(keyword.line, "배열의 크기는 0 이상의 정수여야 합니다.")
 
     def _check_is_array(self, bracket, val) -> None:
         if not isinstance(val, list):
-            raise LangRuntimeError(bracket.line, "배열이 아닌 값에는 인덱스로 접근할 수 없습니다.")
+            raise CodeFabRuntimeError(bracket.line, "배열이 아닌 값에는 인덱스로 접근할 수 없습니다.")
 
     def _check_index(self, bracket, index, length: int) -> int:
         if not isinstance(index, float):
-            raise LangRuntimeError(bracket.line, "배열 인덱스는 숫자여야 합니다.")
+            raise CodeFabRuntimeError(bracket.line, "배열 인덱스는 숫자여야 합니다.")
         if index != int(index):
-            raise LangRuntimeError(bracket.line, "배열 인덱스는 정수여야 합니다.")
+            raise CodeFabRuntimeError(bracket.line, "배열 인덱스는 정수여야 합니다.")
         i = int(index)
         if i < 0 or i >= length:
-            raise LangRuntimeError(bracket.line, "배열 인덱스가 범위를 벗어났습니다.")
+            raise CodeFabRuntimeError(bracket.line, "배열 인덱스가 범위를 벗어났습니다.")
         return i
 
     def _eval_call(self, expr: CallExpr):
@@ -306,26 +306,23 @@ class Executor:
         arguments = [self._eval(arg) for arg in expr.arguments]
 
         if not isinstance(callee, CodeFabCallable):
-            raise LangRuntimeError(expr.paren.line, "함수 또는 클래스만 호출할 수 있습니다.")
+            raise CodeFabRuntimeError(expr.paren.line, "함수가 아닌 대상을 호출했습니다.")
 
         if len(arguments) != callee.arity():
-            raise LangRuntimeError(
-                expr.paren.line,
-                f"인자 수가 맞지 않습니다. 예상: {callee.arity()}, 전달: {len(arguments)}",
-            )
+            raise CodeFabRuntimeError(expr.paren.line, "인자 개수가 일치하지 않습니다.")
 
         return callee.call(self, arguments)
 
     def _eval_get(self, expr: GetExpr):
         obj = self._eval(expr.object)
         if not isinstance(obj, CodeFabInstance):
-            raise LangRuntimeError(expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다.")
+            raise CodeFabRuntimeError(expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다.")
         return obj.get(expr.name)
 
     def _eval_set(self, expr: SetExpr):
         obj = self._eval(expr.object)
         if not isinstance(obj, CodeFabInstance):
-            raise LangRuntimeError(expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다.")
+            raise CodeFabRuntimeError(expr.name.line, "인스턴스에서만 속성에 접근할 수 있습니다.")
         value = self._eval(expr.value)
         obj.set(expr.name, value)
         return value
@@ -343,7 +340,7 @@ class Executor:
             instance = self._current.get("This", expr.keyword.line)
         method = superclass.find_method(expr.method.origin)
         if method is None:
-            raise LangRuntimeError(
+            raise CodeFabRuntimeError(
                 expr.method.line, f"'{expr.method.origin}' 메서드가 존재하지 않습니다."
             )
         return method.bind(instance)
@@ -369,11 +366,11 @@ class Executor:
 
     def _check_number(self, op, val) -> None:
         if not isinstance(val, float):
-            raise LangRuntimeError(op.line, "피연산자는 반드시 숫자여야 합니다.")
+            raise CodeFabRuntimeError(op.line, "피연산자는 반드시 숫자여야 합니다.")
 
     def _check_numbers(self, op, left, right) -> None:
         if not (isinstance(left, float) and isinstance(right, float)):
-            raise LangRuntimeError(op.line, "피연산자는 반드시 숫자여야 합니다.")
+            raise CodeFabRuntimeError(op.line, "피연산자는 반드시 숫자여야 합니다.")
 
     def _is_equal(self, left, right) -> bool:
         if type(left) is not type(right):

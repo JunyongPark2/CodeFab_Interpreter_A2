@@ -1,7 +1,7 @@
 import pytest
 
 from interpreter.codefab import CodeFabInterpreter
-from interpreter.errors import CheckError, LangRuntimeError, ParseError, TokenizeError
+from interpreter.errors import CheckError, CodeFabRuntimeError, ParseError, TokenizeError
 
 
 @pytest.fixture
@@ -153,17 +153,17 @@ def test_self_reference_in_initializer_raises_check_error(interp):
 
 
 def test_undefined_variable_raises_runtime_error(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         interp.run("print x;")
 
 
 def test_division_by_zero_raises_runtime_error(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         interp.run("print 1 / 0;")
 
 
 def test_type_mismatch_raises_runtime_error(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         interp.run('print 1 - "a";')
 
 
@@ -273,12 +273,12 @@ print fact(5);
 
 
 def test_function_non_callable_raises(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         interp.run("var x = 1; x();")
 
 
 def test_function_arity_mismatch_raises(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         interp.run("Func add(a, b) { return a + b; } add(1);")
 
 
@@ -313,7 +313,7 @@ def test_field_update(interp, capsys):
 
 
 def test_nonexistent_field_read_raises(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         interp.run("Class Robot { } var r = Robot(); print r.speed;")
 
 
@@ -389,7 +389,7 @@ def test_init_return_value_raises_check_error(interp):
 
 
 def test_non_instance_field_access_raises(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         interp.run("var x = 42; print x.speed;")
 
 
@@ -508,7 +508,7 @@ def test_self_inheritance_raises_check_error(interp):
 
 
 def test_non_class_inheritance_raises_runtime_error(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         interp.run("var A = 1; Class B : A { }")
 
 
@@ -523,7 +523,7 @@ def test_super_without_parent_raises_check_error(interp):
 
 
 def test_super_missing_method_raises_runtime_error(interp):
-    with pytest.raises(LangRuntimeError):
+    with pytest.raises(CodeFabRuntimeError):
         source = """\
 Class A { }
 Class B : A {

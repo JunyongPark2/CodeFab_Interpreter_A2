@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .errors import LangRuntimeError
+from .errors import CodeFabRuntimeError
 
 
 class Environment:
@@ -22,7 +22,7 @@ class Environment:
             return self._values[name]
         if self.parent is not None:
             return self.parent.get(name, line)
-        raise LangRuntimeError(line, f"미정의된 변수 '{name}'")
+        raise CodeFabRuntimeError(line, f"미정의된 변수 '{name}'")
 
     def assign(self, name: str, value: Any, line: int = 0) -> None:
         if name in self._values:
@@ -31,7 +31,7 @@ class Environment:
         if self.parent is not None:
             self.parent.assign(name, value, line)
             return
-        raise LangRuntimeError(line, f"미정의된 변수 '{name}'")
+        raise CodeFabRuntimeError(line, f"미정의된 변수 '{name}'")
 
     def get_at(self, distance: int, name: str) -> Any:
         """정적 바인딩으로 미리 계산된 distance만큼만 올라가 즉시 조회한다 (O(1))."""
