@@ -5,15 +5,23 @@ from interpreter.ast_nodes import (
     AssignExpr,
     BinaryExpr,
     BlockStmt,
+    CallExpr,
+    ClassDeclStmt,
     ExpressionStmt,
     ForStmt,
+    FuncDeclStmt,
+    GetExpr,
     GroupingExpr,
     IfStmt,
     IndexGetExpr,
     IndexSetExpr,
+    InstanceOfExpr,
     LiteralExpr,
     LogicalExpr,
     PrintStmt,
+    ReturnStmt,
+    SetExpr,
+    ThisExpr,
     UnaryExpr,
     VarDeclStmt,
     VariableExpr,
@@ -883,3 +891,326 @@ def test_non_number_array_size_raises():
                 ),
             ]
         )
+
+
+# ── Class 관련 런타임 오류 테스트 (PDF 3일차 15페이지) ────────────────────
+
+
+def make_class(name, superclass=None, methods=None, line=1):
+    return ClassDeclStmt(
+        name=name_tok(name, line=line),
+        superclass=superclass,
+        methods=methods or [],
+    )
+
+
+def make_call_expr(callee_name, arguments, line=1):
+    return CallExpr(
+        callee=VariableExpr(name_tok(callee_name, line=line)),
+        paren=tok(TokenType.RIGHT_PAREN, line=line),
+        arguments=arguments,
+    )
+
+
+def get_expr(obj_expr, field_name, line=1):
+    return GetExpr(object=obj_expr, name=name_tok(field_name, line=line))
+
+
+def set_expr(obj_expr, field_name, value_expr, line=1):
+    return SetExpr(object=obj_expr, name=name_tok(field_name, line=line), value=value_expr)
+
+
+def test_inheriting_non_class_raises():
+    # var x = 10; Class Robot : x { }  → 클래스가 아닌 대상 상속
+    line = 2
+    stmts = [
+        VarDeclStmt(name=name_tok("x"), initializer=LiteralExpr(10.0)),
+        make_class("Robot", superclass=VariableExpr(name_tok("x", line=line))),
+    ]
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 부모 클래스는 클래스여야 합니다\."
+    ):
+        run(stmts)
+
+
+def test_get_field_on_non_instance_raises():
+    # var x = "hello"; print x.field;  → 인스턴스가 아닌 대상의 필드 읽기
+    line = 2
+    stmts = [
+        VarDeclStmt(name=name_tok("x"), initializer=LiteralExpr("hello")),
+        PrintStmt(expression=get_expr(VariableExpr(name_tok("x")), "field", line=line)),
+    ]
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\."
+    ):
+        run(stmts)
+
+
+def test_set_field_on_non_instance_raises():
+    # var x = "hello"; x.field = 1;  → 인스턴스가 아닌 대상에 필드 쓰기
+    line = 2
+    stmts = [
+        VarDeclStmt(name=name_tok("x"), initializer=LiteralExpr("hello")),
+        ExpressionStmt(
+            expression=set_expr(VariableExpr(name_tok("x")), "field", LiteralExpr(1.0), line=line)
+        ),
+    ]
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\."
+    ):
+        run(stmts)
+
+
+def test_get_nonexistent_field_on_instance_raises():
+    # Class Robot {} var r = Robot(); print r.notExist;  → 존재하지 않는 필드 접근
+    line = 3
+    stmts = [
+        make_class("Robot"),
+        VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
+        PrintStmt(expression=get_expr(VariableExpr(name_tok("r")), "notExist", line=line)),
+    ]
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 'notExist' 속성이 존재하지 않습니다\."
+    ):
+        run(stmts)
+
+
+def test_call_nonexistent_method_on_instance_raises():
+    # Class Robot {} var r = Robot(); r.notExist();  → 존재하지 않는 메서드 호출
+    line = 3
+    stmts = [
+        make_class("Robot"),
+        VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
+        ExpressionStmt(
+            expression=CallExpr(
+                callee=get_expr(VariableExpr(name_tok("r")), "notExist", line=line),
+                paren=tok(TokenType.RIGHT_PAREN, line=line),
+                arguments=[],
+            )
+        ),
+    ]
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 'notExist' 속성이 존재하지 않습니다\."
+    ):
+        run(stmts)
+
+
+def test_get_field_on_number_raises():
+    # var n = 42; print n.speed;  → 숫자에 필드 접근
+    line = 2
+    stmts = [
+        VarDeclStmt(name=name_tok("n"), initializer=LiteralExpr(42.0)),
+        PrintStmt(expression=get_expr(VariableExpr(name_tok("n")), "speed", line=line)),
+    ]
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\."
+    ):
+        run(stmts)
+
+
+def test_set_field_on_nil_raises():
+    # var n = nil; n.x = 5;  → nil에 필드 쓰기
+    line = 2
+    stmts = [
+        VarDeclStmt(name=name_tok("n"), initializer=LiteralExpr(None)),
+        ExpressionStmt(
+            expression=set_expr(VariableExpr(name_tok("n")), "x", LiteralExpr(5.0), line=line)
+        ),
+    ]
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\."
+    ):
+        run(stmts)
+
+
+# ── Class 정상 동작 테스트 ───────────────────────────────────────────
+
+
+def kw_this(line=1):
+    return tok(TokenType.THIS, "This", line=line)
+
+
+def test_class_instance_print_shows_class_name(capsys):
+    # Class Robot {} var r = Robot(); print r;  → "<Robot instance>"
+    stmts = [
+        make_class("Robot"),
+        VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
+        PrintStmt(expression=VariableExpr(name_tok("r"))),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "<Robot instance>\n"
+
+
+def test_class_field_set_and_get(capsys):
+    # Class Robot {} var r = Robot(); r.speed = 10; print r.speed;
+    stmts = [
+        make_class("Robot"),
+        VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
+        ExpressionStmt(
+            expression=set_expr(VariableExpr(name_tok("r")), "speed", LiteralExpr(10.0))
+        ),
+        PrintStmt(expression=get_expr(VariableExpr(name_tok("r")), "speed")),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "10\n"
+
+
+def test_class_method_with_print_executes(capsys):
+    # Class Robot { greet() { print "hi"; } } var r = Robot(); r.greet();
+    greet_method = FuncDeclStmt(
+        name=name_tok("greet"),
+        params=[],
+        body=[PrintStmt(expression=LiteralExpr("hi"))],
+    )
+    stmts = [
+        make_class("Robot", methods=[greet_method]),
+        VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
+        ExpressionStmt(
+            expression=CallExpr(
+                callee=get_expr(VariableExpr(name_tok("r")), "greet"),
+                paren=tok(TokenType.RIGHT_PAREN),
+                arguments=[],
+            )
+        ),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "hi\n"
+
+
+def test_class_init_sets_this_field(capsys):
+    # Class Robot { init(speed) { This.speed = speed; } }
+    # var r = Robot(10); print r.speed;
+    init_method = FuncDeclStmt(
+        name=name_tok("init"),
+        params=[name_tok("speed")],
+        body=[
+            ExpressionStmt(
+                expression=SetExpr(
+                    object=ThisExpr(keyword=kw_this()),
+                    name=name_tok("speed"),
+                    value=VariableExpr(name_tok("speed")),
+                )
+            )
+        ],
+    )
+    stmts = [
+        make_class("Robot", methods=[init_method]),
+        VarDeclStmt(
+            name=name_tok("r"),
+            initializer=make_call_expr("Robot", [LiteralExpr(10.0)]),
+        ),
+        PrintStmt(expression=get_expr(VariableExpr(name_tok("r")), "speed")),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "10\n"
+
+
+def test_class_inheritance_child_inherits_parent_method(capsys):
+    # Class Animal { speak() { print "animal"; } } Class Dog : Animal {}
+    # var d = Dog(); d.speak();
+    speak_method = FuncDeclStmt(
+        name=name_tok("speak"),
+        params=[],
+        body=[PrintStmt(expression=LiteralExpr("animal"))],
+    )
+    stmts = [
+        make_class("Animal", methods=[speak_method]),
+        make_class("Dog", superclass=VariableExpr(name_tok("Animal"))),
+        VarDeclStmt(name=name_tok("d"), initializer=make_call_expr("Dog", [])),
+        ExpressionStmt(
+            expression=CallExpr(
+                callee=get_expr(VariableExpr(name_tok("d")), "speak"),
+                paren=tok(TokenType.RIGHT_PAREN),
+                arguments=[],
+            )
+        ),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "animal\n"
+
+
+def test_class_method_override(capsys):
+    # Class Animal { speak() { print "animal"; } }
+    # Class Dog : Animal { speak() { print "dog"; } }
+    # var d = Dog(); d.speak();  → "dog"
+    animal_speak = FuncDeclStmt(
+        name=name_tok("speak"),
+        params=[],
+        body=[PrintStmt(expression=LiteralExpr("animal"))],
+    )
+    dog_speak = FuncDeclStmt(
+        name=name_tok("speak"),
+        params=[],
+        body=[PrintStmt(expression=LiteralExpr("dog"))],
+    )
+    stmts = [
+        make_class("Animal", methods=[animal_speak]),
+        make_class("Dog", superclass=VariableExpr(name_tok("Animal")), methods=[dog_speak]),
+        VarDeclStmt(name=name_tok("d"), initializer=make_call_expr("Dog", [])),
+        ExpressionStmt(
+            expression=CallExpr(
+                callee=get_expr(VariableExpr(name_tok("d")), "speak"),
+                paren=tok(TokenType.RIGHT_PAREN),
+                arguments=[],
+            )
+        ),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "dog\n"
+
+
+def test_instanceof_own_class_is_true(capsys):
+    # Class Robot {} var r = Robot(); print r instanceof Robot;
+    stmts = [
+        make_class("Robot"),
+        VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
+        PrintStmt(
+            expression=InstanceOfExpr(
+                object=VariableExpr(name_tok("r")),
+                klass=name_tok("Robot"),
+            )
+        ),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "true\n"
+
+
+def test_instanceof_parent_class_is_true(capsys):
+    # Class Animal {} Class Dog : Animal {} var d = Dog();
+    # print d instanceof Dog; print d instanceof Animal;
+    stmts = [
+        make_class("Animal"),
+        make_class("Dog", superclass=VariableExpr(name_tok("Animal"))),
+        VarDeclStmt(name=name_tok("d"), initializer=make_call_expr("Dog", [])),
+        PrintStmt(
+            expression=InstanceOfExpr(
+                object=VariableExpr(name_tok("d")),
+                klass=name_tok("Dog"),
+            )
+        ),
+        PrintStmt(
+            expression=InstanceOfExpr(
+                object=VariableExpr(name_tok("d")),
+                klass=name_tok("Animal"),
+            )
+        ),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "true\ntrue\n"
+
+
+def test_instanceof_unrelated_class_is_false(capsys):
+    # Class A {} Class B {} var a = A(); print a instanceof B;
+    stmts = [
+        make_class("A"),
+        make_class("B"),
+        VarDeclStmt(name=name_tok("a"), initializer=make_call_expr("A", [])),
+        PrintStmt(
+            expression=InstanceOfExpr(
+                object=VariableExpr(name_tok("a")),
+                klass=name_tok("B"),
+            )
+        ),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "false\n"
