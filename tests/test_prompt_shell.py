@@ -484,12 +484,37 @@ def test_main_accumulates_multiline_for_loop_before_executing(monkeypatch, capsy
 
 
 def test_main_accumulates_multiline_if_else_before_executing(monkeypatch, capsys):
+    # else 없는 '{ }' if는 else가 더 붙을 수 있으므로, 파이썬 셸처럼 빈 줄로
+    # 확정해줘야 실행된다.
     _feed_lines(
         monkeypatch,
         [
             "if (true) {",  # '{'는 헤더와 같은 줄에 둔다
             '  print "bbq";',
             "}",
+            "",  # 빈 줄 — else를 더 기다리지 않고 여기서 확정하고 실행
+        ],
+    )
+    main()
+    assert capsys.readouterr().out.strip() == "bbq"
+
+
+def test_main_waits_for_blank_line_before_running_braced_if_without_else(
+        monkeypatch, capsys
+):
+    # '{ }' if가 끝난 직후에는 else가 이어붙을 수 있으므로 곧바로 실행하지
+    # 않고 '...' 프롬프트로 대기하다가, else가 오면 이어붙이고 없으면 빈
+    # 줄에서 실행한다.
+    _feed_lines(
+        monkeypatch,
+        [
+            "if (true) {",
+            '  print "bbq";',
+            "}",
+            "else {",
+            '  print "kfc";',
+            "}",
+            "",
         ],
     )
     main()
@@ -505,7 +530,7 @@ def test_main_waits_for_body_when_brace_is_on_its_own_line(monkeypatch, capsys):
             "for (var i = 0; i < 3; i = i + 1)",
             "{",
             "  print i;",
-            "}",
+            "}"
         ],
     )
     main()
