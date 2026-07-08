@@ -312,7 +312,7 @@ class Executor:
 
     def _stringify(self, val) -> str:
         if val is None:
-            return "nil"
+            return "null"
         if isinstance(val, bool):
             return "true" if val else "false"
         if isinstance(val, float):

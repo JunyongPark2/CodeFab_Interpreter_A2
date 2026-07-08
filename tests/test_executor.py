@@ -53,7 +53,7 @@ def test_print_string(capsys):
 
 def test_print_nil(capsys):
     run([PrintStmt(expression=LiteralExpr(value=None))])
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 def test_print_bool(capsys):
@@ -84,7 +84,7 @@ def test_var_decl_without_initializer_is_nil(capsys):
             PrintStmt(expression=VariableExpr(name=name_tok("x"))),
         ]
     )
-    assert capsys.readouterr().out == "nil\n"
+    assert capsys.readouterr().out == "null\n"
 
 
 def test_assign_updates_existing_variable(capsys):
@@ -730,7 +730,7 @@ def bracket_tok(line=1):
     return tok(TokenType.LEFT_BRACKET, "[", line=line)
 
 
-def test_array_creation_is_fixed_size_filled_with_nil(capsys):
+def test_array_creation_is_fixed_size_filled_with_null(capsys):
     run(
         [
             VarDeclStmt(
@@ -740,7 +740,7 @@ def test_array_creation_is_fixed_size_filled_with_nil(capsys):
             PrintStmt(expression=VariableExpr(name=name_tok("arr"))),
         ]
     )
-    assert capsys.readouterr().out == "[nil, nil, nil]\n"
+    assert capsys.readouterr().out == "[null, null, null]\n"
 
 
 def test_index_write_then_read(capsys):
@@ -794,7 +794,7 @@ def test_index_write_with_dynamic_index(capsys):
             PrintStmt(expression=VariableExpr(name=name_tok("arr"))),
         ]
     )
-    assert capsys.readouterr().out == "[nil, 7, nil]\n"
+    assert capsys.readouterr().out == "[null, 7, null]\n"
 
 
 def test_index_out_of_range_raises():
