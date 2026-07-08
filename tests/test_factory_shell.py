@@ -151,9 +151,9 @@ def test_run_debug_mode_steps_through_every_statement(tmp_path, capsys, monkeypa
 
     out = capsys.readouterr().out
     assert "[DEBUG] 소스코드 로딩: " in out
-    assert "1번째 줄에서 정지 → var a = 3;" in out
-    assert "2번째 줄에서 정지 → var b = a + 1;" in out
-    assert "3번째 줄에서 정지 → print b;" in out
+    assert "1번째 줄에서 정지" in out and "→ var a = 3;" in out
+    assert "2번째 줄에서 정지" in out and "→ var b = a + 1;" in out
+    assert "3번째 줄에서 정지" in out and "→ print b;" in out
     assert "4" in out.splitlines()
     assert "[DEBUG] 실행이 종료되었습니다." in out
 
@@ -169,9 +169,9 @@ def test_run_debug_mode_breakpoint_and_continue_skips_intermediate_lines(
     factory_shell.run_debug_mode(str(path))
 
     out = capsys.readouterr().out
-    assert "1번째 줄에서 정지 → var a = 0;" in out
+    assert "1번째 줄에서 정지" in out and "→ var a = 0;" in out
     assert "3번째 줄에 breakpoint 설정" in out
-    assert "3번째 줄에서 정지 → var c = 2;" in out
+    assert "3번째 줄에서 정지" in out and "→ var c = 2;" in out
     assert "2번째 줄에서 정지" not in out
     assert "2" in out.splitlines()
 
@@ -185,7 +185,7 @@ def test_run_debug_mode_next_skips_over_block_body(tmp_path, capsys, monkeypatch
     factory_shell.run_debug_mode(str(path))
 
     out = capsys.readouterr().out
-    assert out.count("정지 →") == 3
+    assert out.count("줄에서 정지") == 3
     assert "1" in out.splitlines()
 
 

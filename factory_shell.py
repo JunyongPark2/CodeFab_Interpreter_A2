@@ -59,6 +59,8 @@ def run_debug_mode(path: str) -> None:
         locals=locals_map,
         loader=Loader(assembler),
         on_stmt=controller.on_stmt,
+        source=source,
+        path=path,
     )
 
     try:

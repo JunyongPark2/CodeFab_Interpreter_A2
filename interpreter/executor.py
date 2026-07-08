@@ -55,6 +55,8 @@ class Executor:
         locals: dict[int, int] | None = None,
         loader: Loader | None = None,
         on_stmt: Optional[Callable[[Stmt, int, "Executor"], None]] = None,
+        source: str = "",
+        path: str = "<main>",
     ):
         # environment를 넘기지 않으면 매번 새 전역 스코프로 시작한다 (기존 동작 그대로 유지).
         # REPL처럼 "이전 실행에서 선언한 변수를 다음 실행에서도 써야 하는" 경우엔
@@ -73,6 +75,11 @@ class Executor:
         # (0=최상위) — "next"가 블록 내부로 진입하지 않고 건너뛰는 데 필요하다.
         self._on_stmt = on_stmt
         self._depth = 0
+        # 디버그 모드가 on_stmt에서 "이 Stmt는 어느 파일 몇 번째 줄인가"를 보여줄 때 쓴다.
+        # import된 모듈은 자기 자신의 소스/경로를 갖고 있어야 하므로(_exec_import 참고),
+        # Executor 인스턴스마다 자신이 실행 중인 파일의 소스와 경로를 따로 들고 있는다.
+        self._source_lines = source.splitlines()
+        self._path = path
         self._stmt_handlers = {
             PrintStmt: self._exec_print,
             VarDeclStmt: self._exec_var_decl,
@@ -112,6 +119,16 @@ class Executor:
     def current_env(self) -> Environment:
         """디버그 모드가 watch/inspect 구현 시 현재 실행 스코프를 들여다보는 용도."""
         return self._current
+
+    @property
+    def source_lines(self) -> list[str]:
+        """디버그 모드가 on_stmt에서 현재 실행 중인 파일의 소스 줄을 보여주는 용도."""
+        return self._source_lines
+
+    @property
+    def path(self) -> str:
+        """디버그 모드가 on_stmt에서 현재 실행 중인 파일 경로를 보여주는 용도."""
+        return self._path
 
     # ── Stmt 실행 ─────────────────────────────────────────
     def _exec_stmt(self, stmt: Stmt) -> None:
@@ -201,13 +218,23 @@ class Executor:
         # 실행 중에 이 파일을 다시 import하려는 시도까지 잡아내야 하기 때문.
         with self._loader.loading(path, stmt.path.line):
             stmts = self._loader.load(path, stmt.path.line)
+            # 디버그 모드가 module 내부에서 멈출 때 올바른 파일의 소스 줄을 보여줄 수
+            # 있도록, module 자신의 소스도 함께 읽어 nested Executor에 넘긴다.
+            with open(path, encoding="utf-8") as f:
+                module_source = f.read()
 
             # import된 파일은 독립된 네임스페이스(부모 없는 Environment)에서 실행한다 —
             # 현재 실행 중인 스코프의 변수를 보거나 건드리면 안 되기 때문.
             module_locals = Checker(stmts).check()
             module_env = Environment()
             Executor(
-                stmts, environment=module_env, locals=module_locals, loader=self._loader
+                stmts,
+                environment=module_env,
+                locals=module_locals,
+                loader=self._loader,
+                on_stmt=self._on_stmt,
+                source=module_source,
+                path=path,
             ).execute()
 
         module = CodeFabModule(stmt.alias.origin)

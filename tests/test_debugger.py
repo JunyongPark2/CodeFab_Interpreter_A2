@@ -169,7 +169,9 @@ def test_first_statement_always_pauses_without_any_command_yet(monkeypatch, caps
     monkeypatch.setattr("builtins.input", lambda prompt="": "continue")
     controller.on_stmt(stmt, 0, fake)
 
-    assert "1번째 줄에서 정지 → var a = 0;" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "1번째 줄에서 정지" in out
+    assert "→ var a = 0;" in out
 
 
 def test_breakpoint_pauses_regardless_of_continue_mode(monkeypatch, capsys):
@@ -185,9 +187,11 @@ def test_breakpoint_pauses_regardless_of_continue_mode(monkeypatch, capsys):
         controller.on_stmt(stmt, 0, fake)
 
     out = capsys.readouterr().out
-    assert "1번째 줄에서 정지 → var a = 0;" in out
+    assert "1번째 줄에서 정지" in out
+    assert "→ var a = 0;" in out
     assert "3번째 줄에 breakpoint 설정" in out
-    assert "3번째 줄에서 정지 → var c = 2;" in out
+    assert "3번째 줄에서 정지" in out
+    assert "→ var c = 2;" in out
     assert "2번째 줄에서 정지" not in out
 
 
@@ -222,7 +226,7 @@ def test_next_mode_does_not_pause_at_deeper_depth(monkeypatch, capsys):
     controller.on_stmt(stmts[2], 0, fake)  # back at target depth -> pauses again
 
     out = capsys.readouterr().out
-    assert out.count("정지 →") == 2
+    assert out.count("줄에서 정지") == 2
     assert "2번째 줄에서 정지" not in out
 
 
@@ -377,7 +381,7 @@ def test_command_loop_treats_eof_as_continue(monkeypatch, capsys):
     controller.on_stmt(stmts[1], 0, fake)  # breakpoint도 없으므로 더 이상 멈추지 않는다
 
     out = capsys.readouterr().out
-    assert out.count("정지 →") == 1
+    assert out.count("줄에서 정지") == 1
 
 
 def test_source_line_text_out_of_range_returns_empty_string():

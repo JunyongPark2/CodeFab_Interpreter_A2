@@ -171,7 +171,9 @@ class DebugController:
         line = get_stmt_line(stmt)
         if not self._should_pause(line, depth):
             return
-        print(f"[DEBUG] {line}번째 줄에서 정지 → {self._source_line_text(line)}")
+        path = getattr(executor, "path", None) or "<main>"
+        print(f"[DEBUG] {path}:{line}번째 줄에서 정지")
+        print(f"    → {self._source_line_text(line, executor)}")
         self._print_watches(executor)
         self._command_loop(depth, executor)
 
@@ -184,9 +186,15 @@ class DebugController:
             return depth <= self._next_target_depth
         return False  # "continue"
 
-    def _source_line_text(self, line: int) -> str:
-        if 1 <= line <= len(self._source_lines):
-            return self._source_lines[line - 1].strip()
+    def _source_line_text(self, line: int, executor=None) -> str:
+        # executor가 자기 소스를 갖고 있으면(=지금 멈춘 Stmt가 import된 모듈 내부라면)
+        # 그 소스를 우선한다 — 그렇지 않으면 항상 최상위 파일 기준으로만 줄을 찾아서,
+        # module 내부에서 멈출 때 엉뚱한 파일의 텍스트가 찍힌다.
+        source_lines = getattr(executor, "source_lines", None)
+        if source_lines is None:
+            source_lines = self._source_lines
+        if 1 <= line <= len(source_lines):
+            return source_lines[line - 1].strip()
         return ""
 
     # ── 명령어 처리 ───────────────────────────────────────
