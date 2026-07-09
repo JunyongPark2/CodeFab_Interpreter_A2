@@ -29,6 +29,7 @@ from interpreter.ast_nodes import (
 )
 from interpreter.errors import CodeFabRuntimeError
 from interpreter.executor import Executor
+from interpreter.runtime import CodeFabCallable
 from interpreter.tokens import TokenType
 from tests.helpers import name_tok, tok
 
@@ -964,6 +965,19 @@ def test_non_integer_index_raises():
         )
 
 
+# ── CodeFabCallable (추상 베이스) ───────────────────────────────────────
+
+
+def test_codefab_callable_arity_is_not_implemented():
+    with pytest.raises(NotImplementedError):
+        CodeFabCallable().arity()
+
+
+def test_codefab_callable_call_is_not_implemented():
+    with pytest.raises(NotImplementedError):
+        CodeFabCallable().call(None, [])
+
+
 # ── Class 관련 런타임 오류 테스트 ────────────────────
 
 
@@ -1127,6 +1141,16 @@ def test_class_instance_print_shows_class_name(capsys):
     assert capsys.readouterr().out == "<Robot instance>\n"
 
 
+def test_printing_class_itself_shows_class_name(capsys):
+    # Class Robot {} print Robot;  → "<class Robot>" (인스턴스가 아닌 클래스 값 자체)
+    stmts = [
+        make_class("Robot"),
+        PrintStmt(expression=VariableExpr(name_tok("Robot"))),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "<class Robot>\n"
+
+
 def test_class_field_set_and_get(capsys):
     # Class Robot {} var r = Robot(); r.speed = 10; print r.speed;
     stmts = [
@@ -1177,6 +1201,37 @@ def test_class_init_sets_this_field(capsys):
                     value=VariableExpr(name_tok("speed")),
                 )
             )
+        ],
+    )
+    stmts = [
+        make_class("Robot", methods=[init_method]),
+        VarDeclStmt(
+            name=name_tok("r"),
+            initializer=make_call_expr("Robot", [LiteralExpr(10.0)]),
+        ),
+        PrintStmt(expression=get_expr(VariableExpr(name_tok("r")), "speed")),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "10\n"
+
+
+def test_init_with_explicit_return_still_returns_this_instance(capsys):
+    # Class Robot { init(speed) { This.speed = speed; return; } }
+    # var r = Robot(10); print r.speed;
+    # init 안에서 값 없는 return을 만나 _ReturnSignal이 발생해도(Checker 없이 직접
+    # 실행하는 단위 테스트이므로 가능), 항상 This 인스턴스를 반환해야 한다.
+    init_method = FuncDeclStmt(
+        name=name_tok("init"),
+        params=[name_tok("speed")],
+        body=[
+            ExpressionStmt(
+                expression=SetExpr(
+                    object=ThisExpr(keyword=kw_this()),
+                    name=name_tok("speed"),
+                    value=VariableExpr(name_tok("speed")),
+                )
+            ),
+            ReturnStmt(keyword=tok(TokenType.RETURN), value=None),
         ],
     )
     stmts = [
