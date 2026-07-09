@@ -29,7 +29,7 @@ from .ast_nodes import (
     VariableExpr,
 )
 from .errors import CheckError, CodeFabRuntimeError
-from .runtime import eval_binary_op
+from .runtime import eval_binary_op, is_truthy
 from .tokens import TokenType
 
 _NOT_FOLDABLE = object()
@@ -332,7 +332,7 @@ class Checker:
                 return LiteralExpr(-expr.right.value, expr.operator.line)
             if expr.operator.type == TokenType.BANG:
                 return LiteralExpr(
-                    not self._is_truthy(expr.right.value), expr.operator.line
+                    not is_truthy(expr.right.value), expr.operator.line
                 )
 
         if (
@@ -355,13 +355,6 @@ class Checker:
             return eval_binary_op(operator, left, right)
         except CodeFabRuntimeError:
             return _NOT_FOLDABLE
-
-    def _is_truthy(self, val) -> bool:
-        if val is None:
-            return False
-        if isinstance(val, bool):
-            return val
-        return True
 
     # ── 스코프 관리 ─────────────────────────────────────────
     @property

@@ -43,6 +43,8 @@ from .runtime import (
     CodeFabInstance,
     CodeFabModule,
     eval_binary_op,
+    is_truthy,
+    stringify,
     _ReturnSignal,
 )
 from .tokens import TokenType
@@ -128,7 +130,7 @@ class Executor:
             self._depth -= 1
 
     def visit_PrintStmt(self, stmt: PrintStmt) -> None:
-        print(self._stringify(self._eval(stmt.expression)))
+        print(stringify(self._eval(stmt.expression)))
 
     def visit_VarDeclStmt(self, stmt: VarDeclStmt) -> None:
         val = self._eval(stmt.initializer) if stmt.initializer else None
@@ -141,7 +143,7 @@ class Executor:
         self._exec_block(stmt.statements, Environment(parent=self._current))
 
     def visit_IfStmt(self, stmt: IfStmt) -> None:
-        if self._is_truthy(self._eval(stmt.condition)):
+        if is_truthy(self._eval(stmt.condition)):
             self._exec_nested_stmt(stmt.then_branch)
         elif stmt.else_branch:
             self._exec_nested_stmt(stmt.else_branch)
@@ -153,7 +155,7 @@ class Executor:
         try:
             if stmt.initializer:
                 self._exec_nested_stmt(stmt.initializer)
-            while stmt.condition is None or self._is_truthy(self._eval(stmt.condition)):
+            while stmt.condition is None or is_truthy(self._eval(stmt.condition)):
                 self._exec_nested_stmt(stmt.body)
                 if stmt.increment:
                     self._eval(stmt.increment)
@@ -280,7 +282,7 @@ class Executor:
             self._check_number(expr.operator, right)
             return -right
         if op == TokenType.BANG:
-            return not self._is_truthy(right)
+            return not is_truthy(right)
 
     def visit_BinaryExpr(self, expr: BinaryExpr):
         left = self._eval(expr.left)
@@ -290,8 +292,8 @@ class Executor:
     def visit_LogicalExpr(self, expr: LogicalExpr):
         left = self._eval(expr.left)
         if expr.operator.type == TokenType.OR:
-            return left if self._is_truthy(left) else self._eval(expr.right)
-        return self._eval(expr.right) if self._is_truthy(left) else left
+            return left if is_truthy(left) else self._eval(expr.right)
+        return self._eval(expr.right) if is_truthy(left) else left
 
     # ── 정적배열 기능 ─────────────────────────────────────
     def visit_ArrayExpr(self, expr: ArrayExpr):
@@ -414,26 +416,6 @@ class Executor:
         return False
 
     # ── 헬퍼 ─────────────────────────────────────────────
-    def _is_truthy(self, val) -> bool:
-        if val is None:
-            return False
-        if isinstance(val, bool):
-            return val
-        return True
-
     def _check_number(self, op, val) -> None:
         if not isinstance(val, float):
             raise CodeFabRuntimeError(op.line, "피연산자는 반드시 숫자여야 합니다.")
-
-    def _stringify(self, val) -> str:
-        if val is None:
-            return "null"
-        if isinstance(val, bool):
-            return "true" if val else "false"
-        if isinstance(val, float):
-            s = str(val)
-            return s[:-2] if s.endswith(".0") else s
-        # 정적배열 기능: [10, 20, 30] 형태로 출력
-        if isinstance(val, list):
-            return "[" + ", ".join(self._stringify(v) for v in val) + "]"
-        return str(val)
