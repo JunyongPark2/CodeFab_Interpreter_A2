@@ -28,7 +28,8 @@ from .ast_nodes import (
     VarDeclStmt,
     VariableExpr,
 )
-from .errors import CheckError
+from .errors import CheckError, CodeFabRuntimeError
+from .runtime import eval_binary_op
 from .tokens import TokenType
 
 _NOT_FOLDABLE = object()
@@ -349,43 +350,11 @@ class Checker:
 
     def _try_fold_binary(self, operator, left, right):
         """계산이 실패할 수 있는 경우(타입 불일치, 0으로 나누기)는 접지 않고
-        _NOT_FOLDABLE을 반환한다 — Executor가 평소처럼 런타임 에러를 내게 하기 위함.
-        Executor._eval_binary와 동일한 의미론을 유지해야 한다 (한쪽만 바뀌면
-        폴딩된 코드와 안 된 코드의 동작이 달라질 수 있으니 함께 수정할 것)."""
-        op = operator.type
-        numbers = isinstance(left, float) and isinstance(right, float)
+        _NOT_FOLDABLE을 반환한다 — Executor가 평소처럼 런타임 에러를 내게 하기 위함."""
         try:
-            if op == TokenType.PLUS:
-                if numbers or (isinstance(left, str) and isinstance(right, str)):
-                    return left + right
-                return _NOT_FOLDABLE
-            if op == TokenType.MINUS:
-                return left - right if numbers else _NOT_FOLDABLE
-            if op == TokenType.STAR:
-                return left * right if numbers else _NOT_FOLDABLE
-            if op == TokenType.SLASH:
-                if not numbers or right == 0:
-                    return _NOT_FOLDABLE
-                return left / right
-            if op == TokenType.MODULO:
-                if not numbers or right == 0:
-                    return _NOT_FOLDABLE
-                return left % right
-            if op == TokenType.GREATER:
-                return left > right if numbers else _NOT_FOLDABLE
-            if op == TokenType.LESS:
-                return left < right if numbers else _NOT_FOLDABLE
-            if op == TokenType.GREATER_EQUAL:
-                return left >= right if numbers else _NOT_FOLDABLE
-            if op == TokenType.LESS_EQUAL:
-                return left <= right if numbers else _NOT_FOLDABLE
-            if op == TokenType.EQUAL_EQUAL:
-                return type(left) is type(right) and left == right
-            if op == TokenType.BANG_EQUAL:
-                return not (type(left) is type(right) and left == right)
-        except (TypeError, ZeroDivisionError):
+            return eval_binary_op(operator, left, right)
+        except CodeFabRuntimeError:
             return _NOT_FOLDABLE
-        return _NOT_FOLDABLE
 
     def _is_truthy(self, val) -> bool:
         if val is None:

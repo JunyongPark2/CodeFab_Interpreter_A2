@@ -42,6 +42,7 @@ from .runtime import (
     CodeFabFunction,
     CodeFabInstance,
     CodeFabModule,
+    eval_binary_op,
     _ReturnSignal,
 )
 from .tokens import TokenType
@@ -284,49 +285,7 @@ class Executor:
     def visit_BinaryExpr(self, expr: BinaryExpr):
         left = self._eval(expr.left)
         right = self._eval(expr.right)
-        op = expr.operator.type
-        line = expr.operator.line
-
-        if op == TokenType.PLUS:
-            if isinstance(left, float) and isinstance(right, float):
-                return left + right
-            if isinstance(left, str) and isinstance(right, str):
-                return left + right
-            raise CodeFabRuntimeError(
-                line, "피연산자는 반드시 숫자 또는 문자열이어야 합니다."
-            )
-        if op == TokenType.MINUS:
-            self._check_numbers(expr.operator, left, right)
-            return left - right
-        if op == TokenType.STAR:
-            self._check_numbers(expr.operator, left, right)
-            return left * right
-        if op == TokenType.SLASH:
-            self._check_numbers(expr.operator, left, right)
-            if right == 0:
-                raise CodeFabRuntimeError(line, "0으로 나눈 오류")
-            return left / right
-        if op == TokenType.MODULO:
-            self._check_numbers(expr.operator, left, right)
-            if right == 0:
-                raise CodeFabRuntimeError(line, "0으로 나눈 오류")
-            return left % right
-        if op == TokenType.GREATER:
-            self._check_numbers(expr.operator, left, right)
-            return left > right
-        if op == TokenType.LESS:
-            self._check_numbers(expr.operator, left, right)
-            return left < right
-        if op == TokenType.GREATER_EQUAL:
-            self._check_numbers(expr.operator, left, right)
-            return left >= right
-        if op == TokenType.LESS_EQUAL:
-            self._check_numbers(expr.operator, left, right)
-            return left <= right
-        if op == TokenType.EQUAL_EQUAL:
-            return self._is_equal(left, right)
-        if op == TokenType.BANG_EQUAL:
-            return not self._is_equal(left, right)
+        return eval_binary_op(expr.operator, left, right)
 
     def visit_LogicalExpr(self, expr: LogicalExpr):
         left = self._eval(expr.left)
@@ -465,15 +424,6 @@ class Executor:
     def _check_number(self, op, val) -> None:
         if not isinstance(val, float):
             raise CodeFabRuntimeError(op.line, "피연산자는 반드시 숫자여야 합니다.")
-
-    def _check_numbers(self, op, left, right) -> None:
-        if not (isinstance(left, float) and isinstance(right, float)):
-            raise CodeFabRuntimeError(op.line, "피연산자는 반드시 숫자여야 합니다.")
-
-    def _is_equal(self, left, right) -> bool:
-        if type(left) is not type(right):
-            return False
-        return left == right
 
     def _stringify(self, val) -> str:
         if val is None:

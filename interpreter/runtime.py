@@ -3,12 +3,50 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from .errors import CodeFabRuntimeError
-from .tokens import Token
+from .tokens import Token, TokenType
 
 if TYPE_CHECKING:
     from .ast_nodes import FuncDeclStmt
     from .environment import Environment
     from .executor import Executor
+
+
+def eval_binary_op(operator, left, right):
+    """이진 연산을 수행한다. 타입 불일치나 0으로 나누기 시 CodeFabRuntimeError를 발생시킨다."""
+    op = operator.type
+    line = operator.line
+    numbers = isinstance(left, float) and isinstance(right, float)
+
+    if op == TokenType.PLUS:
+        if numbers or (isinstance(left, str) and isinstance(right, str)):
+            return left + right
+        raise CodeFabRuntimeError(line, "피연산자는 반드시 숫자 또는 문자열이어야 합니다.")
+    if op in (TokenType.MINUS, TokenType.STAR, TokenType.GREATER,
+              TokenType.LESS, TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL):
+        if not numbers:
+            raise CodeFabRuntimeError(line, "피연산자는 반드시 숫자여야 합니다.")
+    if op == TokenType.MINUS:
+        return left - right
+    if op == TokenType.STAR:
+        return left * right
+    if op in (TokenType.SLASH, TokenType.MODULO):
+        if not numbers:
+            raise CodeFabRuntimeError(line, "피연산자는 반드시 숫자여야 합니다.")
+        if right == 0:
+            raise CodeFabRuntimeError(line, "0으로 나눈 오류")
+        return left / right if op == TokenType.SLASH else left % right
+    if op == TokenType.GREATER:
+        return left > right
+    if op == TokenType.LESS:
+        return left < right
+    if op == TokenType.GREATER_EQUAL:
+        return left >= right
+    if op == TokenType.LESS_EQUAL:
+        return left <= right
+    if op == TokenType.EQUAL_EQUAL:
+        return type(left) is type(right) and left == right
+    if op == TokenType.BANG_EQUAL:
+        return not (type(left) is type(right) and left == right)
 
 
 class _ReturnSignal(Exception):
