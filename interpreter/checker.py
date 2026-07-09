@@ -349,12 +349,19 @@ class Checker:
         return expr
 
     def _try_fold_binary(self, operator, left, right):
-        """계산이 실패할 수 있는 경우(타입 불일치, 0으로 나누기)는 접지 않고
-        _NOT_FOLDABLE을 반환한다 — Executor가 평소처럼 런타임 에러를 내게 하기 위함."""
+        """계산이 실패할 수 있는 경우(타입 불일치, 0으로 나누기)나 eval_binary_op가
+        처리하지 않는 연산자인 경우는 접지 않고 _NOT_FOLDABLE을 반환한다 —
+        Executor가 평소처럼 런타임 에러를 내게 하거나, 애초에 폴딩 대상이
+        아니게 하기 위함. CodeFabRuntimeError 외의 예외(예: 사용자 정의 값의
+        __eq__가 던지는 TypeError)도 안전하게 잡아서 Checker가 죽지 않게 한다."""
         try:
-            return eval_binary_op(operator, left, right)
-        except CodeFabRuntimeError:
+            result = eval_binary_op(operator, left, right)
+        except (CodeFabRuntimeError, TypeError, ZeroDivisionError):
             return _NOT_FOLDABLE
+        # eval_binary_op는 처리하지 않는 연산자를 만나면 암묵적으로 None을
+        # 반환한다 — 이 언어에는 이항 연산 결과가 실제로 None인 경우가 없으므로,
+        # None이면 "이 연산자는 폴딩 대상이 아니다"로 취급한다.
+        return _NOT_FOLDABLE if result is None else result
 
     def _is_truthy(self, val) -> bool:
         if val is None:
