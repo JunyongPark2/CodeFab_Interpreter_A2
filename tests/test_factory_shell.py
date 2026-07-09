@@ -205,6 +205,27 @@ def test_run_debug_mode_next_skips_over_block_body(tmp_path, capsys, monkeypatch
     assert "1" in out.splitlines()
 
 
+def test_run_debug_mode_next_skips_over_for_loop_internals(
+    tmp_path, capsys, monkeypatch
+):
+    path = tmp_path / "program.cf"
+    path.write_text(
+        'for (var i = 0; i < 1; i = i + 1) {\n    print i;\n}\nprint "done";\n',
+        encoding="utf-8",
+    )
+
+    _feed_input(monkeypatch, ["next", "continue"])
+
+    factory_shell.run_debug_mode(str(path))
+
+    out = capsys.readouterr().out
+    assert out.count("1번째 줄에서 정지") == 1
+    assert "2번째 줄에서 정지" not in out
+    assert "4번째 줄에서 정지" in out
+    assert "0" in out.splitlines()
+    assert "done" in out.splitlines()
+
+
 def test_run_debug_mode_watch_prints_value_at_each_pause(tmp_path, capsys, monkeypatch):
     path = tmp_path / "program.cf"
     path.write_text("var a = 1;\nvar b = 2;\nprint a;\n", encoding="utf-8")
