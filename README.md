@@ -432,6 +432,17 @@ TDD가 필수는 아니었지만, 구현 후 반드시 대응하는 UnitTest를 
 모두 `errors.py`에 정의되어 있으며, 위 표의 각 테스트 파일에서 함께 검증됩니다.
 
 
+## 추가 기능 구현 상태 체크리스트
+
+### 기능별 구현 현황 
+
+- [x] **Function** — `Func` 선언/호출, 매개변수, 재귀, `return`(값 없으면 `null`)
+- [x] **Class** — 선언/인스턴스 생성, 필드 동적 저장/읽기, 메서드, `This`, 생성자(`init`), 단일 상속(`:`), `Super`, `instanceof`
+- [x] **정적 배열** — `Array(n)` 네이티브 생성자, `arr[i]` 읽기/쓰기, 범위 초과 시 런타임 에러
+- [x] **실행 전 최적화** — 정적 바인딩 + 상수 폴딩(리터럴 하위 트리 치환)
+- [x] **import** — `import "경로" alias 별칭;`, 순환/중복/파일없음 에러(`ModuleImportError`), `for` 본문 내 금지, 모듈 멤버 접근
+- [x] **공장 제어 쉘** — REPL/파일/디버그 3모드, step/next/break/breakpoints/remove/continue, watch/unwatch/watches/inspect
+
 ## 기여
 
 PR을 올릴 때는 `.github/pull_request_template.md` 양식을 따라주세요.
