@@ -53,6 +53,8 @@ class Tokenizer:
                 self._add_token(TokenType.MINUS)
             case "*":
                 self._add_token(TokenType.STAR)
+            case "%":
+                self._add_token(TokenType.MODULO)
             case "/":
                 if self._peek() == "/":  # // 줄 주석 → 줄 끝까지 무시
                     while self._peek() != "\n" and not self._is_at_end():

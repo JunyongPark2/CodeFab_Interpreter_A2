@@ -319,6 +319,7 @@ def test_add_mismatched_types_raises():
         (TokenType.MINUS, 5.0, 2.0, 3.0),
         (TokenType.STAR, 5.0, 2.0, 10.0),
         (TokenType.SLASH, 5.0, 2.0, 2.5),
+        (TokenType.MODULO, 5.0, 2.0, 1.0),
     ],
 )
 def test_arithmetic_operators(op, left, right, expected, capsys):

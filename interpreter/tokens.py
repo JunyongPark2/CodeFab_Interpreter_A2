@@ -21,6 +21,7 @@ class TokenType(Enum):
     MINUS = auto()
     STAR = auto()
     SLASH = auto()
+    MODULO = auto()
 
     # 비교 / 대입 연산자
     EQUAL = auto()

@@ -314,6 +314,11 @@ class Executor:
             if right == 0:
                 raise CodeFabRuntimeError(line, "0으로 나눈 오류")
             return left / right
+        if op == TokenType.MODULO:
+            self._check_numbers(expr.operator, left, right)
+            if right == 0:
+                raise CodeFabRuntimeError(line, "0으로 나눈 오류")
+            return left % right
         if op == TokenType.GREATER:
             self._check_numbers(expr.operator, left, right)
             return left > right
