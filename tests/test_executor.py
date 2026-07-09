@@ -21,6 +21,7 @@ from interpreter.ast_nodes import (
     PrintStmt,
     ReturnStmt,
     SetExpr,
+    SuperExpr,
     ThisExpr,
     UnaryExpr,
     VarDeclStmt,
@@ -1208,3 +1209,102 @@ def test_instanceof_unrelated_class_is_false(capsys):
     ]
     run(stmts)
     assert capsys.readouterr().out == "false\n"
+
+
+def kw_super(line=1):
+    return tok(TokenType.SUPER, "Super", line=line)
+
+
+def test_super_method_call_executes_parent_method(capsys):
+    # Class Robot { move() { print "move"; } }
+    # Class SpeedRobot : Robot { move() { Super.move(); print "Speeeed!"; } }
+    # SpeedRobot().move();  → "move\nSpeeeed!\n"
+    parent_move = FuncDeclStmt(
+        name=name_tok("move"),
+        params=[],
+        body=[PrintStmt(expression=LiteralExpr("move"))],
+    )
+    child_move = FuncDeclStmt(
+        name=name_tok("move"),
+        params=[],
+        body=[
+            ExpressionStmt(
+                expression=CallExpr(
+                    callee=SuperExpr(keyword=kw_super(), method=name_tok("move")),
+                    paren=tok(TokenType.RIGHT_PAREN),
+                    arguments=[],
+                )
+            ),
+            PrintStmt(expression=LiteralExpr("Speeeed!")),
+        ],
+    )
+    stmts = [
+        make_class("Robot", methods=[parent_move]),
+        make_class("SpeedRobot", superclass=VariableExpr(name_tok("Robot")), methods=[child_move]),
+        ExpressionStmt(
+            expression=CallExpr(
+                callee=get_expr(make_call_expr("SpeedRobot", []), "move"),
+                paren=tok(TokenType.RIGHT_PAREN),
+                arguments=[],
+            )
+        ),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "move\nSpeeeed!\n"
+
+
+def test_method_calls_another_method_via_this(capsys):
+    # Class Robot {
+    #     move(dist) { This.position = This.position + dist; This.report(); }
+    #     report() { print This.position; }
+    # }
+    # var r = Robot(); r.position = 0; r.move(5);  → "5\n"
+    report_method = FuncDeclStmt(
+        name=name_tok("report"),
+        params=[],
+        body=[
+            PrintStmt(
+                expression=GetExpr(object=ThisExpr(keyword=kw_this()), name=name_tok("position"))
+            )
+        ],
+    )
+    move_method = FuncDeclStmt(
+        name=name_tok("move"),
+        params=[name_tok("dist")],
+        body=[
+            ExpressionStmt(
+                expression=SetExpr(
+                    object=ThisExpr(keyword=kw_this()),
+                    name=name_tok("position"),
+                    value=BinaryExpr(
+                        left=GetExpr(object=ThisExpr(keyword=kw_this()), name=name_tok("position")),
+                        operator=tok(TokenType.PLUS, line=1),
+                        right=VariableExpr(name_tok("dist")),
+                    ),
+                )
+            ),
+            ExpressionStmt(
+                expression=CallExpr(
+                    callee=GetExpr(object=ThisExpr(keyword=kw_this()), name=name_tok("report")),
+                    paren=tok(TokenType.RIGHT_PAREN),
+                    arguments=[],
+                )
+            ),
+        ],
+    )
+    stmts = [
+        make_class("Robot", methods=[report_method, move_method]),
+        VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
+        ExpressionStmt(
+            expression=set_expr(VariableExpr(name_tok("r")), "position", LiteralExpr(0.0))
+        ),
+        ExpressionStmt(
+            expression=CallExpr(
+                callee=get_expr(VariableExpr(name_tok("r")), "move"),
+                paren=tok(TokenType.RIGHT_PAREN),
+                arguments=[LiteralExpr(5.0)],
+            )
+        ),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "5\n"
