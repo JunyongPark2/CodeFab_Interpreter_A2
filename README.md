@@ -5,7 +5,7 @@ Python으로 구현한 미니 스크립트 언어 인터프리터입니다. Code
 
 이 프로젝트는 변수, 제어문, 함수, 클래스, 상속, 정적 배열, 파일 import를 지원하는
 인터프리터입니다. 구현은 `interpreter/` 아래에 모듈별로 분리되어 있고,
-672개의 pytest 테스트로 현재 동작을 검증합니다.
+699개의 pytest 테스트로 현재 동작을 검증합니다.
 
 ## 주요 기능
 
@@ -461,16 +461,16 @@ python -m pytest --no-cov
 python -m pytest --collect-only -q --no-cov
 ```
 
-현재 가상환경에서 수집되는 테스트는 총 672개입니다.
+현재 가상환경에서 수집되는 테스트는 총 699개입니다.
 
 | 테스트 파일 | 테스트 수 | 주요 검증 대상 |
 | --- | ---: | --- |
-| `tests/test_tokenizer.py` | 61 | 토큰화, 키워드, 문자열/숫자/주석 |
-| `tests/test_parser.py` | 73 | 문법, 우선순위, import/class/array 파싱 |
-| `tests/test_checker.py` | 80 | 정적 검사, 상수 폴딩, 정적 바인딩, class/import 검사 |
-| `tests/test_executor.py` | 97 | 기본 실행, 제어문, 배열, 클래스/상속 실행 |
-| `tests/test_executor_function.py` | 34 | 함수, 재귀, 클로저, return |
-| `tests/test_executor_import.py` | 21 | import end-to-end, 모듈 멤버 접근, 순환/중복 import |
+| `tests/test_tokenizer.py` | 65 | 토큰화, 키워드, 문자열/숫자/주석 |
+| `tests/test_parser.py` | 74 | 문법, 우선순위, import/class/array 파싱 |
+| `tests/test_checker.py` | 82 | 정적 검사, 상수 폴딩, 정적 바인딩, class/import 검사 |
+| `tests/test_executor.py` | 105 | 기본 실행, 제어문, 배열, 클래스/상속 실행 |
+| `tests/test_executor_function.py` | 35 | 함수, 재귀, 클로저, return |
+| `tests/test_executor_import.py` | 22 | import end-to-end, 모듈 멤버 접근, 순환/중복 import |
 | `tests/test_environment.py` | 9 | 스코프 체인, `get_at`, `assign_at` |
 | `tests/test_loader.py` | 8 | 파일 로드, 선언-only 검사, 순환 import context |
 | `tests/test_optimization.py` | 5 | 정적 바인딩/상수 폴딩이 실제 실행 경로에 반영되는지 |
@@ -479,10 +479,13 @@ python -m pytest --collect-only -q --no-cov
 | `tests/test_debugger.py` | 52 | step/next/break/watch/inspect |
 | `tests/test_factory_shell.py` | 27 | CLI 모드 분기, 파일/디버그 모드 오류 처리 |
 | `tests/test_prompt_shell.py` | 77 | REPL 입력 누적, 오류 복구, 상태 유지 |
+| `tests/test_runtime.py` | 6 | callable/class/module 런타임 값 |
+| `tests/test_tokens.py` | 4 | 토큰 표현과 키워드 매핑 |
 | `tests/test_visitor.py` | 5 | AST visitor dispatch 누락 방지 |
 
 `python -m pytest`를 실행하면 `pyproject.toml`의 설정에 따라 터미널 coverage와
-`htmlcov/` HTML 리포트가 함께 생성됩니다.
+`htmlcov/` HTML 리포트가 함께 생성됩니다. 마지막 확인 기준으로 699개 테스트가 모두
+통과했고, `interpreter` 패키지 coverage는 1434 statements, 0 misses, 100%입니다.
 
 ## 기여
 
