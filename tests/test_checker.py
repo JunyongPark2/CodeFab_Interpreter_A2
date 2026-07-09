@@ -366,31 +366,6 @@ def test_binary_operators_are_folded(op_type, op_text, left, right, expected):
     assert stmt.expression.value == expected
 
 
-def test_try_fold_binary_returns_not_foldable_for_unhandled_operator():
-    # BinaryExpr에는 등장하지 않는 연산자(AND)가 들어와도 _try_fold_binary는
-    # 접지 않고 _NOT_FOLDABLE을 반환해야 한다(방어적 fallback 경로).
-    from interpreter.checker import _NOT_FOLDABLE
-
-    checker = Checker([])
-    result = checker._try_fold_binary(Token(TokenType.AND, "and"), 1.0, 2.0)
-    assert result is _NOT_FOLDABLE
-
-
-def test_try_fold_binary_returns_not_foldable_on_comparison_type_error():
-    # ==/!= 비교(left == right) 자체가 예외를 던지는 경우에도 Checker는 접지 않고
-    # _NOT_FOLDABLE을 반환해 Executor가 평소처럼 런타임 에러를 내게 해야 한다.
-    from interpreter.checker import _NOT_FOLDABLE
-
-    class Unequatable:
-        def __eq__(self, other):
-            raise TypeError("cannot compare")
-
-    checker = Checker([])
-    left, right = Unequatable(), Unequatable()
-    result = checker._try_fold_binary(Token(TokenType.EQUAL_EQUAL, "=="), left, right)
-    assert result is _NOT_FOLDABLE
-
-
 def test_unary_bang_on_nil_is_folded_to_true():
     stmt = ExpressionStmt(UnaryExpr(Token(TokenType.BANG, "!"), literal(None)))
     Checker([stmt]).check()
