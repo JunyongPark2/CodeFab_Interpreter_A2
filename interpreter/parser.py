@@ -273,7 +273,9 @@ class Parser:
         return self._binary((TokenType.PLUS, TokenType.MINUS), self._factor)
 
     def _factor(self) -> Expr:
-        return self._binary((TokenType.STAR, TokenType.SLASH), self._unary)
+        return self._binary(
+            (TokenType.STAR, TokenType.SLASH, TokenType.MODULO), self._unary
+        )
 
     def _unary(self) -> Expr:
         if self._match(TokenType.BANG, TokenType.MINUS):
