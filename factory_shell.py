@@ -5,7 +5,13 @@ from interpreter.assembler import Assembler
 from interpreter.checker import Checker
 from interpreter.codefab import CodeFabInterpreter
 from interpreter.debugger import DebugController, DebugExit
-from interpreter.errors import CheckError, CodeFabRuntimeError, ParseError, TokenizeError
+from interpreter.errors import (
+    CheckError,
+    CodeFabRuntimeError,
+    ModuleImportError,
+    ParseError,
+    TokenizeError,
+)
 from interpreter.executor import Executor
 from interpreter.loader import Loader
 from prompt_shell import main as run_repl_mode
@@ -24,7 +30,13 @@ def run_file_mode(path: str) -> None:
 
     try:
         CodeFabInterpreter().run(source)
-    except (TokenizeError, ParseError, CheckError, CodeFabRuntimeError) as e:
+    except (
+        TokenizeError,
+        ParseError,
+        CheckError,
+        CodeFabRuntimeError,
+        ModuleImportError,
+    ) as e:
         print(e)
         sys.exit(1)
 
@@ -67,7 +79,13 @@ def run_debug_mode(path: str) -> None:
         executor.execute()
     except DebugExit:
         return
-    except CodeFabRuntimeError as e:
+    except (
+        TokenizeError,
+        ParseError,
+        CheckError,
+        CodeFabRuntimeError,
+        ModuleImportError,
+    ) as e:
         print(e)
         sys.exit(1)
 
@@ -77,7 +95,7 @@ def run_debug_mode(path: str) -> None:
 def main(argv: list[str] | None = None) -> None:
     args = sys.argv[1:] if argv is None else argv
 
-    if not args:        # 아무 인자도 주어지지 않았을 경우 REPL 실행
+    if not args:  # 아무 인자도 주어지지 않았을 경우 REPL 실행
         run_repl_mode()
     elif args[0] == "run" and len(args) == 2:
         run_file_mode(args[1])

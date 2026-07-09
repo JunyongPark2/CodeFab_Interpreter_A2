@@ -79,6 +79,22 @@ def test_run_file_mode_prints_error_and_exits_one(tmp_path, capsys, source, expe
     assert capsys.readouterr().out.strip() == expected_msg
 
 
+def test_run_file_mode_prints_import_error_without_traceback(tmp_path, capsys):
+    path = tmp_path / "program.cf"
+    path.write_text(
+        'import "missing_file_for_manual_check.txt" alias m;\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        factory_shell.run_file_mode(str(path))
+
+    out = capsys.readouterr().out
+    assert exc_info.value.code == 1
+    assert "import 대상 파일이 없습니다" in out
+    assert "Traceback" not in out
+
+
 def test_run_file_mode_reports_error_line_ignoring_trailing_newline(tmp_path, capsys):
     # 파일은 보통 마지막 줄 뒤에 개행이 붙어 저장된다. 그 트레일링 개행까지
     # 줄 수로 세어 EOF 토큰의 줄 번호가 실제 코드보다 한 줄 밀리면 안 된다.
@@ -227,6 +243,26 @@ def test_run_debug_mode_reports_runtime_error_with_line_number(
 
     assert exc_info.value.code == 1
     assert "[2번째줄] 배열 인덱스가 범위를 벗어났습니다." in capsys.readouterr().out
+
+
+def test_run_debug_mode_prints_import_error_without_traceback(
+    tmp_path, capsys, monkeypatch
+):
+    path = tmp_path / "program.cf"
+    path.write_text(
+        'import "missing_file_for_manual_check.txt" alias m;\n',
+        encoding="utf-8",
+    )
+
+    _feed_input(monkeypatch, ["continue"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        factory_shell.run_debug_mode(str(path))
+
+    out = capsys.readouterr().out
+    assert exc_info.value.code == 1
+    assert "import 대상 파일이 없습니다" in out
+    assert "Traceback" not in out
 
 
 def test_run_debug_mode_exit_stops_without_running_remaining_statements(
