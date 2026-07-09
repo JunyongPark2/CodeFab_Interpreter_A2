@@ -80,36 +80,6 @@ class Executor:
         # Executor 인스턴스마다 자신이 실행 중인 파일의 소스와 경로를 따로 들고 있는다.
         self._source_lines = source.splitlines()
         self._path = path
-        self._stmt_handlers = {
-            PrintStmt: self._exec_print,
-            VarDeclStmt: self._exec_var_decl,
-            ExpressionStmt: self._exec_expression,
-            BlockStmt: self._exec_block_stmt,
-            IfStmt: self._exec_if,
-            ForStmt: self._exec_for,
-            FuncDeclStmt: self._exec_func_decl,
-            ReturnStmt: self._exec_return,
-            ImportStmt: self._exec_import,
-            ClassDeclStmt: self._exec_class_decl,
-        }
-        self._expr_handlers = {
-            LiteralExpr: self._eval_literal,
-            VariableExpr: self._eval_variable,
-            AssignExpr: self._eval_assign,
-            GroupingExpr: self._eval_grouping,
-            UnaryExpr: self._eval_unary,
-            BinaryExpr: self._eval_binary,
-            LogicalExpr: self._eval_logical,
-            ArrayExpr: self._eval_array,
-            IndexGetExpr: self._eval_index_get,
-            IndexSetExpr: self._eval_index_set,
-            CallExpr: self._eval_call,
-            GetExpr: self._eval_get,
-            SetExpr: self._eval_set,
-            ThisExpr: self._eval_this,
-            SuperExpr: self._eval_super,
-            InstanceOfExpr: self._eval_instanceof,
-        }
 
     def execute(self) -> None:
         for stmt in self._stmts:
@@ -133,28 +103,36 @@ class Executor:
     # ── Stmt 실행 ─────────────────────────────────────────
     # (개별 visit_XxxStmt 메서드는 Stmt.accept()가 더블 디스패치로 직접 호출한다.
     # 새 Stmt 타입 추가 시 대응하는 visit_ 메서드가 없으면 accept()가 즉시
-    # NotImplementedError를 낸다 — dict 디스패치 시절의 "조용한 누락"을 방지.)
+    # NotImplementedError를 낸다 — dict 디스패치 시절의 "조용한 누락"을 방지.
+    # 단, Stmt는 실행 전에 디버그 모드의 on_stmt 훅을 반드시 거쳐야 하므로
+    # (Expr와 달리) stmt.accept(self)를 직접 부르지 않고 항상 _exec_stmt()를
+    # 통해서만 실행한다 — 아래 execute()/visit_IfStmt/visit_ForStmt/_exec_block 참고.)
 
-    def _exec_print(self, stmt: PrintStmt) -> None:
+    def _exec_stmt(self, stmt: Stmt) -> None:
+        if self._on_stmt is not None:
+            self._on_stmt(stmt, self._depth, self)
+        stmt.accept(self)
+
+    def visit_PrintStmt(self, stmt: PrintStmt) -> None:
         print(self._stringify(self._eval(stmt.expression)))
 
-    def _exec_var_decl(self, stmt: VarDeclStmt) -> None:
+    def visit_VarDeclStmt(self, stmt: VarDeclStmt) -> None:
         val = self._eval(stmt.initializer) if stmt.initializer else None
         self._current.define(stmt.name.origin, val)
 
-    def _exec_expression(self, stmt: ExpressionStmt) -> None:
+    def visit_ExpressionStmt(self, stmt: ExpressionStmt) -> None:
         self._eval(stmt.expression)
 
-    def _exec_block_stmt(self, stmt: BlockStmt) -> None:
+    def visit_BlockStmt(self, stmt: BlockStmt) -> None:
         self._exec_block(stmt.statements, Environment(parent=self._current))
 
-    def _exec_if(self, stmt: IfStmt) -> None:
+    def visit_IfStmt(self, stmt: IfStmt) -> None:
         if self._is_truthy(self._eval(stmt.condition)):
             self._exec_stmt(stmt.then_branch)
         elif stmt.else_branch:
             self._exec_stmt(stmt.else_branch)
 
-    def _exec_for(self, stmt: ForStmt) -> None:
+    def visit_ForStmt(self, stmt: ForStmt) -> None:
         loop_env = Environment(parent=self._current)
         prev = self._current
         self._current = loop_env
@@ -168,15 +146,15 @@ class Executor:
         finally:
             self._current = prev
 
-    def _exec_func_decl(self, stmt: FuncDeclStmt) -> None:
+    def visit_FuncDeclStmt(self, stmt: FuncDeclStmt) -> None:
         func = CodeFabFunction(stmt, self._current)
         self._current.define(stmt.name.origin, func)
 
-    def _exec_return(self, stmt: ReturnStmt) -> None:
+    def visit_ReturnStmt(self, stmt: ReturnStmt) -> None:
         value = self._eval(stmt.value) if stmt.value is not None else None
         raise _ReturnSignal(value)
 
-    def _exec_class_decl(self, stmt: ClassDeclStmt) -> None:
+    def visit_ClassDeclStmt(self, stmt: ClassDeclStmt) -> None:
         superclass = None
         if stmt.superclass is not None:
             superclass = self._eval(stmt.superclass)
@@ -205,7 +183,7 @@ class Executor:
 
         self._current.assign(stmt.name.origin, klass, stmt.name.line)
 
-    def _exec_import(self, stmt: ImportStmt) -> None:
+    def visit_ImportStmt(self, stmt: ImportStmt) -> None:
         if self._loader is None:
             raise CodeFabRuntimeError(
                 stmt.path.line, "이 실행 환경에서는 import를 사용할 수 없습니다."
@@ -240,13 +218,15 @@ class Executor:
 
     def _exec_block(self, stmts: list[Stmt], env: Environment) -> None:
         """블록 진입 시 스코프를 바꿔 문장을 순차 실행하는 공용 헬퍼.
-        visit_BlockStmt뿐 아니라 함수/메서드 호출(CodeFabFunction.call)도 재사용한다."""
+        visit_BlockStmt뿐 아니라 함수/메서드 호출(CodeFabFunction.call)도 재사용한다.
+        stmt.accept(self)를 직접 부르지 않고 _exec_stmt()를 거쳐야, 블록/함수 본문
+        안의 문장에서도 디버그 모드의 on_stmt 훅이 빠짐없이 호출된다."""
         prev = self._current
         self._depth += 1
         try:
             self._current = env
             for stmt in stmts:
-                stmt.accept(self)
+                self._exec_stmt(stmt)
         finally:
             self._current = prev
             self._depth -= 1
