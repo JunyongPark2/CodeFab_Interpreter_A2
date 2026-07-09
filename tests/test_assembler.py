@@ -24,17 +24,15 @@ from interpreter.ast_nodes import (
     VariableExpr,
 )
 from interpreter.errors import ParseError, TokenizeError
-from interpreter.parser import Parser
-from interpreter.tokenizer import Tokenizer
 from interpreter.tokens import TokenType
 
 # ─────────────────────────────────────────────────────────
-# 헬퍼 — Tokenizer/Parser 클래스를 주입해 Assembler를 만든다
+# 헬퍼 — Assembler를 만들어 assemble() 한다
 # ─────────────────────────────────────────────────────────
 
 
 def assemble(source: str) -> list:
-    return Assembler(Tokenizer, Parser).assemble(source)
+    return Assembler().assemble(source)
 
 
 def assemble_print(source: str):
@@ -46,14 +44,14 @@ def assemble_print(source: str):
 
 
 # ─────────────────────────────────────────────────────────
-# Assembler 생성 자체에 대한 테스트 — 클래스 주입 방식 확인
+# Assembler 생성 자체에 대한 테스트 — 재사용 가능 여부 확인
 # ─────────────────────────────────────────────────────────
 
 
-def test_assembler_reuses_injected_tokenizer_and_parser_classes():
-    # 생성 시 넘긴 Tokenizer/Parser 클래스 하나로 여러 번 assemble() 할 수 있어야 한다.
+def test_assembler_can_be_reused_across_multiple_sources():
+    # 하나의 Assembler 인스턴스로 여러 번 assemble() 할 수 있어야 한다.
     # (매 assemble() 호출마다 내부적으로 새 Tokenizer(text)/Parser(tokens) 인스턴스를 만든다.)
-    assembler = Assembler(Tokenizer, Parser)
+    assembler = Assembler()
 
     first = assembler.assemble("print 1;")
     second = assembler.assemble("print 2;")
