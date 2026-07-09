@@ -35,6 +35,7 @@ from .ast_nodes import (
     VariableExpr,
 )
 from .errors import CodeFabRuntimeError
+from .runtime import stringify
 
 
 class DebugExit(Exception):
@@ -123,19 +124,6 @@ def get_stmt_line(stmt: Stmt) -> int:
 
 
 # ── 값 표시 ──────────────────────────────────────────────────
-
-
-def stringify(value) -> str:
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, float):
-        s = str(value)
-        return s[:-2] if s.endswith(".0") else s
-    if isinstance(value, list):
-        return "[" + ", ".join(stringify(v) for v in value) + "]"
-    return str(value)
 
 
 def type_name(value) -> str:

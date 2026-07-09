@@ -49,6 +49,27 @@ def eval_binary_op(operator, left, right):
         return not (type(left) is type(right) and left == right)
 
 
+def is_truthy(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    return True
+
+
+def stringify(value) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        s = str(value)
+        return s[:-2] if s.endswith(".0") else s
+    if isinstance(value, list):
+        return "[" + ", ".join(stringify(v) for v in value) + "]"
+    return str(value)
+
+
 class _ReturnSignal(Exception):
     def __init__(self, value):
         self.value = value

@@ -29,7 +29,7 @@ from .ast_nodes import (
     VariableExpr,
 )
 from .errors import CheckError, CodeFabRuntimeError
-from .runtime import eval_binary_op
+from .runtime import eval_binary_op, is_truthy
 from .tokens import TokenType
 
 _NOT_FOLDABLE = object()
@@ -332,7 +332,7 @@ class Checker:
                 return LiteralExpr(-expr.right.value, expr.operator.line)
             if expr.operator.type == TokenType.BANG:
                 return LiteralExpr(
-                    not self._is_truthy(expr.right.value), expr.operator.line
+                    not is_truthy(expr.right.value), expr.operator.line
                 )
 
         if (
@@ -362,13 +362,6 @@ class Checker:
         # 반환한다 — 이 언어에는 이항 연산 결과가 실제로 None인 경우가 없으므로,
         # None이면 "이 연산자는 폴딩 대상이 아니다"로 취급한다.
         return _NOT_FOLDABLE if result is None else result
-
-    def _is_truthy(self, val) -> bool:
-        if val is None:
-            return False
-        if isinstance(val, bool):
-            return val
-        return True
 
     # ── 스코프 관리 ─────────────────────────────────────────
     @property
