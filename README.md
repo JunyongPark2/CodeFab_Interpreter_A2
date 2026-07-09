@@ -1,230 +1,217 @@
 # CodeFab Interpreter
 
-Python으로 미니 스크립트 언어에 대한 인터프리터를 구현하였습니다.
-`Assembler → Checker → Executor` 파이프라인을 거쳐 소스 코드를 직접 해석하고 실행합니다.
+Python으로 구현한 미니 스크립트 언어 인터프리터입니다. CodeFab 소스 코드를
+`Assembler(Tokenizer -> Parser) -> Checker -> Executor` 파이프라인으로 처리합니다.
 
-## 특징
+이 프로젝트는 변수, 제어문, 함수, 클래스, 상속, 정적 배열, 파일 import를 지원하는
+인터프리터입니다. 구현은 `interpreter/` 아래에 모듈별로 분리되어 있고,
+672개의 pytest 테스트로 현재 동작을 검증합니다.
 
-- 변수 선언/대입 (`var`)
-- 산술 연산 (`+ - * / %`), 문자열 연결 (`+`)
-- 비교/동등 연산 (`> < >= <= == !=`)
-- 논리 연산 (`and`, `or`, 단락 평가 지원)
-- 제어문 (`if / else`, `for`)
-- 블록 스코프 (`{ ... }`)와 변수 섀도잉
-- `print` 문
-- `//` 한줄 주석
-- 정적 검사: 스코프 내 중복 선언 및 초기화식 자기 참조 탐지
-- 실행 전 최적화: 정적 바인딩(변수 참조 시 스코프 이름 탐색 없이 미리 계산된 위치로 즉시 접근) + 상수 폴딩(리터럴 하위 트리 미리 계산)
-- `import "파일경로" alias 별칭;` — 다른 CodeFab 소스 파일을 모듈처럼 불러오기
-- 함수 선언/호출 (`Func`), 매개변수 전달, 재귀 호출, `return` (값 없으면 `null` 반환)
-- 클래스 선언(`Class`)과 인스턴스 생성, 필드 동적 저장/읽기, 메서드와 `This`, 생성자(`init`)
-- 단일 상속(`Class B : A { ... }`)과 `Super` 호출, `instanceof` 타입 검사 연산자
-- 정적 배열 (`Array(n)`, `arr[i]` 인덱스 읽기/쓰기, 범위를 벗어나면 런타임 에러)
-- 공장 제어 쉘(`factory_shell.py`): REPL/파일 모드에 더해 Stmt 단위 stepping을 지원하는 디버그 모드
+## 주요 기능
 
-## 아키텍처
+- 변수 선언/대입: `var x = 1;`, `x = x + 1;`
+- 기본 타입: `Number`, `String`, `Boolean`, `null`
+- 산술/비교/동등 연산: `+ - * / %`, `< > <= >=`, `== !=`
+- 논리 연산: `and`, `or`, `!` 및 단락 평가
+- 제어문: `if / else`, C 스타일 `for`
+- 블록 스코프와 변수 섀도잉
+- `print` 문과 `//` 한 줄 주석
+- 함수: `Func`, 매개변수, 재귀, 클로저, `return`
+- 클래스: `Class`, 동적 필드, 메서드, `This`, 생성자 `init`
+- 단일 상속: `Class Child : Parent`, `Super`, `instanceof`
+- 정적 배열: `Array(n)`, `arr[i]` 읽기/쓰기
+- import: `import "path" alias name;` 및 `name.member` 접근
+- 실행 전 검사/최적화: 중복 선언 검사, 자기 참조 검사, 정적 바인딩, 상수 폴딩
+- Factory Shell 디버그 모드: `step`, `next`, `break`, `watch`, `inspect`
 
-소스 코드가 실행되기까지 다음 파이프라인을 거칩니다.
+## 추가 기능 구현 Checklist
 
-```
-source(str)
-   │
-   ▼
-Tokenizer   ── list[Token] 생성 (어휘 분석)
-   │
-   ▼
-Parser      ── list[Stmt] (AST) 생성 (구문 분석)
-   │
-   ▼
-Checker     ── AST 정적 검사 + 실행 전 최적화 (정적 바인딩 계산 / 상수 폴딩)
-   │
-   ▼
-Executor    ── AST를 순회하며 실제로 실행 (정적 바인딩 결과로 변수에 즉시 접근)
-```
+`3일차_CodeFab Interpreter.pdf`의 추가 기능 요청을 기준으로 정리한 구현 현황입니다.
 
-- `Assembler`: Tokenizer + Parser를 묶어 `source → AST` 변환만 담당
-- `CodeFabInterpreter`: Assembler → Checker → Executor 전체 파이프라인을 감싸는 퍼사드. 인스턴스 내부에 전역 `Environment`를 보관해서 `run()`을 여러 번 호출해도(대화형 셸처럼) 이전에 선언한 변수를 계속 이어서 쓸 수 있다.
-
-### 실행 전 최적화 (정적 바인딩 / 상수 폴딩)
-
-별도의 `Optimizer` 단계를 추가하는 대신, `Checker`의 역할을 확장해서 검사와 동시에
-두 가지 최적화를 수행한다. 파이프라인 구조(`Assembler → Checker → Executor`)는 그대로다.
-
-- **정적 바인딩**: `var`/블록(`{ }`)/`for` 스코프 안에서 변수를 참조하면, `Checker`가
-  검사 시점에 "몇 단계 바깥 스코프에 있는지"(distance)를 미리 계산해둔다. `Executor`는
-  이 정보로 `Environment.get_at`/`assign_at`을 호출해서, 각 스코프마다 "이 이름이
-  여기 있나?"를 하나씩 확인해가며 부모로 올라가는 동적 조회(`get`/`assign`, 스코프
-  개수만큼 이름 탐색) 대신 **탐색 없이 정확히 distance만큼만 올라가 바로 그 자리
-  값을 꺼낸다**. distance만큼 parent를 거슬러 올라가는 과정 자체는 여전히 중첩 깊이에
-  비례하지만(포인터 이동 O(depth)), 그 이후 값을 꺼내는 건 스코프별 이름 탐색 없이
-  한 번의 해시 조회(O(1))로 끝난다는 뜻이다. **최상위(전역) 변수는 대상에서 제외**되며
-  기존처럼 `Environment.get`/`assign`으로 동적 조회한다. `Func`/`Class` 본문도
-  동일한 스코프 스택 메커니즘을 그대로 재사용하므로 별도 확장 없이 자동으로 적용되며,
-  클래스 메서드 안의 `This` 참조도 `Super`와 동일하게 이 방식으로 접근한다.
-  (진짜로 nesting 깊이와 무관한 O(1) 접근을 만들려면 클로저가 임의 시점에 실행돼도
-  맞는 변수 슬롯을 가리키도록 변수별 "셀"을 미리 캡처해두는 등 Environment 체인
-  구조 자체를 바꿔야 하는데, Function/Class/import 전부가 지금의 체인 구조에
-  의존하고 있어 그 재구현이 주는 이득보다 회귀 위험이 훨씬 크다고 판단해 지금
-  구조를 그대로 유지했다.)
-- **상수 폴딩**: `1 + 2 * 3`처럼 리터럴로만 이루어진 하위 표현식은 `Checker`가 검사
-  중에 미리 계산해서 하나의 리터럴로 치환해둔다. 단, **0으로 나누기나 타입이 맞지 않는
-  연산처럼 실행 시 에러가 나야 하는 식은 절대 접지 않는다** — 그런 식은 그대로 두어
-  `Executor`가 평소와 동일한 시점에 동일한 런타임 에러를 내도록 보장한다.
-
-이 최적화는 언어 문법이나 사용자가 작성하는 코드에는 영향을 주지 않는다 — 같은 소스
-코드를 실행했을 때 관찰 가능한 동작(출력 결과, 에러 발생 여부/메시지)은 최적화 전후로
-동일하며, 오직 실행 속도만 개선된다.
-
-### import — 다른 CodeFab 파일 불러오기
-
-```
-import "sum.txt" alias sum;
-```
-
-- **문법**: `import STRING alias IDENTIFIER;` — 경로는 반드시 문자열 리터럴이어야 한다.
-- **어디서든 작성 가능하지만 `for` 반복문 내부(중첩된 블록/if 포함)에서는 금지**된다.
-  파싱 단계에서 곧바로 `ParseError`로 걸러진다.
-- import되는 파일의 최상위에는 **선언(다른 파일 `import`, 함수 선언 `Func`, 전역 변수
-  선언 `var`)만 허용**된다. 그 외의 문장(예: `print`, `if`)이 있으면 파일을 실행하기
-  전에 `ModuleImportError`가 발생한다 — 그런 코드가 조용히 무시되면 실행 순서가
-  파일마다 달라져 디버깅이 어려워지기 때문에, 명확한 오류로 처리하기로 했다.
-- import된 선언은 **import 문이 실행된 스코프에서만 유효**하다. 같은 스코프에서 같은
-  파일을 다시 import하거나, 이미 import된 파일을 하위(중첩) 스코프에서 다시
-  import하면 `CheckError`가 발생한다. 다만 스코프가 끝나면 그 기록도 사라지므로,
-  서로 다른 형제 블록에서 각각 같은 파일을 import하는 것은 허용된다.
-- 순환 import(a가 b를, b가 다시 a를 import)는 `ModuleImportError`로 즉시 차단된다.
-- 대상 파일이 존재하지 않아도 `ModuleImportError`가 발생한다.
-- **모듈 멤버 접근**: `sum.add(1, 2)`, `sum.VERSION`처럼 `.`으로 import된 모듈의
-  함수/변수에 접근할 수 있다. Class 기능의 `GetExpr`(`.` 접근)/`CallExpr` 파싱·실행
-  로직을 그대로 재사용했다 — `Executor._eval_get`이 `CodeFabInstance`뿐 아니라
-  `CodeFabModule`도 처리하도록 확장한 것 외에 별도 문법 추가는 없었다. `mid.base.func()`
-  처럼 모듈 안에서 또 import한 모듈을 체이닝해서 접근하는 것도 동일하게 동작한다.
-  존재하지 않는 멤버에 접근하면 `CodeFabRuntimeError`가 발생한다. 다만 모듈 필드에
-  값을 대입하는 것(`sum.x = 1;`)은 지원하지 않는다 — 모듈은 읽기 전용 네임스페이스로
-  취급한다.
+- [x] function 관련 요구사항
+- [x] class 관련 요구사항
+- [x] 정적 배열 구현
+- [x] 실행전 최적화
+- [x] import 관련 요구사항
+- [x] 공장 제어 쉘 제작
 
 ## 프로젝트 구조
 
-```
+```text
 interpreter/
 ├── tokens.py       # TokenType, Token 정의
-├── tokenizer.py    # 소스 문자열 → list[Token]
-├── ast_nodes.py    # Expr / Stmt AST 노드 정의
-├── parser.py       # list[Token] → list[Stmt] (AST)
-├── checker.py      # AST 정적 검사 + 실행 전 최적화 (정적 바인딩 / 상수 폴딩)
-├── environment.py  # Environment (스코프 체인, get_at/assign_at으로 이름 탐색 없이 즉시 접근)
-├── errors.py       # TokenizeError / ParseError / CheckError / CodeFabRuntimeError / ModuleImportError
-├── runtime.py      # 함수/클래스 런타임 값 (CodeFabFunction/CodeFabClass/CodeFabInstance/CodeFabModule)
-├── executor.py     # AST 실행 (정적 바인딩 결과를 받아 변수 접근에 활용)
-├── debugger.py     # 공장 제어 쉘 디버그 모드: Stmt 단위 stepping/breakpoint/watch 구현
-├── assembler.py    # Tokenizer + Parser 파이프라인
-├── loader.py       # import 대상 파일 로드 + 순환 import 탐지 (Assembler 재사용)
-└── codefab.py      # 전체 파이프라인 진입점 (CodeFabInterpreter)
+├── tokenizer.py    # Assembler 내부에서 source(str) -> list[Token] 변환
+├── ast_nodes.py    # Expr / Stmt AST 노드
+├── parser.py       # Assembler 내부에서 list[Token] -> list[Stmt] 변환
+├── checker.py      # 정적 검사 + 정적 바인딩 + 상수 폴딩
+├── environment.py  # 스코프 체인, get_at/assign_at
+├── errors.py       # Tokenize/Parse/Check/Runtime/Import 에러
+├── runtime.py      # 함수/클래스/인스턴스/모듈 런타임 값
+├── executor.py     # AST 실행기
+├── debugger.py     # 문장 단위 디버그 컨트롤러
+├── assembler.py    # Tokenizer와 Parser를 감싸 source -> AST 변환
+├── loader.py       # import 대상 파일 로드와 순환 import 탐지
+└── codefab.py      # CodeFabInterpreter 퍼사드
 
-prompt_shell.py      # 대화형 셸(REPL) CLI 진입점
-factory_shell.py     # 공장 제어 쉘: REPL/파일/디버그 모드 진입점
-
-tests/
-├── test_tokenizer.py
-├── test_parser.py
-├── test_checker.py
-├── test_assembler.py
-├── test_executor.py
-├── test_executor_function.py  # 함수 선언/호출/재귀/클로저 실행 테스트
-├── test_executor_import.py    # import 실행 end-to-end 테스트
-├── test_environment.py
-├── test_loader.py
-├── test_optimization.py   # 정적 바인딩/상수 폴딩 Test Double(스파이) 검증
-├── test_codefab.py
-├── test_debugger.py       # 디버그 모드 stepping/breakpoint/watch 단위 테스트
-├── test_factory_shell.py  # 공장 제어 쉘 모드 분기 및 파일/디버그 모드 테스트
-├── test_prompt_shell.py
-├── conftest.py     # 공용 fixture (tmp_write 등)
-└── helpers.py      # 공용 테스트 헬퍼 (tok, name_tok, path_tok)
+prompt_shell.py     # 대화형 REPL
+factory_shell.py    # REPL / 파일 실행 / 디버그 모드 CLI
+tests/              # pytest 테스트
 ```
 
-## 시작하기
+## 설치
 
-### 요구 사항
-
-- Python 3.10+ (`match` 문, `X | Y` 타입 힌트 사용)
-- pytest 9.1.0
-
-### 설치
-
-가상 환경을 만들고 패키지를 설치합니다.
+런타임 자체는 외부 패키지에 의존하지 않습니다. 테스트까지 실행하려면 `pytest`와
+`pytest-cov`가 필요합니다. `pyproject.toml`에 coverage 옵션이 들어 있으므로,
+`pytest-cov` 없이 `python -m pytest`를 실행하면 옵션 인식 오류가 납니다.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
+
+pip install -r requirements.txt
 pip install -e .
 ```
 
-설치하면 `factory` 명령어가 PATH에 등록됩니다.
+editable install 후에는 `factory` 명령어가 등록됩니다.
+
+```bash
+factory
+factory run <파일경로>
+factory debug <파일경로>
+```
+
+설치를 해제하려면 다음 명령을 사용합니다.
+
+```bash
+pip uninstall codefab-interpreter
+```
+
+## 사용 방법
+
+설치 후 `factory` 명령어로 REPL, 파일 실행, 디버그 모드를 사용할 수 있습니다.
 
 ```bash
 factory                          # REPL 모드
-factory run <파일경로>             # 파일 모드
+factory run <파일경로>             # 파일 실행 모드
 factory debug <파일경로>           # 디버그 모드
 ```
 
-제거할 때는 `pip uninstall codefab-interpreter`를 실행합니다.
+설치하지 않고 저장소에서 바로 실행할 수도 있습니다.
 
-
-### 사용 예시
-
-CodeFab은 두 가지 방식으로 실행할 수 있습니다: 코드에서 `CodeFabInterpreter`를 직접 호출하거나, 대화형 셸(REPL)로 한 줄씩 입력해서 실행합니다.
-
-**1) 코드에서 직접 실행**
-
-```python
-from interpreter.codefab import CodeFabInterpreter
-
-source = """
-var a = 1;
-var b = 2;
-if (a < b) {
-    print "a is less than b";
-} else {
-    print "a is not less than b";
-}
-
-for (var i = 0; i < 3; i = i + 1) {
-    print i;
-}
-
-print (1 + 2) * 3;
-print "Hello, " + "CodeFab!";
-"""
-
-CodeFabInterpreter().run(source)
+```bash
+python factory_shell.py                          # REPL 모드
+python factory_shell.py run <파일경로>             # 파일 실행 모드
+python factory_shell.py debug <파일경로>           # 디버그 모드
 ```
 
-출력:
+### REPL 모드
 
+인자 없이 `factory`를 실행하면 대화형 셸이 시작됩니다.
+
+```bash
+factory
 ```
-a is less than b
-0
-1
+
+```text
+>> var a = 1;
+>> print a + 1;
 2
-9
-Hello, CodeFab!
+>> print a;
+1
 ```
 
-함수/클래스(상속·`This`·`Super`·`instanceof`)/정적 배열을 함께 쓰면 다음과 같습니다.
+문장이 아직 끝나지 않았으면 `...` 프롬프트로 이어서 입력을 받습니다.
 
-```python
-source = """
-Func square(n) {
-    return n * n;
+```text
+>> if (true) {
+...   print "ok";
+... }
+...
+ok
+```
+
+REPL 종료 명령:
+
+- `exit`
+- `exit()`
+- `quit`
+- `quit()`
+- Unix/macOS: `Ctrl+D`
+- Windows: `Ctrl+Z` 후 `Enter`
+
+`Ctrl+C`는 현재 입력 중인 버퍼만 취소하고 새 프롬프트로 돌아갑니다.
+
+### 파일 실행 모드
+
+```bash
+factory run <파일경로>
+```
+
+파일이 없거나 실행 중 오류가 발생하면 메시지를 출력하고 종료 코드 `1`로 종료합니다.
+
+### 디버그 모드
+
+```bash
+factory debug <파일경로>
+```
+
+디버그 모드는 AST의 `Stmt` 단위로 멈춰가며 실행합니다. 첫 번째 문장에서 자동으로
+정지하며, import된 모듈 내부 문장도 같은 방식으로 stepping 대상이 됩니다.
+
+| 명령어 | 설명 |
+| --- | --- |
+| `step` | 현재 문장을 실행하고 다음 문장에서 정지합니다. 블록/함수/import 내부로 들어갑니다. |
+| `next` | 현재 문장을 실행하고 같은 깊이의 다음 문장에서 정지합니다. 블록 내부로 들어가지 않습니다. |
+| `continue` | 다음 breakpoint 또는 프로그램 종료까지 실행합니다. |
+| `break <줄번호>` | 해당 줄에 breakpoint를 설정합니다. |
+| `breakpoints` | 설정된 breakpoint 목록을 출력합니다. |
+| `remove <줄번호>` | 해당 줄의 breakpoint를 해제합니다. |
+| `watch <변수명>` | 정지할 때마다 변수 값을 출력하도록 등록합니다. |
+| `unwatch <변수명>` | watch 목록에서 제거합니다. |
+| `watches` | 현재 watch 목록과 값을 출력합니다. |
+| `inspect` | 현재 스코프에서 보이는 변수와 타입을 출력합니다. |
+| `exit`, `exit()`, `quit`, `quit()` | 디버그 세션을 종료합니다. |
+
+예시:
+
+```bash
+factory debug <파일경로>
+```
+
+```text
+[DEBUG] 소스코드 로딩: program.txt
+[DEBUG] program.txt:1번째 줄에서 정지
+    → var total = 0;
+> step
+```
+
+## 언어 예시
+
+### 함수
+
+```codefab
+Func factorial(n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
 }
-print square(4);
 
+print factorial(5);   // 120
+```
+
+함수는 선언 시점의 환경을 캡처하므로 클로저처럼 동작합니다. `return;` 또는 함수 끝까지
+도달한 경우 반환값은 `null`입니다.
+
+### 클래스와 상속
+
+```codefab
 Class Robot {
     init(name, speed) {
         This.name = name;
         This.speed = speed;
     }
+
     move(dist) {
         This.speed = This.speed + dist;
     }
@@ -240,208 +227,262 @@ Class SpeedRobot : Robot {
 var r = SpeedRobot("Arm", 10);
 r.move(5);
 print r.speed;
-print (r instanceof Robot);
-
-var arr = Array(3);
-arr[0] = 10;
-arr[1] = 20;
-print arr[0] + arr[1];
-"""
-
-CodeFabInterpreter().run(source)
+print r instanceof Robot;
 ```
 
 출력:
 
-```
-16
+```text
 Speeeed!
 15
 true
-30
 ```
 
-**2) 대화형 셸 (Prompt Shell)**
+클래스 메서드는 `Func` 키워드 없이 `name(...) { ... }` 형태로 작성합니다.
+`This`, `Super`, `Class`는 대문자로 시작하는 키워드이며, 소문자 `this`, `super`,
+`class`는 일반 식별자입니다.
 
-Python 인터프리터(`python` 명령)처럼 한 줄씩 입력해서 바로 실행해볼 수 있는 REPL도 제공합니다.
+### 배열
 
-```bash
-python prompt_shell.py
+```codefab
+var arr = Array(3);
+arr[0] = 10;
+arr[1] = 20;
+print arr[0] + arr[1];   // 30
+print arr;               // [10, 20, null]
 ```
 
+배열 크기와 인덱스는 0 이상의 정수여야 합니다. 범위를 벗어난 접근은 런타임 에러입니다.
+
+### import
+
+`mathlib.txt`:
+
+```codefab
+Func add(a, b) {
+    return a + b;
+}
+
+var VERSION = 1;
 ```
->> var a = 1;
->> print a + 1;
-2
->> print a;
+
+실행 파일:
+
+```codefab
+import "mathlib.txt" alias math;
+
+print math.add(1, 2);
+print math.VERSION;
+```
+
+출력:
+
+```text
+3
 1
 ```
 
-문장이 아직 끝나지 않았으면(예: `if`/`for`의 본문이나 블록이 안 닫힌 경우) Python 셸처럼 `...` 프롬프트로 다음 줄을 계속 이어받다가, 문장이 완성되는 순간 실행합니다.
+import된 파일은 독립된 모듈 네임스페이스에서 실행되고, alias를 통해 읽기 전용으로 접근합니다.
+`math.x = 1;`처럼 모듈 멤버에 값을 대입하는 것은 지원하지 않습니다.
 
-```
->> if (true)
-... {
-...   print "bbq";
-... }
-bbq
-```
+## 언어 문법 요약
 
-- 한 줄 입력할 때마다 `CodeFabInterpreter.run()`이 그 문장만 실행하지만, 같은 인터프리터 인스턴스를 계속 재사용하므로 이전 줄에서 선언한 변수를 다음 줄에서도 그대로 사용할 수 있습니다.
-- `exit`, `exit()`, `quit`, `quit()` 입력 시 셸을 종료합니다.
-- `Ctrl+C`: 현재 입력(이어받던 블록 포함)만 취소하고 새 프롬프트로 (파이썬 셸과 동일)
-- `Ctrl+D`(Unix) / `Ctrl+Z` + `Enter`(Windows): 셸 종료
-- Tokenize/Parse/Check/Runtime 에러가 나도 셸이 죽지 않고 에러 메시지만 출력한 뒤 다음 입력을 받습니다.
+```text
+program     -> statement* EOF
 
-**3) 공장 제어 쉘 (Factory Shell)**
+statement   -> varDecl | funcDecl | classDecl | block | ifStmt | forStmt
+             | returnStmt | printStmt | importStmt | exprStmt
 
-`factory_shell.py`는 Interpreter Factory를 운용하는 인터페이스로, REPL/파일/디버그 세 가지 실행 모드를 제공합니다.
+varDecl     -> "var" IDENTIFIER ( "=" expression )? ";"
+funcDecl    -> "Func" IDENTIFIER "(" parameters? ")" block
+classDecl   -> "Class" IDENTIFIER ( ":" IDENTIFIER )? "{" method* "}"
+method      -> IDENTIFIER "(" parameters? ")" block
+parameters  -> IDENTIFIER ( "," IDENTIFIER )*
 
-패키지를 설치(`pip install -e .`)하면 `factory` 명령어로 바로 실행할 수 있습니다.
+block       -> "{" statement* "}"
+ifStmt      -> "if" "(" expression ")" statement ( "else" statement )?
+forStmt     -> "for" "(" ( varDecl | exprStmt | ";" )
+               expression? ";" expression? ")" statement
+returnStmt  -> "return" expression? ";"
+printStmt   -> "print" expression ";"
+importStmt  -> "import" STRING "alias" IDENTIFIER ";"
+exprStmt    -> expression ";"
 
-```bash
-factory                          # 인자 없음 -> REPL 모드 (Prompt Shell과 동일)
-factory run <파일경로>             # 파일 모드
-factory debug <파일경로>           # 디버그 모드
-```
+expression  -> assignment
+assignment  -> lvalue "=" assignment
+             | logic_or
+lvalue      -> IDENTIFIER
+             | call "." IDENTIFIER
+             | primary "[" expression "]" ( "[" expression "]" )*
+logic_or    -> logic_and ( "or" logic_and )*
+logic_and   -> equality ( "and" equality )*
+equality    -> instanceof ( ( "==" | "!=" ) instanceof )*
+instanceof  -> comparison ( "instanceof" IDENTIFIER )?
+comparison  -> term ( ( "<" | ">" | "<=" | ">=" ) term )*
+term        -> factor ( ( "+" | "-" ) factor )*
+factor      -> unary ( ( "*" | "/" | "%" ) unary )*
+unary       -> ( "!" | "-" ) unary | call
+call        -> index ( "(" arguments? ")" | "." IDENTIFIER )*
+index       -> primary ( "[" expression "]" )*
+arguments   -> expression ( "," expression )*
 
-설치 없이 직접 실행할 수도 있습니다.
-
-```bash
-python factory_shell.py                     # 인자 없음 -> REPL 모드 (Prompt Shell과 동일)
-python factory_shell.py run <파일경로>        # 파일 모드
-python factory_shell.py debug <파일경로>      # 디버그 모드
-```
-
-**파일 모드**: `.txt` 소스 파일을 읽어 그대로 실행합니다. 파일이 없으면 명확한 오류 메시지를 출력하고 종료 코드 1을 반환하며, 실행 중 오류가 나면 오류 메시지(줄 번호 포함)를 출력한 뒤 즉시 종료합니다.
-
-```bash
-python factory_shell.py run scripts/import_demo.txt
-```
-
-**디버그 모드**: 소스 코드를 Stmt(문장) 단위로 멈춰가며 실행 상태를 점검합니다. 진입하면 첫 번째 문장에서 자동으로 멈추고, 아래 명령으로 실행을 제어합니다.
-
-| 명령어 | 설명 |
-| --- | --- |
-| `step` | 현재 Stmt 실행 후 다음 Stmt에서 정지 (블록 내부까지 진입) |
-| `next` | 현재 Stmt 실행 후 다음 Stmt에서 정지하되, 블록 내부로는 진입하지 않음 |
-| `break <줄번호>` | 해당 줄에 breakpoint 설정 |
-| `breakpoints` | 현재 설정된 breakpoint 목록 출력 |
-| `remove <줄번호>` | breakpoint 해제 |
-| `continue` | 다음 breakpoint(또는 프로그램 종료)까지 실행 |
-| `watch <변수명>` | 해당 변수를 감시 목록에 추가 (정지할 때마다 값 자동 출력) |
-| `unwatch <변수명>` | 감시 목록에서 제거 |
-| `watches` | 현재 감시 중인 변수 목록과 값 출력 |
-| `inspect` | 현재 스코프에서 보이는 모든 변수와 값(타입 포함) 출력 |
-| `exit`, `exit()`, `quit`, `quit()` | 남은 실행을 중단하고 디버그 세션 종료 (Prompt Shell의 종료 명령어와 동일) |
-
-```bash
-$ python factory_shell.py debug scripts/import_demo.txt
-[DEBUG] 소스코드 로딩: scripts/import_demo.txt
-[DEBUG] 1번째 줄에서 정지 → import "scripts/sum.txt" alias sum;
-> step
-...
+primary     -> NUMBER | STRING | "true" | "false"
+             | "This" | "Super" "." IDENTIFIER
+             | IDENTIFIER | "Array" "(" expression ")"
+             | "(" expression ")"
 ```
 
-breakpoint는 `continue`/`next`로 건너뛰는 도중에도 항상 우선 적용됩니다. 실행 중 런타임 오류가 발생하면 파일 모드와 동일하게 줄 번호와 함께 출력하고 종료 코드 1로 종료합니다.
+## 토큰과 리터럴
 
-## 지원 토큰
-
-`interpreter/tokens.py`의 `TokenType`에 정의된 토큰 종류입니다.
-
-| 분류 | 토큰 | 설명 |
+| 분류 | 토큰/형태 | 비고 |
 | --- | --- | --- |
-| 구분자 | `(` `)` `{` `}` `[` `]` `;` `,` `.` `:` | 괄호, 중괄호, 대괄호(배열 인덱스), 세미콜론, 콤마, 점(속성/메서드 접근), 콜론(클래스 상속) |
-| 산술 연산자 | `+` `-` `*` `/` `%` | 덧셈/뺄셈(문자열 `+`는 연결), 곱셈, 나눗셈, 나머지 |
-| 비교/대입 연산자 | `=` `==` `>` `<` `>=` `<=` `!` `!=` | 대입, 동등/부등, 대소 비교, 논리 부정 |
-| 리터럴 | `IDENTIFIER` `STRING` `NUMBER` | 변수/함수명, `"hello"` 형태 문자열, `37`·`3.14` 형태 숫자(내부적으로 float) |
-| 키워드 | `var` `if` `else` `for` `print` `true` `false` `and` `or` | 기본 문법 예약어 |
-| 키워드 (함수/클래스) | `Func` `return` `Class` `This` `Super` `instanceof` | 함수/클래스 관련 예약어 (`This`/`Super`/`Class`/`Func`는 대문자로 시작) |
-| 키워드 (배열/import) | `Array` `import` `alias` | `Array(n)` 생성자, 모듈 import |
-| 기타 | `EOF` | 토큰 스트림의 끝 |
+| 구분자 | `(` `)` `{` `}` `[` `]` `;` `,` `.` `:` | 블록, 호출, 인덱스, 속성 접근, 상속 등에 사용 |
+| 산술 | `+` `-` `*` `/` `%` | `+`는 숫자 덧셈 또는 문자열 연결 |
+| 비교/대입 | `=` `==` `>` `<` `>=` `<=` `!` `!=` | `!`는 논리 부정 |
+| 리터럴 | `NUMBER`, `STRING`, `true`, `false` | 숫자는 내부적으로 `float` |
+| 기본 키워드 | `var`, `if`, `else`, `for`, `print`, `and`, `or` | 소문자 |
+| 함수/클래스 | `Func`, `return`, `Class`, `This`, `Super`, `instanceof` | 일부 키워드는 대소문자 구분 |
+| 배열/import | `Array`, `import`, `alias` | `Array`는 대문자 시작 |
 
-`//`로 시작하는 한줄 주석은 토큰으로 만들어지지 않고 Tokenizer 단계에서 바로 무시됩니다.
+문자열은 큰따옴표와 작은따옴표를 모두 지원합니다.
 
-## 언어 문법
-
+```codefab
+print "hello";
+print 'hello';
 ```
-program    → statement* EOF
-statement  → varDecl | funcDecl | classDecl | block | ifStmt | forStmt
-           | returnStmt | printStmt | importStmt | exprStmt
-varDecl    → "var" IDENTIFIER ( "=" expression )? ";"
-funcDecl   → "Func" IDENTIFIER "(" parameters? ")" block
-classDecl  → "Class" IDENTIFIER ( ":" IDENTIFIER )? "{" method* "}"
-method     → IDENTIFIER "(" parameters? ")" block        # 메서드는 Func 없이 선언
-parameters → IDENTIFIER ( "," IDENTIFIER )*
-block      → "{" statement* "}"
-ifStmt     → "if" "(" expression ")" statement ( "else" statement )?
-forStmt    → "for" "(" (varDecl | exprStmt | ";") expression? ";" expression? ")" statement
-returnStmt → "return" expression? ";"
-printStmt  → "print" expression ";"
-importStmt → "import" STRING "alias" IDENTIFIER ";"   # for 본문 내부에서는 사용 불가
-exprStmt   → expression ";"
 
-expression → assignment
-assignment → ( call "." )? IDENTIFIER "=" assignment
-           | call "[" expression "]" "=" assignment
-           | logic_or
-logic_or   → logic_and ( "or" logic_and )*
-logic_and  → equality ( "and" equality )*
-equality   → instanceof ( ( "==" | "!=" ) instanceof )*
-instanceof → comparison ( "instanceof" IDENTIFIER )?
-comparison → term ( ( "<" | ">" | "<=" | ">=" ) term )*
-term       → factor ( ( "+" | "-" ) factor )*
-factor     → unary ( ( "*" | "/" ) unary )*
-unary      → ( "!" | "-" ) unary | call
-call       → index ( "(" arguments? ")" | "." IDENTIFIER )*   # 호출/속성 접근 연쇄 가능
-index      → primary ( "[" expression "]" )*                  # arr[i][j]처럼 연쇄 가능
-arguments  → expression ( "," expression )*
-primary    → NUMBER | STRING | "true" | "false" | "This"
-           | "Super" "." IDENTIFIER
-           | IDENTIFIER | "Array" "(" expression ")"
-           | "(" expression ")"
+현재 토크나이저는 escape sequence를 따로 해석하지 않습니다. 같은 종류의 따옴표가 다시
+나올 때 문자열이 종료됩니다.
+
+## 아키텍처
+
+```text
+source(str)
+   |
+   v
+Assembler  -> Tokenizer -> Parser -> list[Stmt] AST
+   |
+   v
+Checker    -> 정적 검사 + locals_map 계산 + 상수 폴딩
+   |
+   v
+Executor   -> AST 실행
 ```
+
+- `Assembler`는 `Tokenizer`와 `Parser`를 감싸는 조립 계층입니다. 외부 파이프라인에서는
+  `Assembler`가 하나의 단계로 보이며, 내부에서 토큰화와 파싱을 순서대로 수행해
+  `source -> AST` 변환만 담당합니다.
+- `Checker`는 중복 선언, 초기화식 자기 참조, `return` 위치, `This`/`Super` 사용 위치,
+  import 중복 등을 검사합니다.
+- `Checker`는 실행 전 최적화를 위해 AST 일부를 바꿀 수 있습니다. 리터럴만으로 이루어진
+  하위 표현식은 `LiteralExpr`로 접고, 지역 변수 참조는 몇 단계 바깥 스코프인지
+  `locals_map`에 기록합니다.
+- `Executor`는 `locals_map`이 있는 지역 변수는 `Environment.get_at()`/`assign_at()`으로
+  바로 접근하고, 전역 변수는 기존 동적 조회를 사용합니다.
+- `CodeFabInterpreter`는 `Assembler -> Checker -> Executor` 전체 파이프라인을 감싸며,
+  REPL을 위해 전역 환경과 최상위 import 기록을 인스턴스 내부에 유지합니다.
+- AST 노드는 `accept()` 기반 더블 디스패치를 사용합니다. 새 노드 타입에 대응하는
+  visitor 메서드가 없으면 즉시 `NotImplementedError`를 발생시켜 누락을 드러냅니다.
+- 디버거는 `Executor`의 `on_stmt` 훅으로 연결되어 실행 로직과 디버그 제어를 분리합니다.
+
+## import 규칙과 특이사항
+
+- 문법은 `import STRING alias IDENTIFIER;`입니다.
+- import 경로는 현재 프로세스의 작업 디렉터리 기준으로 해석합니다. import하는 파일의
+  위치를 기준으로 상대 경로를 다시 계산하지 않습니다.
+- `for` 본문 내부에서는 import를 사용할 수 없습니다. 중첩 블록이나 `if` 안이어도
+  `for` 본문 안이면 `ParseError`입니다.
+- import 대상 파일의 최상위에는 `import`, `Func`, `var` 선언만 올 수 있습니다.
+  `print`, `if`, 표현식 문장 등은 `ModuleImportError`입니다.
+- 모듈은 독립된 환경에서 실행됩니다. import하는 쪽의 지역/전역 변수를 직접 볼 수 없습니다.
+- import된 선언은 alias 아래의 읽기 전용 네임스페이스로 노출됩니다.
+- 같은 스코프나 상위 스코프에서 이미 import한 파일을 다시 import하면 `CheckError`입니다.
+- 형제 블록에서는 같은 파일을 각각 import할 수 있습니다. 블록 스코프가 끝나면 그 블록의
+  import 기록도 사라집니다.
+- `CodeFabInterpreter` 하나를 여러 번 `run()`하는 경우 최상위 import 기록은 유지됩니다.
+  서로 다른 `CodeFabInterpreter` 인스턴스끼리는 import 기록을 공유하지 않습니다.
+- 순환 import는 `ModuleImportError`로 차단됩니다.
+
+## 기타 특이사항
+
+- 모든 문장은 세미콜론으로 끝나야 합니다. 블록/클래스 선언 자체에는 세미콜론을 붙이지
+  않습니다.
+- 숫자는 내부적으로 `float`입니다. 출력할 때 `5.0`처럼 정수로 표현 가능한 값은 `5`로
+  표시합니다.
+- 초기화하지 않은 변수, 값 없는 `return`, 반환 없이 끝난 함수의 값은 `null`입니다.
+- truthy/falsy 규칙은 단순합니다. `false`와 `null`만 falsy이고, `0`, 빈 문자열, 빈 배열은
+  truthy입니다.
+- 같은 스코프의 중복 선언은 `CheckError`입니다. 하위 블록에서 같은 이름을 다시 선언하는
+  섀도잉은 허용됩니다.
+- `for`의 initializer로 선언한 변수는 루프 스코프 안에서만 유효합니다.
+- `return`은 함수 안에서만 사용할 수 있습니다.
+- `init` 메서드 안에서는 값 있는 `return`뿐 아니라 `return;`도 사용할 수 없습니다.
+  생성자는 항상 인스턴스를 반환합니다.
+- 클래스 필드는 선언 없이 동적으로 저장됩니다. 존재하지 않는 필드를 읽으면 런타임 에러입니다.
+- `This`와 `Super`는 클래스 메서드 안에서만 사용할 수 있습니다. `Super`는 부모 클래스가
+  있는 클래스에서만 사용할 수 있습니다.
+- `break`, `continue`, 배열 리터럴, 배열 크기 변경 API, 모듈 멤버 대입은 현재 지원하지
+  않습니다.
+- 상수 폴딩은 런타임 에러 발생 시점을 바꾸지 않기 위해, 0으로 나누기나 타입 오류가 날 수
+  있는 표현식은 접지 않습니다.
+- 정적 바인딩은 전역 변수를 제외한 지역 변수에 적용됩니다. `get_at(distance)`는
+  스코프별 이름 탐색을 건너뛰지만, `distance`만큼 parent를 따라 올라가는 포인터 이동은
+  여전히 수행합니다.
+
+## 에러 종류
+
+| 에러 | 발생 단계 | 예 |
+| --- | --- | --- |
+| `TokenizeError` | 토큰화 | 알 수 없는 문자, 닫히지 않은 문자열 |
+| `ParseError` | 파싱 | 세미콜론 누락, 잘못된 대입 대상, `for` 내부 import |
+| `CheckError` | 정적 검사 | 같은 스코프 중복 선언, 초기화식 자기 참조, 함수 밖 `return` |
+| `CodeFabRuntimeError` | 실행 | 미정의 변수, 0 나누기, 타입 오류, 배열 범위 초과 |
+| `ModuleImportError` | import | 파일 없음, 순환 import, import 대상 파일의 허용되지 않는 최상위 문장 |
+
+모든 에러 메시지는 `[N번째줄] ...` 형태로 줄 번호를 포함합니다.
 
 ## 테스트
 
-Tokenizer/Parser/Checker/Executor/Assembler/Prompt Shell 등 1~2일차 기본 파이프라인은
-`pytest` 기반 TDD로 개발되었습니다 (테스트를 먼저 작성하고 통과시키는 방향으로 구현).
-3~4일차에 추가된 Function/Class/정적 배열/실행 전 최적화/import/공장 제어 쉘(디버그 모드)은
-TDD가 필수는 아니었지만, 구현 후 반드시 대응하는 UnitTest를 작성했습니다.
+전체 테스트 실행:
 
-테스트 수는 `pytest --collect-only`로 센 실제 실행 케이스 기준입니다(`@pytest.mark.parametrize`로 늘어난 케이스 포함).
+```bash
+python -m pytest
+```
 
-| 클래스 / 파일 (`interpreter/`) | 테스트 파일 (`tests/`) | 테스트 수 |
-| --- | --- | --- |
-| `Token`, `TokenType` (`tokens.py`) / `Tokenizer` (`tokenizer.py`) | `test_tokenizer.py` | 61 |
-| `Expr` / `Stmt` 및 하위 AST 노드 (`ast_nodes.py`) / `Parser` (`parser.py`) | `test_parser.py` | 72 |
-| `Checker` (`checker.py`) — 정적 검사 + 상수 폴딩/정적 바인딩 계산 + Class/import 검사 | `test_checker.py` | 71 |
-| `Executor` (`executor.py`) | `test_executor.py` | 94 |
-| 함수(Function) 실행 — 선언/호출/재귀/클로저 (`executor.py`, `runtime.py`) | `test_executor_function.py` | 34 |
-| import 실행 end-to-end (`executor.py`, `loader.py`, `codefab.py`) | `test_executor_import.py` | 18 |
-| `Environment` (`environment.py`) — `get_at`/`assign_at` 포함 | `test_environment.py` | 9 |
-| `Loader` (`loader.py`) — 파일 로드 / 순환 import 탐지 | `test_loader.py` | 8 |
-| 실행 전 최적화 Test Double 검증 (monkeypatch 스파이) | `test_optimization.py` | 4 |
-| `Assembler` (`assembler.py`) | `test_assembler.py` | 54 |
-| `CodeFabInterpreter` (`codefab.py`) | `test_codefab.py` | 68 |
-| 공장 제어 쉘 디버거 — stepping/breakpoint/watch/inspect (`debugger.py`) | `test_debugger.py` | 52 |
-| 공장 제어 쉘 모드 분기 — REPL/파일/디버그 (`factory_shell.py`) | `test_factory_shell.py` | 24 |
-| `run()`, 대화형 입력 처리 (`prompt_shell.py`) | `test_prompt_shell.py` | 76 |
+coverage 없이 빠르게 실행:
 
-`TokenizeError` / `ParseError` / `CheckError` / `CodeFabRuntimeError` / `ModuleImportError`는
-모두 `errors.py`에 정의되어 있으며, 위 표의 각 테스트 파일에서 함께 검증됩니다.
+```bash
+python -m pytest --no-cov
+```
 
+테스트 수 집계:
 
-## 추가 기능 구현 상태 체크리스트
+```bash
+python -m pytest --collect-only -q --no-cov
+```
 
-### 기능별 구현 현황 
+현재 가상환경에서 수집되는 테스트는 총 672개입니다.
 
-- [x] **Function** — `Func` 선언/호출, 매개변수, 재귀, `return`(값 없으면 `null`)
-- [x] **Class** — 선언/인스턴스 생성, 필드 동적 저장/읽기, 메서드, `This`, 생성자(`init`), 단일 상속(`:`), `Super`, `instanceof`
-- [x] **정적 배열** — `Array(n)` 네이티브 생성자, `arr[i]` 읽기/쓰기, 범위 초과 시 런타임 에러
-- [x] **실행 전 최적화** — 정적 바인딩 + 상수 폴딩(리터럴 하위 트리 치환)
-- [x] **import** — `import "경로" alias 별칭;`, 순환/중복/파일없음 에러(`ModuleImportError`), `for` 본문 내 금지, 모듈 멤버 접근
-- [x] **공장 제어 쉘** — REPL/파일/디버그 3모드, step/next/break/breakpoints/remove/continue, watch/unwatch/watches/inspect
+| 테스트 파일 | 테스트 수 | 주요 검증 대상 |
+| --- | ---: | --- |
+| `tests/test_tokenizer.py` | 61 | 토큰화, 키워드, 문자열/숫자/주석 |
+| `tests/test_parser.py` | 73 | 문법, 우선순위, import/class/array 파싱 |
+| `tests/test_checker.py` | 80 | 정적 검사, 상수 폴딩, 정적 바인딩, class/import 검사 |
+| `tests/test_executor.py` | 97 | 기본 실행, 제어문, 배열, 클래스/상속 실행 |
+| `tests/test_executor_function.py` | 34 | 함수, 재귀, 클로저, return |
+| `tests/test_executor_import.py` | 21 | import end-to-end, 모듈 멤버 접근, 순환/중복 import |
+| `tests/test_environment.py` | 9 | 스코프 체인, `get_at`, `assign_at` |
+| `tests/test_loader.py` | 8 | 파일 로드, 선언-only 검사, 순환 import context |
+| `tests/test_optimization.py` | 5 | 정적 바인딩/상수 폴딩이 실제 실행 경로에 반영되는지 |
+| `tests/test_assembler.py` | 55 | Assembler가 Tokenizer와 Parser를 감싸는 조립 흐름 |
+| `tests/test_codefab.py` | 68 | `CodeFabInterpreter` end-to-end |
+| `tests/test_debugger.py` | 52 | step/next/break/watch/inspect |
+| `tests/test_factory_shell.py` | 27 | CLI 모드 분기, 파일/디버그 모드 오류 처리 |
+| `tests/test_prompt_shell.py` | 77 | REPL 입력 누적, 오류 복구, 상태 유지 |
+| `tests/test_visitor.py` | 5 | AST visitor dispatch 누락 방지 |
+
+`python -m pytest`를 실행하면 `pyproject.toml`의 설정에 따라 터미널 coverage와
+`htmlcov/` HTML 리포트가 함께 생성됩니다.
 
 ## 기여
 
