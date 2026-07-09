@@ -721,6 +721,42 @@ def test_for_loop():
     assert print_stmt.expression.name.origin == "j"
 
 
+def test_for_loop_initializer_without_var_is_expression_statement():
+    # for (j = 0; j < 3; j = j + 1) { print j; }
+    # j가 이미 선언돼 있다고 가정하고 var 없이 대입식으로 초기화하는 경우 —
+    # initializer는 VarDeclStmt가 아니라 ExpressionStmt(AssignExpr)여야 한다.
+    stmts = parse_stmts(
+        FOR_KW,
+        LPAREN,
+        ident("j"),
+        EQUAL,
+        num(0),
+        SEMI,
+        ident("j"),
+        LESS,
+        num(3),
+        SEMI,
+        ident("j"),
+        EQUAL,
+        ident("j"),
+        PLUS,
+        num(1),
+        RPAREN,
+        LBRACE,
+        PRINT,
+        ident("j"),
+        SEMI,
+        RBRACE,
+    )
+
+    stmt = stmts[0]
+    assert isinstance(stmt, ForStmt)
+    assert isinstance(stmt.initializer, ExpressionStmt)
+    assert isinstance(stmt.initializer.expression, AssignExpr)
+    assert stmt.initializer.expression.name.origin == "j"
+    assert stmt.initializer.expression.value == LiteralExpr(0.0)
+
+
 # ─────────────────────────────────────────────────────────
 # ParseError 테스트 — 잘못된 코드가 반드시 오류를 raise 해야 한다
 # ─────────────────────────────────────────────────────────

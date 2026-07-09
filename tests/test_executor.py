@@ -888,6 +888,53 @@ def test_non_number_array_size_raises():
         )
 
 
+@pytest.mark.parametrize("size", [-1.0, 2.5])
+def test_negative_or_non_integer_array_size_raises(size):
+    # 크기가 숫자이긴 하지만 음수거나 정수가 아니면 별도로 막혀야 한다
+    # (숫자가 아닌 경우와는 다른 에러 메시지).
+    line = 1
+    with pytest.raises(
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열의 크기는 0 이상의 정수여야 합니다\.",
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("brr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(size), keyword=array_tok(line)
+                    ),
+                ),
+            ]
+        )
+
+
+def test_non_integer_index_raises():
+    # 인덱스가 숫자이긴 하지만 정수가 아니면 (예: arr[1.5]) 별도로 막혀야 한다
+    # (숫자가 아닌 경우와는 다른 에러 메시지).
+    line = 1
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스는 정수여야 합니다\."
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("arr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(3.0), keyword=array_tok(line)
+                    ),
+                ),
+                ExpressionStmt(
+                    expression=IndexGetExpr(
+                        array=VariableExpr(name=name_tok("arr")),
+                        bracket=bracket_tok(line),
+                        index=LiteralExpr(1.5),
+                    )
+                ),
+            ]
+        )
+
+
 # ── Class 관련 런타임 오류 테스트 ────────────────────
 
 
@@ -1257,7 +1304,11 @@ def test_super_method_call_executes_parent_method(capsys):
     )
     stmts = [
         make_class("Robot", methods=[parent_move]),
-        make_class("SpeedRobot", superclass=VariableExpr(name_tok("Robot")), methods=[child_move]),
+        make_class(
+            "SpeedRobot",
+            superclass=VariableExpr(name_tok("Robot")),
+            methods=[child_move],
+        ),
         ExpressionStmt(
             expression=CallExpr(
                 callee=get_expr(make_call_expr("SpeedRobot", []), "move"),
@@ -1281,7 +1332,9 @@ def test_method_calls_another_method_via_this(capsys):
         params=[],
         body=[
             PrintStmt(
-                expression=GetExpr(object=ThisExpr(keyword=kw_this()), name=name_tok("position"))
+                expression=GetExpr(
+                    object=ThisExpr(keyword=kw_this()), name=name_tok("position")
+                )
             )
         ],
     )
@@ -1294,7 +1347,10 @@ def test_method_calls_another_method_via_this(capsys):
                     object=ThisExpr(keyword=kw_this()),
                     name=name_tok("position"),
                     value=BinaryExpr(
-                        left=GetExpr(object=ThisExpr(keyword=kw_this()), name=name_tok("position")),
+                        left=GetExpr(
+                            object=ThisExpr(keyword=kw_this()),
+                            name=name_tok("position"),
+                        ),
                         operator=tok(TokenType.PLUS, line=1),
                         right=VariableExpr(name_tok("dist")),
                     ),
@@ -1302,7 +1358,9 @@ def test_method_calls_another_method_via_this(capsys):
             ),
             ExpressionStmt(
                 expression=CallExpr(
-                    callee=GetExpr(object=ThisExpr(keyword=kw_this()), name=name_tok("report")),
+                    callee=GetExpr(
+                        object=ThisExpr(keyword=kw_this()), name=name_tok("report")
+                    ),
                     paren=tok(TokenType.RIGHT_PAREN),
                     arguments=[],
                 )
@@ -1313,7 +1371,9 @@ def test_method_calls_another_method_via_this(capsys):
         make_class("Robot", methods=[report_method, move_method]),
         VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
         ExpressionStmt(
-            expression=set_expr(VariableExpr(name_tok("r")), "position", LiteralExpr(0.0))
+            expression=set_expr(
+                VariableExpr(name_tok("r")), "position", LiteralExpr(0.0)
+            )
         ),
         ExpressionStmt(
             expression=CallExpr(
