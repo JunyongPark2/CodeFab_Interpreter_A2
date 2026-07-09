@@ -39,11 +39,14 @@ class Environment:
         raise CodeFabRuntimeError(line, f"미정의된 변수 '{name}'")
 
     def get_at(self, distance: int, name: str) -> Any:
-        """정적 바인딩으로 미리 계산된 distance만큼만 올라가 즉시 조회한다 (O(1))."""
+        """정적 바인딩으로 미리 계산된 distance만큼 parent를 거슬러 올라간 뒤
+        (O(depth) 포인터 이동) 그 스코프에서 곧장 값을 꺼낸다 (O(1) 해시 조회).
+        get()과 달리 각 스코프마다 이름이 있는지 없는지 확인하는 탐색이 없다는
+        뜻이지, 전체 호출이 nesting 깊이와 무관한 상수 시간이라는 뜻은 아니다."""
         return self._ancestor(distance)._values[name]
 
     def assign_at(self, distance: int, name: str, value: Any) -> None:
-        """정적 바인딩으로 미리 계산된 distance만큼만 올라가 즉시 대입한다 (O(1))."""
+        """get_at과 동일한 방식으로 대입한다."""
         self._ancestor(distance)._values[name] = value
 
     def _ancestor(self, distance: int) -> "Environment":

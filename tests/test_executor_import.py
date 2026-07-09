@@ -3,7 +3,7 @@ import pytest
 from interpreter.assembler import Assembler
 from interpreter.ast_nodes import ImportStmt, LiteralExpr, VarDeclStmt
 from interpreter.codefab import CodeFabInterpreter
-from interpreter.errors import CodeFabRuntimeError, ModuleImportError
+from interpreter.errors import CheckError, CodeFabRuntimeError, ModuleImportError
 from interpreter.executor import Executor
 from interpreter.loader import Loader
 from interpreter.runtime import CodeFabFunction, CodeFabModule
@@ -154,6 +154,41 @@ def test_end_to_end_reimporting_after_repl_line_boundary_reuses_global_env(tmp_w
     interp.run(f'import "{path}" alias sum;\n')
     with pytest.raises(Exception):  # CheckError (alias 이름 충돌)
         interp.run(f'import "{path}" alias sum;\n')
+
+
+def test_end_to_end_reimporting_same_file_with_different_alias_across_repl_lines_raises(
+    tmp_write,
+):
+    # 회귀 테스트: alias 이름이 달라서 이름 충돌로는 안 걸리더라도, 같은 파일을
+    # 이미 최상위에서 import했으면 다음 줄에서 다른 alias로 다시 import해도 막혀야
+    # 한다. CodeFabInterpreter가 run()마다 새 Checker를 만들면서 import 경로 기록을
+    # 안 넘겨주면 이 케이스를 놓친다.
+    path = tmp_write("sum.txt", "var x = 1;\n")
+    interp = CodeFabInterpreter()
+    interp.run(f'import "{path}" alias sum;\n')
+    with pytest.raises(CheckError, match="이미 import된 파일입니다"):
+        interp.run(f'import "{path}" alias sum2;\n')
+
+
+def test_end_to_end_sibling_block_reimport_across_repl_lines_is_still_allowed(
+    tmp_write, capsys
+):
+    # 블록 스코프에서 import한 기록은 그 블록이 끝나면 사라져야 하므로, 다음 줄에서
+    # 최상위로 같은 파일을 (다른 alias로) import하는 건 여전히 허용돼야 한다 —
+    # 최상위 import 기록을 영속화하는 수정이 스코프 규칙 자체를 깨면 안 된다.
+    path = tmp_write("sum.txt", "var x = 1;\n")
+    interp = CodeFabInterpreter()
+    interp.run(f'{{ import "{path}" alias sum; }}\n')
+    interp.run(f'import "{path}" alias sum2;\n')  # 예외 없어야 함
+
+
+def test_end_to_end_reimport_tracking_is_independent_per_interpreter_instance(
+    tmp_write,
+):
+    # 서로 다른 CodeFabInterpreter 인스턴스는 import 기록을 공유하면 안 된다.
+    path = tmp_write("sum.txt", "var x = 1;\n")
+    CodeFabInterpreter().run(f'import "{path}" alias sum;\n')
+    CodeFabInterpreter().run(f'import "{path}" alias sum;\n')  # 예외 없어야 함
 
 
 # ── `.` 문법으로 모듈 멤버 접근 (Class의 GetExpr/CallExpr 재사용) ────────────

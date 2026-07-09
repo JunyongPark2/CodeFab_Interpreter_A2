@@ -18,13 +18,21 @@ class CodeFabInterpreter:
         self._global_env = Environment()
         # import 문이 파일을 로드할 때 쓴다. 인스턴스당 하나만 두고 재사용한다.
         self._loader = Loader(self._assembler)
+        # 최상위 스코프에서 지금까지 import한 파일 경로. Checker에 매번 참조로
+        # 넘겨서, 이전 run()에서 import한 파일을 이번 run()에서 다른 alias로
+        # 다시 import하려는 시도도 잡을 수 있게 한다 (global_scope와 동일한 이유).
+        self._imported_paths: set[str] = set()
 
     def run(self, source: str) -> None:
         stmts = self._assembler.assemble(source)
         # 이전 run()에서 선언된 전역 변수도 Checker에 알려줘야 이번 run()에서
         # 같은 이름을 var로 재선언할 때 중복 선언 오류를 잡을 수 있다.
         global_scope = {name: True for name in self._global_env.names}
-        locals_map = Checker(stmts, global_scope=global_scope).check()
+        locals_map = Checker(
+            stmts,
+            global_scope=global_scope,
+            global_imported_paths=self._imported_paths,
+        ).check()
         Executor(
             stmts,
             environment=self._global_env,
