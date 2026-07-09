@@ -186,9 +186,9 @@ class Checker:
             raise CheckError(
                 stmt.keyword.line, "함수 외부에서는 return을 사용할 수 없습니다."
             )
-        if self._in_init and stmt.value is not None:
+        if self._in_init:
             raise CheckError(
-                stmt.keyword.line, "init 메서드는 값을 반환할 수 없습니다."
+                stmt.keyword.line, "init 메서드 안에서는 return을 사용할 수 없습니다."
             )
         if stmt.value is not None:
             stmt.value = self._check_expr(stmt.value)
