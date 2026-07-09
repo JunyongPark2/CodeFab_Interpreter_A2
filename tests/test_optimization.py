@@ -72,7 +72,7 @@ def test_folded_constant_expression_is_never_recomputed_in_loop(monkeypatch, cap
     assert calls["LESS"] == 4
 
 
-def test_modulo_constant_expression_is_never_recomputed(monkeypatch, capsys):
+def test_modulo_constant_expression_in_loop_is_never_recomputed(monkeypatch, capsys):
     calls = {"MODULO": 0}
     original_eval_binary = Executor._eval_binary
 
@@ -83,10 +83,16 @@ def test_modulo_constant_expression_is_never_recomputed(monkeypatch, capsys):
 
     monkeypatch.setattr(Executor, "_eval_binary", spy_eval_binary)
 
-    source = "print (1 - 2 * 3 * 4 * 5 / 6 + 7 + 8 + 9) % 1000 % 30;"
+    source = """
+var total = 0;
+for (var i = 0; i < 3; i = i + 1) {
+    total = total + (1 - 2 * 3 * 4 * 5 / 6 + 7 + 8 + 9) % 1000 % 30;
+}
+print total;
+"""
     CodeFabInterpreter().run(source)
 
-    assert capsys.readouterr().out == "5\n"
+    assert capsys.readouterr().out == "15\n"
     assert calls["MODULO"] == 0
 
 
