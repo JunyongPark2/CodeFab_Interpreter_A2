@@ -74,14 +74,14 @@ def test_folded_constant_expression_is_never_recomputed_in_loop(monkeypatch, cap
 
 def test_modulo_constant_expression_in_loop_is_never_recomputed(monkeypatch, capsys):
     calls = {"MODULO": 0}
-    original_eval_binary = Executor._eval_binary
+    original_eval_binary = Executor.visit_BinaryExpr
 
     def spy_eval_binary(self, expr):
         if expr.operator.type == TokenType.MODULO:
             calls["MODULO"] += 1
         return original_eval_binary(self, expr)
 
-    monkeypatch.setattr(Executor, "_eval_binary", spy_eval_binary)
+    monkeypatch.setattr(Executor, "visit_BinaryExpr", spy_eval_binary)
 
     source = """
 var total = 0;

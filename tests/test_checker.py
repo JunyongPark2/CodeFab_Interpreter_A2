@@ -904,6 +904,53 @@ def test_class_empty_declaration_is_allowed():
     Checker(stmts).check()  # 예외 없어야 함
 
 
+def test_class_name_colliding_with_existing_variable_raises():
+    # var Robot = 1; Class Robot { }  ← 클래스명도 현재 스코프 선언 이름이다.
+    stmts = [
+        VarDeclStmt(ident("Robot"), literal(1.0)),
+        ClassDeclStmt(ident("Robot"), None, []),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_class_name_colliding_with_import_alias_raises():
+    # import "sum.txt" alias Robot; Class Robot { }
+    stmts = [
+        ImportStmt(path_tok("sum.txt"), ident("Robot")),
+        ClassDeclStmt(ident("Robot"), None, []),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_import_alias_colliding_with_existing_class_name_raises():
+    # Class Robot { } import "sum.txt" alias Robot;
+    stmts = [
+        ClassDeclStmt(ident("Robot"), None, []),
+        ImportStmt(path_tok("sum.txt"), ident("Robot")),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_duplicate_class_name_in_same_scope_raises():
+    stmts = [
+        ClassDeclStmt(ident("Robot"), None, []),
+        ClassDeclStmt(ident("Robot"), None, []),
+    ]
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
+
+
+def test_class_name_can_shadow_outer_scope_name():
+    stmts = [
+        VarDeclStmt(ident("Robot"), literal(1.0)),
+        BlockStmt([ClassDeclStmt(ident("Robot"), None, [])]),
+    ]
+    Checker(stmts).check()  # 예외 없어야 함
+
+
 def test_class_with_multiple_methods_is_allowed():
     # Class Robot { move() { } stop() { } }
     stmts = [
