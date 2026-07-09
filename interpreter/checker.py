@@ -188,6 +188,10 @@ class Checker:
             self._current_scope[stmt.alias.origin] = True
 
     def visit_ClassDeclStmt(self, stmt: ClassDeclStmt) -> None:
+        if self._current_scope is not None:
+            self._declare(stmt.name.line, stmt.name.origin, self._current_scope)
+            self._current_scope[stmt.name.origin] = True
+
         if (
             stmt.superclass is not None
             and stmt.superclass.name.origin == stmt.name.origin
