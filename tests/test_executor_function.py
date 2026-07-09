@@ -803,5 +803,3 @@ def test_argument_evaluation_order_is_left_to_right(capsys):
         ]
     )
     assert capsys.readouterr().out == "AB\n"
-
-

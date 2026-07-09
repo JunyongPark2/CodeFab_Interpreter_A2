@@ -282,7 +282,9 @@ def test_watches_lists_currently_watched_variables(monkeypatch, capsys):
     controller.on_stmt(stmt, 0, fake)
 
     out = capsys.readouterr().out
-    assert out.count("[WATCH] a = 5") == 1  # 등록 시 한 번, watches 명령으로 또 한 번은 안 됨
+    assert (
+        out.count("[WATCH] a = 5") == 1
+    )  # 등록 시 한 번, watches 명령으로 또 한 번은 안 됨
 
 
 def test_inspect_prints_local_and_global_scope_variables(monkeypatch, capsys):

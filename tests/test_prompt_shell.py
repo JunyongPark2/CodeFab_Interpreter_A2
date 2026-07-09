@@ -130,6 +130,14 @@ def test_full_script_line_by_line_matches_expected_output(interpreter, capsys):
         assert capsys.readouterr().out.strip() == expected
 
 
+def test_repl_run_prints_import_error_without_traceback(interpreter, capsys):
+    run(interpreter, 'import "missing_file_for_manual_check.txt" alias m;')
+
+    out = capsys.readouterr().out
+    assert "import 대상 파일이 없습니다" in out
+    assert "Traceback" not in out
+
+
 # ── 변수 선언/재할당/블록 스코프/shadowing/중첩 스코프 ───────────────────
 #
 # 실제 REPL에서 "{ ... }"처럼 여러 줄에 걸친 블록을 한 줄씩 입력하면
@@ -500,7 +508,7 @@ def test_main_accumulates_multiline_if_else_before_executing(monkeypatch, capsys
 
 
 def test_main_waits_for_blank_line_before_running_braced_if_without_else(
-        monkeypatch, capsys
+    monkeypatch, capsys
 ):
     # '{ }' if가 끝난 직후에는 else가 이어붙을 수 있으므로 곧바로 실행하지
     # 않고 '...' 프롬프트로 대기하다가, else가 오면 이어붙이고 없으면 빈
@@ -526,12 +534,7 @@ def test_main_waits_for_body_when_brace_is_on_its_own_line(monkeypatch, capsys):
     # 여전히 기다렸다가 실행해야 한다.
     _feed_lines(
         monkeypatch,
-        [
-            "for (var i = 0; i < 3; i = i + 1)",
-            "{",
-            "  print i;",
-            "}"
-        ],
+        ["for (var i = 0; i < 3; i = i + 1)", "{", "  print i;", "}"],
     )
     main()
     assert capsys.readouterr().out.strip() == "0\n1\n2"

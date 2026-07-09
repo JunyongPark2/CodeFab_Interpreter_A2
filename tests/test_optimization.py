@@ -51,9 +51,9 @@ def test_top_level_global_variable_still_uses_dynamic_get(monkeypatch, capsys):
 def test_folded_constant_expression_is_never_recomputed_in_loop(monkeypatch, capsys):
     # for (var i = 0; i < 3; i = i + 1) { print (2 * 3); }
     # (2 * 3)은 Checker 단계에서 이미 LiteralExpr(6.0)으로 접혀야 하므로, 루프를 3번
-    # 돌아도 Executor._eval_binary가 STAR 연산자로 호출되는 일이 없어야 한다.
+    # 돌아도 Executor.visit_BinaryExpr가 STAR 연산자로 호출되는 일이 없어야 한다.
     calls = {"STAR": 0, "LESS": 0}
-    original_eval_binary = Executor._eval_binary
+    original_eval_binary = Executor.visit_BinaryExpr
 
     def spy_eval_binary(self, expr):
         op_name = expr.operator.type.name
@@ -61,7 +61,7 @@ def test_folded_constant_expression_is_never_recomputed_in_loop(monkeypatch, cap
             calls[op_name] += 1
         return original_eval_binary(self, expr)
 
-    monkeypatch.setattr(Executor, "_eval_binary", spy_eval_binary)
+    monkeypatch.setattr(Executor, "visit_BinaryExpr", spy_eval_binary)
 
     source = "for (var i = 0; i < 3; i = i + 1) { print (2 * 3); }"
     CodeFabInterpreter().run(source)

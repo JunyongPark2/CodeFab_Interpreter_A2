@@ -783,7 +783,7 @@ def test_init_return_with_value_raises():
         Checker(stmts).check()
 
 
-def test_init_return_without_value_is_allowed():
+def test_init_return_without_value_raises():
     # Class A { init() { return; } }
     stmts = [
         ClassDeclStmt(
@@ -792,7 +792,8 @@ def test_init_return_without_value_is_allowed():
             [FuncDeclStmt(ident("init"), [], [ReturnStmt(keyword(), None)])],
         )
     ]
-    Checker(stmts).check()
+    with pytest.raises(CheckError):
+        Checker(stmts).check()
 
 
 def test_super_static_binding_distance_is_correct():

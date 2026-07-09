@@ -6,7 +6,18 @@ from .tokens import Token
 
 # ── Expr ─────────────────────────────────────────────────────
 class Expr:
-    pass
+    def accept(self, visitor):
+        """visitor에서 이 노드 타입에 대응하는 visit_<클래스명> 메서드를 찾아
+        더블 디스패치로 호출한다. 해당 메서드가 없으면 visitor가 이 노드 타입을
+        아직 처리할 준비가 안 된 것이므로, 조용히 넘어가지 않고 즉시 에러를 낸다
+        (dict.get() 기반 디스패치가 누락된 타입을 조용히 무시하던 문제를 방지)."""
+        method_name = f"visit_{type(self).__name__}"
+        method = getattr(visitor, method_name, None)
+        if method is None:
+            raise NotImplementedError(
+                f"{type(visitor).__name__}에 '{method_name}' 메서드가 없습니다."
+            )
+        return method(self)
 
 
 @dataclass
@@ -114,7 +125,15 @@ class ArrayExpr(Expr):
 
 # ── Stmt ─────────────────────────────────────────────────────
 class Stmt:
-    pass
+    def accept(self, visitor):
+        """Expr.accept()와 동일한 더블 디스패치 규칙(visit_<클래스명>)을 따른다."""
+        method_name = f"visit_{type(self).__name__}"
+        method = getattr(visitor, method_name, None)
+        if method is None:
+            raise NotImplementedError(
+                f"{type(visitor).__name__}에 '{method_name}' 메서드가 없습니다."
+            )
+        return method(self)
 
 
 @dataclass

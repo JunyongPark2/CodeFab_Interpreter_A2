@@ -80,36 +80,6 @@ class Executor:
         # Executor 인스턴스마다 자신이 실행 중인 파일의 소스와 경로를 따로 들고 있는다.
         self._source_lines = source.splitlines()
         self._path = path
-        self._stmt_handlers = {
-            PrintStmt: self._exec_print,
-            VarDeclStmt: self._exec_var_decl,
-            ExpressionStmt: self._exec_expression,
-            BlockStmt: self._exec_block_stmt,
-            IfStmt: self._exec_if,
-            ForStmt: self._exec_for,
-            FuncDeclStmt: self._exec_func_decl,
-            ReturnStmt: self._exec_return,
-            ImportStmt: self._exec_import,
-            ClassDeclStmt: self._exec_class_decl,
-        }
-        self._expr_handlers = {
-            LiteralExpr: self._eval_literal,
-            VariableExpr: self._eval_variable,
-            AssignExpr: self._eval_assign,
-            GroupingExpr: self._eval_grouping,
-            UnaryExpr: self._eval_unary,
-            BinaryExpr: self._eval_binary,
-            LogicalExpr: self._eval_logical,
-            ArrayExpr: self._eval_array,
-            IndexGetExpr: self._eval_index_get,
-            IndexSetExpr: self._eval_index_set,
-            CallExpr: self._eval_call,
-            GetExpr: self._eval_get,
-            SetExpr: self._eval_set,
-            ThisExpr: self._eval_this,
-            SuperExpr: self._eval_super,
-            InstanceOfExpr: self._eval_instanceof,
-        }
 
     def execute(self) -> None:
         for stmt in self._stmts:
@@ -131,33 +101,38 @@ class Executor:
         return self._path
 
     # ── Stmt 실행 ─────────────────────────────────────────
+    # (개별 visit_XxxStmt 메서드는 Stmt.accept()가 더블 디스패치로 직접 호출한다.
+    # 새 Stmt 타입 추가 시 대응하는 visit_ 메서드가 없으면 accept()가 즉시
+    # NotImplementedError를 낸다 — dict 디스패치 시절의 "조용한 누락"을 방지.
+    # 단, Stmt는 실행 전에 디버그 모드의 on_stmt 훅을 반드시 거쳐야 하므로
+    # (Expr와 달리) stmt.accept(self)를 직접 부르지 않고 항상 _exec_stmt()를
+    # 통해서만 실행한다 — 아래 execute()/visit_IfStmt/visit_ForStmt/_exec_block 참고.)
+
     def _exec_stmt(self, stmt: Stmt) -> None:
         if self._on_stmt is not None:
             self._on_stmt(stmt, self._depth, self)
-        handler = self._stmt_handlers.get(type(stmt))
-        if handler:
-            handler(stmt)
+        stmt.accept(self)
 
-    def _exec_print(self, stmt: PrintStmt) -> None:
+    def visit_PrintStmt(self, stmt: PrintStmt) -> None:
         print(self._stringify(self._eval(stmt.expression)))
 
-    def _exec_var_decl(self, stmt: VarDeclStmt) -> None:
+    def visit_VarDeclStmt(self, stmt: VarDeclStmt) -> None:
         val = self._eval(stmt.initializer) if stmt.initializer else None
         self._current.define(stmt.name.origin, val)
 
-    def _exec_expression(self, stmt: ExpressionStmt) -> None:
+    def visit_ExpressionStmt(self, stmt: ExpressionStmt) -> None:
         self._eval(stmt.expression)
 
-    def _exec_block_stmt(self, stmt: BlockStmt) -> None:
+    def visit_BlockStmt(self, stmt: BlockStmt) -> None:
         self._exec_block(stmt.statements, Environment(parent=self._current))
 
-    def _exec_if(self, stmt: IfStmt) -> None:
+    def visit_IfStmt(self, stmt: IfStmt) -> None:
         if self._is_truthy(self._eval(stmt.condition)):
             self._exec_stmt(stmt.then_branch)
         elif stmt.else_branch:
             self._exec_stmt(stmt.else_branch)
 
-    def _exec_for(self, stmt: ForStmt) -> None:
+    def visit_ForStmt(self, stmt: ForStmt) -> None:
         loop_env = Environment(parent=self._current)
         prev = self._current
         self._current = loop_env
@@ -171,15 +146,15 @@ class Executor:
         finally:
             self._current = prev
 
-    def _exec_func_decl(self, stmt: FuncDeclStmt) -> None:
+    def visit_FuncDeclStmt(self, stmt: FuncDeclStmt) -> None:
         func = CodeFabFunction(stmt, self._current)
         self._current.define(stmt.name.origin, func)
 
-    def _exec_return(self, stmt: ReturnStmt) -> None:
+    def visit_ReturnStmt(self, stmt: ReturnStmt) -> None:
         value = self._eval(stmt.value) if stmt.value is not None else None
         raise _ReturnSignal(value)
 
-    def _exec_class_decl(self, stmt: ClassDeclStmt) -> None:
+    def visit_ClassDeclStmt(self, stmt: ClassDeclStmt) -> None:
         superclass = None
         if stmt.superclass is not None:
             superclass = self._eval(stmt.superclass)
@@ -208,7 +183,7 @@ class Executor:
 
         self._current.assign(stmt.name.origin, klass, stmt.name.line)
 
-    def _exec_import(self, stmt: ImportStmt) -> None:
+    def visit_ImportStmt(self, stmt: ImportStmt) -> None:
         if self._loader is None:
             raise CodeFabRuntimeError(
                 stmt.path.line, "이 실행 환경에서는 import를 사용할 수 없습니다."
@@ -242,6 +217,10 @@ class Executor:
         self._current.define(stmt.alias.origin, module)
 
     def _exec_block(self, stmts: list[Stmt], env: Environment) -> None:
+        """블록 진입 시 스코프를 바꿔 문장을 순차 실행하는 공용 헬퍼.
+        visit_BlockStmt뿐 아니라 함수/메서드 호출(CodeFabFunction.call)도 재사용한다.
+        stmt.accept(self)를 직접 부르지 않고 _exec_stmt()를 거쳐야, 블록/함수 본문
+        안의 문장에서도 디버그 모드의 on_stmt 훅이 빠짐없이 호출된다."""
         prev = self._current
         self._depth += 1
         try:
@@ -253,22 +232,20 @@ class Executor:
             self._depth -= 1
 
     # ── Expr 평가 ─────────────────────────────────────────
+    # (개별 visit_XxxExpr 메서드는 Expr.accept()가 더블 디스패치로 직접 호출한다.)
     def _eval(self, expr: Expr):
-        handler = self._expr_handlers.get(type(expr))
-        if handler:
-            return handler(expr)
-        raise CodeFabRuntimeError(0, "알 수 없는 Expr 타입")
+        return expr.accept(self)
 
-    def _eval_literal(self, expr: LiteralExpr):
+    def visit_LiteralExpr(self, expr: LiteralExpr):
         return expr.value
 
-    def _eval_variable(self, expr: VariableExpr):
+    def visit_VariableExpr(self, expr: VariableExpr):
         distance = self._locals.get(id(expr))
         if distance is not None:
             return self._current.get_at(distance, expr.name.origin)
         return self._current.get(expr.name.origin, expr.name.line)
 
-    def _eval_assign(self, expr: AssignExpr):
+    def visit_AssignExpr(self, expr: AssignExpr):
         val = self._eval(expr.value)
         distance = self._locals.get(id(expr))
         if distance is not None:
@@ -277,10 +254,10 @@ class Executor:
             self._current.assign(expr.name.origin, val, expr.name.line)
         return val
 
-    def _eval_grouping(self, expr: GroupingExpr):
+    def visit_GroupingExpr(self, expr: GroupingExpr):
         return self._eval(expr.expression)
 
-    def _eval_unary(self, expr: UnaryExpr):
+    def visit_UnaryExpr(self, expr: UnaryExpr):
         right = self._eval(expr.right)
         op = expr.operator.type
         if op == TokenType.MINUS:
@@ -289,7 +266,7 @@ class Executor:
         if op == TokenType.BANG:
             return not self._is_truthy(right)
 
-    def _eval_binary(self, expr: BinaryExpr):
+    def visit_BinaryExpr(self, expr: BinaryExpr):
         left = self._eval(expr.left)
         right = self._eval(expr.right)
         op = expr.operator.type
@@ -314,6 +291,11 @@ class Executor:
             if right == 0:
                 raise CodeFabRuntimeError(line, "0으로 나눈 오류")
             return left / right
+        if op == TokenType.MODULO:
+            self._check_numbers(expr.operator, left, right)
+            if right == 0:
+                raise CodeFabRuntimeError(line, "0으로 나눈 오류")
+            return left % right
         if op == TokenType.GREATER:
             self._check_numbers(expr.operator, left, right)
             return left > right
@@ -331,25 +313,25 @@ class Executor:
         if op == TokenType.BANG_EQUAL:
             return not self._is_equal(left, right)
 
-    def _eval_logical(self, expr: LogicalExpr):
+    def visit_LogicalExpr(self, expr: LogicalExpr):
         left = self._eval(expr.left)
         if expr.operator.type == TokenType.OR:
             return left if self._is_truthy(left) else self._eval(expr.right)
         return self._eval(expr.right) if self._is_truthy(left) else left
 
     # ── 정적배열 기능 ─────────────────────────────────────
-    def _eval_array(self, expr: ArrayExpr):
+    def visit_ArrayExpr(self, expr: ArrayExpr):
         size = self._eval(expr.size)
         self._check_array_size(expr.keyword, size)
         return [None] * int(size)
 
-    def _eval_index_get(self, expr: IndexGetExpr):
+    def visit_IndexGetExpr(self, expr: IndexGetExpr):
         array = self._eval(expr.array)
         self._check_is_array(expr.bracket, array)
         index = self._check_index(expr.bracket, self._eval(expr.index), len(array))
         return array[index]
 
-    def _eval_index_set(self, expr: IndexSetExpr):
+    def visit_IndexSetExpr(self, expr: IndexSetExpr):
         array = self._eval(expr.array)
         self._check_is_array(expr.bracket, array)
         index = self._check_index(expr.bracket, self._eval(expr.index), len(array))
@@ -383,7 +365,7 @@ class Executor:
             )
         return i
 
-    def _eval_call(self, expr: CallExpr):
+    def visit_CallExpr(self, expr: CallExpr):
         callee = self._eval(expr.callee)
         arguments = [self._eval(arg) for arg in expr.arguments]
 
@@ -397,7 +379,7 @@ class Executor:
 
         return callee.call(self, arguments)
 
-    def _eval_get(self, expr: GetExpr):
+    def visit_GetExpr(self, expr: GetExpr):
         obj = self._eval(expr.object)
         if isinstance(obj, CodeFabModule):
             # import된 모듈의 멤버 접근: sum.add, sum.VERSION 등.
@@ -410,7 +392,7 @@ class Executor:
             )
         return obj.get(expr.name)
 
-    def _eval_set(self, expr: SetExpr):
+    def visit_SetExpr(self, expr: SetExpr):
         obj = self._eval(expr.object)
         if isinstance(obj, CodeFabModule):
             # import된 모듈은 읽기 전용 네임스페이스로 취급한다 (sum.x = 1; 금지).
@@ -425,13 +407,13 @@ class Executor:
         obj.set(expr.name, value)
         return value
 
-    def _eval_this(self, expr: ThisExpr):
+    def visit_ThisExpr(self, expr: ThisExpr):
         distance = self._locals.get(id(expr))
         if distance is not None:
             return self._current.get_at(distance, "This")
         return self._current.get("This", expr.keyword.line)
 
-    def _eval_super(self, expr: SuperExpr):
+    def visit_SuperExpr(self, expr: SuperExpr):
         distance = self._locals.get(id(expr))
         if distance is not None:
             superclass = self._current.get_at(distance, "Super")
@@ -446,7 +428,7 @@ class Executor:
             )
         return method.bind(instance)
 
-    def _eval_instanceof(self, expr: InstanceOfExpr):
+    def visit_InstanceOfExpr(self, expr: InstanceOfExpr):
         obj = self._eval(expr.object)
         if not isinstance(obj, CodeFabInstance):
             return False

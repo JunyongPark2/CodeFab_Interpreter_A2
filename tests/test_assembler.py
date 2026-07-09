@@ -127,6 +127,20 @@ def test_division_is_left_associative():
     assert expr.left.right == LiteralExpr(2.0)
 
 
+def test_modulo_has_same_precedence_as_multiplication():
+    # print 1 + 5 % 2;
+    expr = assemble_print("print 1 + 5 % 2;")
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.PLUS  # 루트는 +
+    assert expr.left == LiteralExpr(1.0)
+
+    assert isinstance(expr.right, BinaryExpr)  # 오른쪽은 5 % 2
+    assert expr.right.operator.type == TokenType.MODULO
+    assert expr.right.left == LiteralExpr(5.0)
+    assert expr.right.right == LiteralExpr(2.0)
+
+
 def test_unary_minus_precedes_addition():
     # print -3 + 2;
     expr = assemble_print("print -3 + 2;")

@@ -74,54 +74,23 @@ class Checker:
         self._in_init = False
         self._in_super = 0  # 부모 클래스가 있는 클래스 본문 깊이
 
-        self._stmt_handlers = {
-            VarDeclStmt: self._check_var_decl,
-            BlockStmt: self._check_block,
-            IfStmt: self._check_if,
-            ForStmt: self._check_for,
-            PrintStmt: self._check_print,
-            ExpressionStmt: self._check_expression_stmt,
-            FuncDeclStmt: self._check_func_decl,
-            ReturnStmt: self._check_return,
-            ImportStmt: self._check_import,
-            ClassDeclStmt: self._check_class_decl,
-        }
-        self._expr_handlers = {
-            VariableExpr: self._check_variable,
-            AssignExpr: self._check_assign,
-            BinaryExpr: self._check_binary,
-            UnaryExpr: self._check_unary,
-            GroupingExpr: self._check_grouping,
-            LogicalExpr: self._check_logical,
-            ArrayExpr: self._check_array,
-            IndexGetExpr: self._check_index_get,
-            IndexSetExpr: self._check_index_set,
-            CallExpr: self._check_call,
-            GetExpr: lambda expr: self._check_expr(expr.object),
-            SetExpr: self._check_set_expr,
-            ThisExpr: self._check_this,
-            SuperExpr: self._check_super,
-            InstanceOfExpr: lambda expr: self._check_expr(expr.object),
-        }
-
     def check(self) -> dict[int, int]:
         for stmt in self._stmts:
-            self._check_stmt(stmt)
+            stmt.accept(self)
         return self._locals
 
     # ── Stmt 방문 ─────────────────────────────────────────
-    def _check_stmt(self, stmt: Stmt) -> None:
-        handler = self._stmt_handlers.get(type(stmt))
-        if handler:
-            handler(stmt)
+    # (개별 visit_XxxStmt 메서드는 Stmt.accept()가 더블 디스패치로 직접 호출한다.
+    # 새 Stmt 타입 추가 시 대응하는 visit_ 메서드가 없으면 accept()가 즉시
+    # NotImplementedError를 낸다 — dict 디스패치 시절의 "조용한 누락"을 방지.)
 
-    def _check_print(self, stmt: PrintStmt) -> None:
+    def visit_PrintStmt(self, stmt: PrintStmt) -> None:
         stmt.expression = self._check_expr(stmt.expression)
 
-    def _check_expression_stmt(self, stmt: ExpressionStmt) -> None:
+    def visit_ExpressionStmt(self, stmt: ExpressionStmt) -> None:
         stmt.expression = self._check_expr(stmt.expression)
 
-    def _check_var_decl(self, stmt: VarDeclStmt) -> None:
+    def visit_VarDeclStmt(self, stmt: VarDeclStmt) -> None:
         if self._current_scope is not None:
             self._declare(stmt.name.line, stmt.name.origin, self._current_scope)
 
@@ -138,30 +107,30 @@ class Checker:
             )
         scope[name] = False
 
-    def _check_block(self, stmt: BlockStmt) -> None:
+    def visit_BlockStmt(self, stmt: BlockStmt) -> None:
         self._begin_scope()
         for s in stmt.statements:
-            self._check_stmt(s)
+            s.accept(self)
         self._end_scope()
 
-    def _check_if(self, stmt: IfStmt) -> None:
+    def visit_IfStmt(self, stmt: IfStmt) -> None:
         stmt.condition = self._check_expr(stmt.condition)
-        self._check_stmt(stmt.then_branch)
+        stmt.then_branch.accept(self)
         if stmt.else_branch:
-            self._check_stmt(stmt.else_branch)
+            stmt.else_branch.accept(self)
 
-    def _check_for(self, stmt: ForStmt) -> None:
+    def visit_ForStmt(self, stmt: ForStmt) -> None:
         self._begin_scope()
         if stmt.initializer:
-            self._check_stmt(stmt.initializer)
+            stmt.initializer.accept(self)
         if stmt.condition:
             stmt.condition = self._check_expr(stmt.condition)
         if stmt.increment:
             stmt.increment = self._check_expr(stmt.increment)
-        self._check_stmt(stmt.body)
+        stmt.body.accept(self)
         self._end_scope()
 
-    def _check_func_decl(self, stmt: FuncDeclStmt, is_init: bool = False) -> None:
+    def visit_FuncDeclStmt(self, stmt: FuncDeclStmt, is_init: bool = False) -> None:
         if self._current_scope is not None:
             self._declare(stmt.name.line, stmt.name.origin, self._current_scope)
             # 재귀 호출을 위해 본문을 검사하기 전에 즉시 정의 완료로 표시한다
@@ -179,7 +148,7 @@ class Checker:
                 True  # 파라미터는 이미 초기화된 것으로 취급
             )
         for body_stmt in stmt.body:
-            self._check_stmt(body_stmt)
+            body_stmt.accept(self)
         self._end_scope()
         self._function_depth -= 1
         self._in_init = prev_in_init
@@ -193,19 +162,19 @@ class Checker:
                 )
             seen.add(param.origin)
 
-    def _check_return(self, stmt: ReturnStmt) -> None:
+    def visit_ReturnStmt(self, stmt: ReturnStmt) -> None:
         if self._function_depth == 0:
             raise CheckError(
                 stmt.keyword.line, "함수 외부에서는 return을 사용할 수 없습니다."
             )
-        if self._in_init and stmt.value is not None:
+        if self._in_init:
             raise CheckError(
-                stmt.keyword.line, "init 메서드는 값을 반환할 수 없습니다."
+                stmt.keyword.line, "init 메서드 안에서는 return을 사용할 수 없습니다."
             )
         if stmt.value is not None:
             stmt.value = self._check_expr(stmt.value)
 
-    def _check_import(self, stmt: ImportStmt) -> None:
+    def visit_ImportStmt(self, stmt: ImportStmt) -> None:
         path = stmt.path.value
         for scope_paths in self._imported_paths:
             if path in scope_paths:
@@ -218,7 +187,7 @@ class Checker:
             self._declare(stmt.alias.line, stmt.alias.origin, self._current_scope)
             self._current_scope[stmt.alias.origin] = True
 
-    def _check_class_decl(self, stmt: ClassDeclStmt) -> None:
+    def visit_ClassDeclStmt(self, stmt: ClassDeclStmt) -> None:
         if (
             stmt.superclass is not None
             and stmt.superclass.name.origin == stmt.name.origin
@@ -236,7 +205,7 @@ class Checker:
         self._begin_scope()
         self._current_scope["This"] = True
         for method in stmt.methods:
-            self._check_func_decl(method, is_init=(method.name.origin == "init"))
+            self.visit_FuncDeclStmt(method, is_init=(method.name.origin == "init"))
         self._end_scope()
 
         if stmt.superclass is not None:
@@ -246,15 +215,17 @@ class Checker:
         self._in_class -= 1
 
     # ── Expr 방문 (검사 + 최적화) ────────────────────────────
+    # (개별 visit_XxxExpr 메서드는 Expr.accept()가 더블 디스패치로 직접 호출한다.)
     def _check_expr(self, expr: Expr) -> Expr:
         """expr을 검사하고, 상수로 접을 수 있으면 접은 결과를 돌려준다.
         호출부는 반환값을 원래 필드에 다시 대입해야 트리 교체가 반영된다."""
-        handler = self._expr_handlers.get(type(expr))
-        if handler:
-            handler(expr)
+        expr.accept(self)
         return self._fold(expr)
 
-    def _check_variable(self, expr: VariableExpr) -> None:
+    def visit_LiteralExpr(self, expr: LiteralExpr) -> None:
+        pass  # 리터럴은 검사할 게 없다 — exhaustiveness를 위해 명시적으로 no-op 처리.
+
+    def visit_VariableExpr(self, expr: VariableExpr) -> None:
         scope = self._current_scope
         name = expr.name.origin
         if scope is not None and scope.get(name) is False:
@@ -263,45 +234,49 @@ class Checker:
             )
         self._resolve_local(expr, name)
 
-    def _check_assign(self, expr: AssignExpr) -> None:
+    def visit_AssignExpr(self, expr: AssignExpr) -> None:
         expr.value = self._check_expr(expr.value)
         self._resolve_local(expr, expr.name.origin)
 
-    def _check_binary(self, expr: BinaryExpr) -> None:
+    def visit_BinaryExpr(self, expr: BinaryExpr) -> None:
         expr.left = self._check_expr(expr.left)
         expr.right = self._check_expr(expr.right)
 
-    def _check_unary(self, expr: UnaryExpr) -> None:
+    def visit_UnaryExpr(self, expr: UnaryExpr) -> None:
         expr.right = self._check_expr(expr.right)
 
-    def _check_grouping(self, expr: GroupingExpr) -> None:
+    def visit_GroupingExpr(self, expr: GroupingExpr) -> None:
         expr.expression = self._check_expr(expr.expression)
 
-    def _check_logical(self, expr: LogicalExpr) -> None:
+    def visit_LogicalExpr(self, expr: LogicalExpr) -> None:
         expr.left = self._check_expr(expr.left)
         expr.right = self._check_expr(expr.right)
 
-    def _check_array(self, expr: ArrayExpr) -> None:
+    def visit_ArrayExpr(self, expr: ArrayExpr) -> None:
         expr.size = self._check_expr(expr.size)
 
-    def _check_index_get(self, expr: IndexGetExpr) -> None:
+    def visit_IndexGetExpr(self, expr: IndexGetExpr) -> None:
         expr.array = self._check_expr(expr.array)
         expr.index = self._check_expr(expr.index)
 
-    def _check_index_set(self, expr: IndexSetExpr) -> None:
+    def visit_IndexSetExpr(self, expr: IndexSetExpr) -> None:
         expr.array = self._check_expr(expr.array)
         expr.index = self._check_expr(expr.index)
         expr.value = self._check_expr(expr.value)
 
-    def _check_call(self, expr: CallExpr) -> None:
+    def visit_CallExpr(self, expr: CallExpr) -> None:
         expr.callee = self._check_expr(expr.callee)
         expr.arguments = [self._check_expr(arg) for arg in expr.arguments]
 
-    def _check_set_expr(self, expr: SetExpr) -> None:
+    def visit_GetExpr(self, expr: GetExpr) -> None:
+        # 기존 동작 유지: object의 폴딩 결과는 반영하지 않는다(에러 검출/바인딩만 목적).
+        self._check_expr(expr.object)
+
+    def visit_SetExpr(self, expr: SetExpr) -> None:
         self._check_expr(expr.object)
         self._check_expr(expr.value)
 
-    def _check_this(self, expr: ThisExpr) -> None:
+    def visit_ThisExpr(self, expr: ThisExpr) -> None:
         if self._in_class == 0:
             raise CheckError(
                 expr.keyword.line, "클래스 외부에서 'This'를 사용할 수 없습니다."
@@ -311,7 +286,7 @@ class Checker:
         # 구조라, Checker가 계산하는 distance와 런타임 스코프 깊이가 항상 일치한다.
         self._resolve_local(expr, "This")
 
-    def _check_super(self, expr: SuperExpr) -> None:
+    def visit_SuperExpr(self, expr: SuperExpr) -> None:
         if self._in_class == 0:
             raise CheckError(
                 expr.keyword.line, "클래스 외부에서 'Super'를 사용할 수 없습니다."
@@ -322,6 +297,10 @@ class Checker:
                 "부모 클래스가 없는 클래스에서 'Super'를 사용할 수 없습니다.",
             )
         self._resolve_local(expr, "Super")
+
+    def visit_InstanceOfExpr(self, expr: InstanceOfExpr) -> None:
+        # 기존 동작 유지: object의 폴딩 결과는 반영하지 않는다(에러 검출/바인딩만 목적).
+        self._check_expr(expr.object)
 
     # ── 실행 전 최적화: 정적 바인딩 ────────────────────────────
     def _resolve_local(self, expr: Expr, name: str) -> None:

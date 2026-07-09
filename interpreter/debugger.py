@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+# prompt_shell.py의 REPL 종료 명령어와 동일하게 맞춘다 (exit/quit 표기를 셸마다
+# 다르게 두지 않기 위해 같은 집합을 그대로 가져다 쓴다).
+from prompt_shell import EXIT_COMMANDS
+
 from .ast_nodes import (
     ArrayExpr,
     AssignExpr,
@@ -32,10 +36,6 @@ from .ast_nodes import (
 )
 from .errors import CodeFabRuntimeError
 
-# prompt_shell.py의 REPL 종료 명령어와 동일하게 맞춘다 (exit/quit 표기를 셸마다
-# 다르게 두지 않기 위해 같은 집합을 그대로 가져다 쓴다).
-from prompt_shell import EXIT_COMMANDS
-
 
 class DebugExit(Exception):
     """디버그 세션에서 `exit`/`quit`을 입력해 남은 실행을 중단했을 때 던진다.
@@ -43,6 +43,7 @@ class DebugExit(Exception):
     Executor.execute() 내부 깊숙이(재귀 호출 여러 겹 아래)에서 즉시 빠져나와야
     하므로, on_stmt 훅에서 이 예외를 던지고 factory_shell.run_debug_mode가 받는다.
     """
+
 
 # ── Stmt/Expr → 소스 줄 번호 ──────────────────────────────────
 # AST 노드에 line 필드가 따로 없어서, 노드가 들고 있는 Token들의 line을 재사용해
@@ -252,7 +253,9 @@ class DebugController:
                 print(f"[WATCH] '{name}' 감시 해제")
                 continue
             if cmd == "watches" and len(parts) == 1:
-                self._print_watches(executor, when_empty="[WATCH] 감시 중인 변수가 없습니다.")
+                self._print_watches(
+                    executor, when_empty="[WATCH] 감시 중인 변수가 없습니다."
+                )
                 continue
             if cmd == "inspect" and len(parts) == 1:
                 self._print_scope(executor)

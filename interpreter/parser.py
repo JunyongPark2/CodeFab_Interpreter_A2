@@ -120,7 +120,9 @@ class Parser:
         """
         if self._is_at_end():
             # 마지막으로 읽은 토큰의 줄을 보고한다
-            raise ParseError(self._previous().line, "문장이 필요합니다.", incomplete=True)
+            raise ParseError(
+                self._previous().line, "문장이 필요합니다.", incomplete=True
+            )
         return self._statement()
 
     def _func_declaration(self) -> FuncDeclStmt:
@@ -273,7 +275,9 @@ class Parser:
         return self._binary((TokenType.PLUS, TokenType.MINUS), self._factor)
 
     def _factor(self) -> Expr:
-        return self._binary((TokenType.STAR, TokenType.SLASH), self._unary)
+        return self._binary(
+            (TokenType.STAR, TokenType.SLASH, TokenType.MODULO), self._unary
+        )
 
     def _unary(self) -> Expr:
         if self._match(TokenType.BANG, TokenType.MINUS):

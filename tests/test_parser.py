@@ -46,6 +46,7 @@ PLUS = Token(TokenType.PLUS, "+")
 MINUS = Token(TokenType.MINUS, "-")
 STAR = Token(TokenType.STAR, "*")
 SLASH = Token(TokenType.SLASH, "/")
+MODULO = Token(TokenType.MODULO, "%")
 LESS = Token(TokenType.LESS, "<")
 GREATER = Token(TokenType.GREATER, ">")
 LPAREN = Token(TokenType.LEFT_PAREN, "(")
@@ -186,6 +187,26 @@ def test_division_is_left_associative():
     assert expr.left.operator.type == TokenType.SLASH
     assert expr.left.left == LiteralExpr(8.0)
     assert expr.left.right == LiteralExpr(2.0)
+
+
+def test_modulo_precedes_addition():
+    # print 1 + 5 % 2;
+    #
+    # 기대 트리:  +               (루트가 + 라는 것은 % 가 더 깊다 = 먼저 계산된다는 뜻)
+    #            ├── 1
+    #            └── %
+    #                ├── 5
+    #                └── 2
+    expr = parse_print(num(1), PLUS, num(5), MODULO, num(2))
+
+    assert isinstance(expr, BinaryExpr)
+    assert expr.operator.type == TokenType.PLUS  # 루트는 +
+    assert expr.left == LiteralExpr(1.0)  # 왼쪽은 1
+
+    assert isinstance(expr.right, BinaryExpr)  # 오른쪽은 5 % 2
+    assert expr.right.operator.type == TokenType.MODULO
+    assert expr.right.left == LiteralExpr(5.0)
+    assert expr.right.right == LiteralExpr(2.0)
 
 
 def test_unary_minus_precedes_addition():
@@ -1422,8 +1443,15 @@ def test_class_empty_declaration():
 def test_class_with_method():
     # Class Robot { move(dist) { } }
     stmts = parse_stmts(
-        CLASS_KW, ident("Robot"), LBRACE,
-        ident("move"), LPAREN, ident("dist"), RPAREN, LBRACE, RBRACE,
+        CLASS_KW,
+        ident("Robot"),
+        LBRACE,
+        ident("move"),
+        LPAREN,
+        ident("dist"),
+        RPAREN,
+        LBRACE,
+        RBRACE,
         RBRACE,
     )
 
@@ -1457,8 +1485,15 @@ def test_class_with_inheritance():
 def test_class_with_init_method():
     # Class Robot { init(name) { } }
     stmts = parse_stmts(
-        CLASS_KW, ident("Robot"), LBRACE,
-        ident("init"), LPAREN, ident("name"), RPAREN, LBRACE, RBRACE,
+        CLASS_KW,
+        ident("Robot"),
+        LBRACE,
+        ident("init"),
+        LPAREN,
+        ident("name"),
+        RPAREN,
+        LBRACE,
+        RBRACE,
         RBRACE,
     )
 
@@ -1517,9 +1552,7 @@ def test_this_field_get_expr():
 
 def test_super_method_call_expr():
     # Super.move(3);  →  ExpressionStmt( CallExpr( SuperExpr(SUPER, "move"), [3.0] ) )
-    stmts = parse_stmts(
-        SUPER_KW, DOT, ident("move"), LPAREN, num(3), RPAREN, SEMI
-    )
+    stmts = parse_stmts(SUPER_KW, DOT, ident("move"), LPAREN, num(3), RPAREN, SEMI)
 
     assert len(stmts) == 1
     expr = stmts[0].expression

@@ -1,6 +1,12 @@
 from interpreter.ast_nodes import BlockStmt, ForStmt, IfStmt, Stmt
 from interpreter.codefab import CodeFabInterpreter
-from interpreter.errors import CheckError, CodeFabRuntimeError, ParseError, TokenizeError
+from interpreter.errors import (
+    CheckError,
+    CodeFabRuntimeError,
+    ModuleImportError,
+    ParseError,
+    TokenizeError,
+)
 from interpreter.parser import Parser
 from interpreter.tokenizer import Tokenizer
 
@@ -8,7 +14,13 @@ from interpreter.tokenizer import Tokenizer
 def run(interpreter: CodeFabInterpreter, source: str) -> None:
     try:
         interpreter.run(source)
-    except (TokenizeError, ParseError, CheckError, CodeFabRuntimeError) as e:
+    except (
+        TokenizeError,
+        ParseError,
+        CheckError,
+        CodeFabRuntimeError,
+        ModuleImportError,
+    ) as e:
         print(e)
 
 
