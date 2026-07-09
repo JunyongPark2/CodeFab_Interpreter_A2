@@ -113,6 +113,19 @@ class Executor:
             self._on_stmt(stmt, self._depth, self)
         stmt.accept(self)
 
+    def _exec_nested_stmt(self, stmt: Stmt) -> None:
+        """Run a statement that is part of another statement's execution.
+
+        Debug `next` should treat these as "inside" the current statement even
+        when they are not wrapped in a lexical block, such as a for initializer
+        or an if branch without braces.
+        """
+        self._depth += 1
+        try:
+            self._exec_stmt(stmt)
+        finally:
+            self._depth -= 1
+
     def visit_PrintStmt(self, stmt: PrintStmt) -> None:
         print(self._stringify(self._eval(stmt.expression)))
 
@@ -128,9 +141,9 @@ class Executor:
 
     def visit_IfStmt(self, stmt: IfStmt) -> None:
         if self._is_truthy(self._eval(stmt.condition)):
-            self._exec_stmt(stmt.then_branch)
+            self._exec_nested_stmt(stmt.then_branch)
         elif stmt.else_branch:
-            self._exec_stmt(stmt.else_branch)
+            self._exec_nested_stmt(stmt.else_branch)
 
     def visit_ForStmt(self, stmt: ForStmt) -> None:
         loop_env = Environment(parent=self._current)
@@ -138,9 +151,9 @@ class Executor:
         self._current = loop_env
         try:
             if stmt.initializer:
-                self._exec_stmt(stmt.initializer)
+                self._exec_nested_stmt(stmt.initializer)
             while stmt.condition is None or self._is_truthy(self._eval(stmt.condition)):
-                self._exec_stmt(stmt.body)
+                self._exec_nested_stmt(stmt.body)
                 if stmt.increment:
                     self._eval(stmt.increment)
         finally:
@@ -202,7 +215,7 @@ class Executor:
             # 현재 실행 중인 스코프의 변수를 보거나 건드리면 안 되기 때문.
             module_locals = Checker(stmts).check()
             module_env = Environment()
-            Executor(
+            module_executor = Executor(
                 stmts,
                 environment=module_env,
                 locals=module_locals,
@@ -210,7 +223,9 @@ class Executor:
                 on_stmt=self._on_stmt,
                 source=module_source,
                 path=path,
-            ).execute()
+            )
+            module_executor._depth = self._depth + 1
+            module_executor.execute()
 
         module = CodeFabModule(stmt.alias.origin)
         module.fields.update(module_env.snapshot())
