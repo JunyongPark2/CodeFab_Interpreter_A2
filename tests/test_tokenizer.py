@@ -930,19 +930,31 @@ def test_class_lowercase_is_not_keyword():
 def test_init_is_identifier_not_keyword():
     # 'init'은 클래스 생성자 이름으로 사용되지만 키워드가 아닌 일반 식별자다.
     tokens = tokenize("init;\n")
-    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+    assert [t.type for t in tokens] == [
+        TokenType.IDENTIFIER,
+        TokenType.SEMICOLON,
+        TokenType.EOF,
+    ]
 
 
 def test_this_lowercase_is_not_keyword():
     # 'This'(대문자 T)만 키워드고 소문자 'this'는 식별자다.
     tokens = tokenize("this;\n")
-    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+    assert [t.type for t in tokens] == [
+        TokenType.IDENTIFIER,
+        TokenType.SEMICOLON,
+        TokenType.EOF,
+    ]
 
 
 def test_super_lowercase_is_not_keyword():
     # 'Super'(대문자 S)만 키워드고 소문자 'super'는 식별자다.
     tokens = tokenize("super;\n")
-    assert [t.type for t in tokens] == [TokenType.IDENTIFIER, TokenType.SEMICOLON, TokenType.EOF]
+    assert [t.type for t in tokens] == [
+        TokenType.IDENTIFIER,
+        TokenType.SEMICOLON,
+        TokenType.EOF,
+    ]
 
 
 # ── import 관련 신규 키워드 ─────────────────────────────────────────

@@ -120,7 +120,9 @@ class Parser:
         """
         if self._is_at_end():
             # 마지막으로 읽은 토큰의 줄을 보고한다
-            raise ParseError(self._previous().line, "문장이 필요합니다.", incomplete=True)
+            raise ParseError(
+                self._previous().line, "문장이 필요합니다.", incomplete=True
+            )
         return self._statement()
 
     def _func_declaration(self) -> FuncDeclStmt:

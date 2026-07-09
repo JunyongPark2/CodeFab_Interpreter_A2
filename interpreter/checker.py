@@ -43,7 +43,12 @@ class Checker:
     상수 폴딩을 위해 이 범위 내에서 완화했다 — CodeFab_Interpreter_Guide.md 갱신 필요).
     """
 
-    def __init__(self, stmts: list[Stmt], global_scope: dict[str, bool] | None = None):
+    def __init__(
+        self,
+        stmts: list[Stmt],
+        global_scope: dict[str, bool] | None = None,
+        global_imported_paths: set[str] | None = None,
+    ):
         self._stmts = stmts
         self._scopes: list[dict[str, bool]] = [
             global_scope if global_scope is not None else {}
@@ -57,7 +62,14 @@ class Checker:
         # push/pop된다 — 같은 파일이 현재 위치에서 "보이는" 스코프 체인 어딘가에 이미
         # import돼 있으면 재import를 막기 위함 (PDF 세부규칙 2: 상위 scope에서 이미
         # import된 파일은 하위에서 재import 불가, 단 스코프가 끝나면 그 기록도 사라짐).
-        self._imported_paths: list[set[str]] = [set()]
+        # global_scope와 마찬가지로 REPL처럼 run()이 여러 번 호출되는 상황에서는
+        # 호출자(CodeFabInterpreter)가 들고 있는 set을 "참조로" 그대로 넘겨받는다 —
+        # 최상위 스코프의 import 기록이 다음 run()에서도 이어져야 하기 때문이다.
+        # 그냥 새 set()을 매번 만들면 이전 줄에서 import한 파일을 다른 alias로
+        # 다시 import해도 못 잡는다 (alias가 같을 때만 우연히 이름 충돌로 걸림).
+        self._imported_paths: list[set[str]] = [
+            global_imported_paths if global_imported_paths is not None else set()
+        ]
         self._in_class = 0
         self._in_init = False
         self._in_super = 0  # 부모 클래스가 있는 클래스 본문 깊이

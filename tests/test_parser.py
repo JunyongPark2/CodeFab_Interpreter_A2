@@ -1443,8 +1443,15 @@ def test_class_empty_declaration():
 def test_class_with_method():
     # Class Robot { move(dist) { } }
     stmts = parse_stmts(
-        CLASS_KW, ident("Robot"), LBRACE,
-        ident("move"), LPAREN, ident("dist"), RPAREN, LBRACE, RBRACE,
+        CLASS_KW,
+        ident("Robot"),
+        LBRACE,
+        ident("move"),
+        LPAREN,
+        ident("dist"),
+        RPAREN,
+        LBRACE,
+        RBRACE,
         RBRACE,
     )
 
@@ -1478,8 +1485,15 @@ def test_class_with_inheritance():
 def test_class_with_init_method():
     # Class Robot { init(name) { } }
     stmts = parse_stmts(
-        CLASS_KW, ident("Robot"), LBRACE,
-        ident("init"), LPAREN, ident("name"), RPAREN, LBRACE, RBRACE,
+        CLASS_KW,
+        ident("Robot"),
+        LBRACE,
+        ident("init"),
+        LPAREN,
+        ident("name"),
+        RPAREN,
+        LBRACE,
+        RBRACE,
         RBRACE,
     )
 
@@ -1538,9 +1552,7 @@ def test_this_field_get_expr():
 
 def test_super_method_call_expr():
     # Super.move(3);  →  ExpressionStmt( CallExpr( SuperExpr(SUPER, "move"), [3.0] ) )
-    stmts = parse_stmts(
-        SUPER_KW, DOT, ident("move"), LPAREN, num(3), RPAREN, SEMI
-    )
+    stmts = parse_stmts(SUPER_KW, DOT, ident("move"), LPAREN, num(3), RPAREN, SEMI)
 
     assert len(stmts) == 1
     expr = stmts[0].expression

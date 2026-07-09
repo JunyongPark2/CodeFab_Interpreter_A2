@@ -911,7 +911,9 @@ def get_expr(obj_expr, field_name, line=1):
 
 
 def set_expr(obj_expr, field_name, value_expr, line=1):
-    return SetExpr(object=obj_expr, name=name_tok(field_name, line=line), value=value_expr)
+    return SetExpr(
+        object=obj_expr, name=name_tok(field_name, line=line), value=value_expr
+    )
 
 
 def test_inheriting_non_class_raises():
@@ -922,7 +924,8 @@ def test_inheriting_non_class_raises():
         make_class("Robot", superclass=VariableExpr(name_tok("x", line=line))),
     ]
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 부모 클래스는 클래스여야 합니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 부모 클래스는 클래스여야 합니다\.",
     ):
         run(stmts)
 
@@ -935,7 +938,8 @@ def test_get_field_on_non_instance_raises():
         PrintStmt(expression=get_expr(VariableExpr(name_tok("x")), "field", line=line)),
     ]
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\.",
     ):
         run(stmts)
 
@@ -946,11 +950,14 @@ def test_set_field_on_non_instance_raises():
     stmts = [
         VarDeclStmt(name=name_tok("x"), initializer=LiteralExpr("hello")),
         ExpressionStmt(
-            expression=set_expr(VariableExpr(name_tok("x")), "field", LiteralExpr(1.0), line=line)
+            expression=set_expr(
+                VariableExpr(name_tok("x")), "field", LiteralExpr(1.0), line=line
+            )
         ),
     ]
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\.",
     ):
         run(stmts)
 
@@ -961,10 +968,13 @@ def test_get_nonexistent_field_on_instance_raises():
     stmts = [
         make_class("Robot"),
         VarDeclStmt(name=name_tok("r"), initializer=make_call_expr("Robot", [])),
-        PrintStmt(expression=get_expr(VariableExpr(name_tok("r")), "notExist", line=line)),
+        PrintStmt(
+            expression=get_expr(VariableExpr(name_tok("r")), "notExist", line=line)
+        ),
     ]
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 'notExist' 속성이 존재하지 않습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 'notExist' 속성이 존재하지 않습니다\.",
     ):
         run(stmts)
 
@@ -984,7 +994,8 @@ def test_call_nonexistent_method_on_instance_raises():
         ),
     ]
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 'notExist' 속성이 존재하지 않습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 'notExist' 속성이 존재하지 않습니다\.",
     ):
         run(stmts)
 
@@ -997,7 +1008,8 @@ def test_get_field_on_number_raises():
         PrintStmt(expression=get_expr(VariableExpr(name_tok("n")), "speed", line=line)),
     ]
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\.",
     ):
         run(stmts)
 
@@ -1008,11 +1020,14 @@ def test_set_field_on_nil_raises():
     stmts = [
         VarDeclStmt(name=name_tok("n"), initializer=LiteralExpr(None)),
         ExpressionStmt(
-            expression=set_expr(VariableExpr(name_tok("n")), "x", LiteralExpr(5.0), line=line)
+            expression=set_expr(
+                VariableExpr(name_tok("n")), "x", LiteralExpr(5.0), line=line
+            )
         ),
     ]
     with pytest.raises(
-        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\."
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 인스턴스에서만 속성에 접근할 수 있습니다\.",
     ):
         run(stmts)
 
@@ -1139,7 +1154,9 @@ def test_class_method_override(capsys):
     )
     stmts = [
         make_class("Animal", methods=[animal_speak]),
-        make_class("Dog", superclass=VariableExpr(name_tok("Animal")), methods=[dog_speak]),
+        make_class(
+            "Dog", superclass=VariableExpr(name_tok("Animal")), methods=[dog_speak]
+        ),
         VarDeclStmt(name=name_tok("d"), initializer=make_call_expr("Dog", [])),
         ExpressionStmt(
             expression=CallExpr(

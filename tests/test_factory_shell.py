@@ -12,14 +12,18 @@ def test_main_with_no_args_dispatches_to_repl_mode(monkeypatch):
 
 def test_main_dispatches_run_to_file_mode_with_path(monkeypatch):
     called = []
-    monkeypatch.setattr(factory_shell, "run_file_mode", lambda path: called.append(path))
+    monkeypatch.setattr(
+        factory_shell, "run_file_mode", lambda path: called.append(path)
+    )
     factory_shell.main(["run", "program.cf"])
     assert called == ["program.cf"]
 
 
 def test_main_dispatches_debug_to_debug_mode_with_path(monkeypatch):
     called = []
-    monkeypatch.setattr(factory_shell, "run_debug_mode", lambda path: called.append(path))
+    monkeypatch.setattr(
+        factory_shell, "run_debug_mode", lambda path: called.append(path)
+    )
     factory_shell.main(["debug", "program.cf"])
     assert called == ["program.cf"]
 
@@ -52,9 +56,11 @@ def test_run_file_mode_exits_with_error_when_file_missing(tmp_path, capsys):
 
 def test_run_file_mode_runs_source_and_exits_zero(tmp_path, capsys):
     path = tmp_path / "program.cf"
-    path.write_text('print 1 + 2;', encoding="utf-8")
+    path.write_text("print 1 + 2;", encoding="utf-8")
 
-    factory_shell.run_file_mode(str(path))  # 정상 종료 시 sys.exit 자체를 호출하지 않는다.
+    factory_shell.run_file_mode(
+        str(path)
+    )  # 정상 종료 시 sys.exit 자체를 호출하지 않는다.
 
     assert capsys.readouterr().out.strip() == "3"
 
@@ -65,10 +71,15 @@ def test_run_file_mode_runs_source_and_exits_zero(tmp_path, capsys):
         ("print 1 + 2", "[1번째줄] ';' 가 필요합니다."),
         ("print @;", "[1번째줄] 인식할 수 없는 문자: '@'"),
         ("print notDefined;", "[1번째줄] 미정의된 변수 'notDefined'"),
-        ('{ var a = a; }', "[1번째줄] 자신의 초기화식에서 지역변수를 읽을 수 없습니다."),
+        (
+            "{ var a = a; }",
+            "[1번째줄] 자신의 초기화식에서 지역변수를 읽을 수 없습니다.",
+        ),
     ],
 )
-def test_run_file_mode_prints_error_and_exits_one(tmp_path, capsys, source, expected_msg):
+def test_run_file_mode_prints_error_and_exits_one(
+    tmp_path, capsys, source, expected_msg
+):
     path = tmp_path / "program.cf"
     path.write_text(source, encoding="utf-8")
 
@@ -109,18 +120,18 @@ def test_run_file_mode_reports_error_line_ignoring_trailing_newline(tmp_path, ca
 
 
 def test_run_file_mode_reports_error_line_where_semicolon_is_missing_mid_file(
-        tmp_path, capsys
+    tmp_path, capsys
 ):
     # 세미콜론이 빠진 문장 다음 줄에 새 문장이 이어지는 경우, 다음 문장이
     # 시작되는 줄이 아니라 세미콜론이 빠진 실제 줄을 가리켜야 한다.
     path = tmp_path / "program.cf"
     path.write_text(
-        'var a = 3;\n'
+        "var a = 3;\n"
         'print("ho");\n'
-        'for (var b=3; b<=10; b=b+1){\n'
+        "for (var b=3; b<=10; b=b+1){\n"
         '    print("hm")\n'
         '    print("kakaka");\n'
-        '}\n',
+        "}\n",
         encoding="utf-8",
     )
 

@@ -379,9 +379,7 @@ print r.speed;
 
 
 def test_init_returns_instance(interp, capsys):
-    interp.run(
-        "Class Robot { init() { This.x = 1; } } var r = Robot(); print r.x;"
-    )
+    interp.run("Class Robot { init() { This.x = 1; } } var r = Robot(); print r.x;")
     assert capsys.readouterr().out == "1\n"
 
 

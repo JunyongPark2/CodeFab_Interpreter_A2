@@ -29,7 +29,8 @@ from interpreter.ast_nodes import (
 from interpreter.checker import Checker
 from interpreter.errors import CheckError
 from interpreter.tokens import Token, TokenType
-from tests.helpers import name_tok as ident, path_tok
+from tests.helpers import name_tok as ident
+from tests.helpers import path_tok
 
 
 def literal(value) -> LiteralExpr:
@@ -663,6 +664,35 @@ def test_importing_different_files_with_different_alias_in_same_scope_is_allowed
         ImportStmt(path_tok("math.txt"), ident("math")),
     ]
     Checker(stmts).check()  # 예외 없어야 함
+
+
+def test_global_imported_paths_is_shared_across_checker_instances():
+    # CodeFabInterpreter가 run()마다 새 Checker를 만들면서도 같은 set을 참조로
+    # 넘기는 상황을 재현한다 — 두 번째 Checker가 첫 번째의 import 기록을 봐야 한다.
+    shared_paths: set[str] = set()
+    Checker(
+        [ImportStmt(path_tok("sum.txt"), ident("sum"))],
+        global_imported_paths=shared_paths,
+    ).check()
+
+    assert "sum.txt" in shared_paths
+    with pytest.raises(CheckError):
+        Checker(
+            [ImportStmt(path_tok("sum.txt"), ident("sum2"))],
+            global_imported_paths=shared_paths,
+        ).check()
+
+
+def test_block_scoped_import_does_not_leak_into_shared_global_imported_paths():
+    # 블록 안에서 import한 경로는 블록이 끝나면 사라져야 하므로, 공유 set에도
+    # 남으면 안 된다 (남으면 다음 run()에서 형제 스코프 재import가 막혀버린다).
+    shared_paths: set[str] = set()
+    Checker(
+        [BlockStmt([ImportStmt(path_tok("sum.txt"), ident("sum"))])],
+        global_imported_paths=shared_paths,
+    ).check()
+
+    assert shared_paths == set()
 
 
 # ── Class / This / Super 정적 검사 ────────────────────────────────

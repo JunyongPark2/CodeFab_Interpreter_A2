@@ -534,12 +534,7 @@ def test_main_waits_for_body_when_brace_is_on_its_own_line(monkeypatch, capsys):
     # 여전히 기다렸다가 실행해야 한다.
     _feed_lines(
         monkeypatch,
-        [
-            "for (var i = 0; i < 3; i = i + 1)",
-            "{",
-            "  print i;",
-            "}"
-        ],
+        ["for (var i = 0; i < 3; i = i + 1)", "{", "  print i;", "}"],
     )
     main()
     assert capsys.readouterr().out.strip() == "0\n1\n2"
