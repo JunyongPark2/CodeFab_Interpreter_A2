@@ -721,16 +721,15 @@ def test_for_loop():
     assert print_stmt.expression.name.origin == "j"
 
 
-def test_for_loop_initializer_without_var_is_expression_statement():
-    # for (j = 0; j < 3; j = j + 1) { print j; }
-    # j가 이미 선언돼 있다고 가정하고 var 없이 대입식으로 초기화하는 경우 —
-    # initializer는 VarDeclStmt가 아니라 ExpressionStmt(AssignExpr)여야 한다.
+def test_for_loop_with_expression_statement_initializer():
+    # var j = 0; for (j = 1; j < 3; j = j + 1) { print j; }
+    # initializer가 'var' 선언이 아닌 대입식(=일반 expression statement)인 경우.
     stmts = parse_stmts(
         FOR_KW,
         LPAREN,
         ident("j"),
         EQUAL,
-        num(0),
+        num(1),
         SEMI,
         ident("j"),
         LESS,
@@ -749,12 +748,16 @@ def test_for_loop_initializer_without_var_is_expression_statement():
         RBRACE,
     )
 
+    assert len(stmts) == 1
     stmt = stmts[0]
     assert isinstance(stmt, ForStmt)
+
+    # initializer: j = 1  (ExpressionStmt로 감싸인 AssignExpr)
     assert isinstance(stmt.initializer, ExpressionStmt)
-    assert isinstance(stmt.initializer.expression, AssignExpr)
-    assert stmt.initializer.expression.name.origin == "j"
-    assert stmt.initializer.expression.value == LiteralExpr(0.0)
+    assign = stmt.initializer.expression
+    assert isinstance(assign, AssignExpr)
+    assert assign.name.origin == "j"
+    assert assign.value == LiteralExpr(1.0)
 
 
 # ─────────────────────────────────────────────────────────

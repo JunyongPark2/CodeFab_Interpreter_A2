@@ -1,7 +1,7 @@
 import pytest
 
 from interpreter.assembler import Assembler
-from interpreter.ast_nodes import ImportStmt, LiteralExpr, VarDeclStmt
+from interpreter.ast_nodes import ImportStmt, LiteralExpr, PrintStmt, VarDeclStmt, VariableExpr
 from interpreter.codefab import CodeFabInterpreter
 from interpreter.errors import CheckError, CodeFabRuntimeError, ModuleImportError
 from interpreter.executor import Executor
@@ -67,6 +67,20 @@ def test_on_stmt_hook_fires_for_statements_inside_imported_module(tmp_write):
 
     assert ImportStmt in seen_stmt_types
     assert seen_stmt_types.count(VarDeclStmt) == 2
+
+
+def test_printing_module_shows_module_name(tmp_write, capsys):
+    # import "sum.txt" alias sum; print sum;  → "<module sum>"
+    path = tmp_write("sum.txt", "var VERSION = 1;\n")
+    stmt = ImportStmt(path_tok(path), name_tok("sum"))
+    loader = Loader(Assembler())
+
+    executor = Executor(
+        [stmt, PrintStmt(expression=VariableExpr(name_tok("sum")))], loader=loader
+    )
+    executor.execute()
+
+    assert capsys.readouterr().out == "<module sum>\n"
 
 
 def test_module_loader_error_propagates_with_line_number():
