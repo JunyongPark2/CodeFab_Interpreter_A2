@@ -72,6 +72,24 @@ def test_folded_constant_expression_is_never_recomputed_in_loop(monkeypatch, cap
     assert calls["LESS"] == 4
 
 
+def test_modulo_constant_expression_is_never_recomputed(monkeypatch, capsys):
+    calls = {"MODULO": 0}
+    original_eval_binary = Executor._eval_binary
+
+    def spy_eval_binary(self, expr):
+        if expr.operator.type == TokenType.MODULO:
+            calls["MODULO"] += 1
+        return original_eval_binary(self, expr)
+
+    monkeypatch.setattr(Executor, "_eval_binary", spy_eval_binary)
+
+    source = "print (1 - 2 * 3 * 4 * 5 / 6 + 7 + 8 + 9) % 1000 % 30;"
+    CodeFabInterpreter().run(source)
+
+    assert capsys.readouterr().out == "5\n"
+    assert calls["MODULO"] == 0
+
+
 def test_this_reference_never_calls_dynamic_get(monkeypatch, capsys):
     # Class A { setX(x) { This.x = x; } f() { print This.x; } }
     # init()은 생성자 종료 후 인스턴스를 돌려주려고 런타임(CodeFabFunction.call)이

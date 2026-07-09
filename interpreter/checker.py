@@ -372,6 +372,10 @@ class Checker:
                 if not numbers or right == 0:
                     return _NOT_FOLDABLE
                 return left / right
+            if op == TokenType.MODULO:
+                if not numbers or right == 0:
+                    return _NOT_FOLDABLE
+                return left % right
             if op == TokenType.GREATER:
                 return left > right if numbers else _NOT_FOLDABLE
             if op == TokenType.LESS:
