@@ -141,6 +141,26 @@ tests/
 - Python 3.10+ (`match` 문, `X | Y` 타입 힌트 사용)
 - pytest 9.1.0
 
+### 설치
+
+가상 환경을 만들고 패키지를 설치합니다.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -e .
+```
+
+설치하면 `factory` 명령어가 PATH에 등록됩니다.
+
+```bash
+factory                          # REPL 모드
+factory run <파일경로>             # 파일 모드
+factory debug <파일경로>           # 디버그 모드
+```
+
+제거할 때는 `pip uninstall codefab-interpreter`를 실행합니다.
+
 
 ### 사용 예시
 
@@ -267,6 +287,16 @@ bbq
 **3) 공장 제어 쉘 (Factory Shell)**
 
 `factory_shell.py`는 Interpreter Factory를 운용하는 인터페이스로, REPL/파일/디버그 세 가지 실행 모드를 제공합니다.
+
+패키지를 설치(`pip install -e .`)하면 `factory` 명령어로 바로 실행할 수 있습니다.
+
+```bash
+factory                          # 인자 없음 -> REPL 모드 (Prompt Shell과 동일)
+factory run <파일경로>             # 파일 모드
+factory debug <파일경로>           # 디버그 모드
+```
+
+설치 없이 직접 실행할 수도 있습니다.
 
 ```bash
 python factory_shell.py                     # 인자 없음 -> REPL 모드 (Prompt Shell과 동일)
