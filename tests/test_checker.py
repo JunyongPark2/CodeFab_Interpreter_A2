@@ -258,6 +258,15 @@ def test_division_by_zero_is_not_folded():
     assert isinstance(stmt.expression, BinaryExpr)
 
 
+def test_modulo_by_zero_is_not_folded():
+    # 0으로 나머지 연산을 해도 런타임 에러가 나야 하므로 접으면 안 된다.
+    stmt = ExpressionStmt(
+        BinaryExpr(literal(1.0), Token(TokenType.MODULO, "%"), literal(0.0))
+    )
+    Checker([stmt]).check()
+    assert isinstance(stmt.expression, BinaryExpr)
+
+
 def test_type_mismatched_addition_is_not_folded():
     # 숫자 + 문자열은 런타임 에러가 나야 하므로 접으면 안 된다.
     stmt = ExpressionStmt(
@@ -340,6 +349,7 @@ def test_logical_expr_operands_are_checked_and_folded():
     [
         (TokenType.MINUS, "-", 5.0, 2.0, 3.0),
         (TokenType.SLASH, "/", 6.0, 2.0, 3.0),
+        (TokenType.MODULO, "%", 5.0, 2.0, 1.0),
         (TokenType.GREATER, ">", 3.0, 2.0, True),
         (TokenType.GREATER_EQUAL, ">=", 2.0, 2.0, True),
         (TokenType.LESS_EQUAL, "<=", 2.0, 2.0, True),
