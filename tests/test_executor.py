@@ -29,6 +29,7 @@ from interpreter.ast_nodes import (
 )
 from interpreter.errors import CodeFabRuntimeError
 from interpreter.executor import Executor
+from interpreter.runtime import CodeFabCallable
 from interpreter.tokens import TokenType
 from tests.helpers import name_tok, tok
 
@@ -680,6 +681,22 @@ def test_division_by_zero_raises():
         )
 
 
+def test_modulo_by_zero_raises():
+    line = 1
+    with pytest.raises(CodeFabRuntimeError, match=rf"\[{line}번째줄\] 0으로 나눈 오류"):
+        run(
+            [
+                ExpressionStmt(
+                    expression=BinaryExpr(
+                        left=LiteralExpr(value=5.0),
+                        operator=tok(TokenType.MODULO, line=line),
+                        right=LiteralExpr(value=0.0),
+                    )
+                )
+            ]
+        )
+
+
 # ── 실행 전 최적화: 정적 바인딩(locals) 적용 ────────────────────────
 def test_resolved_variable_read_uses_get_at(capsys):
     # { var a = 1; print a; } -> a의 VariableExpr을 Checker가 계산해준 것처럼
@@ -888,6 +905,79 @@ def test_non_number_array_size_raises():
         )
 
 
+def test_negative_array_size_raises():
+    line = 1
+    with pytest.raises(
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열의 크기는 0 이상의 정수여야 합니다\.",
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("brr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(-1.0), keyword=array_tok(line)
+                    ),
+                ),
+            ]
+        )
+
+
+def test_non_integer_array_size_raises():
+    line = 1
+    with pytest.raises(
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열의 크기는 0 이상의 정수여야 합니다\.",
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("brr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(2.5), keyword=array_tok(line)
+                    ),
+                ),
+            ]
+        )
+
+
+def test_non_integer_index_raises():
+    line = 1
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스는 정수여야 합니다\."
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("arr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(3.0), keyword=array_tok(line)
+                    ),
+                ),
+                ExpressionStmt(
+                    expression=IndexGetExpr(
+                        array=VariableExpr(name=name_tok("arr")),
+                        bracket=bracket_tok(line),
+                        index=LiteralExpr(1.5),
+                    )
+                ),
+            ]
+        )
+
+
+# ── CodeFabCallable (추상 베이스) ───────────────────────────────────────
+
+
+def test_codefab_callable_arity_is_not_implemented():
+    with pytest.raises(NotImplementedError):
+        CodeFabCallable().arity()
+
+
+def test_codefab_callable_call_is_not_implemented():
+    with pytest.raises(NotImplementedError):
+        CodeFabCallable().call(None, [])
+
+
 # ── Class 관련 런타임 오류 테스트 ────────────────────
 
 
@@ -1051,6 +1141,16 @@ def test_class_instance_print_shows_class_name(capsys):
     assert capsys.readouterr().out == "<Robot instance>\n"
 
 
+def test_printing_class_itself_shows_class_name(capsys):
+    # Class Robot {} print Robot;  → "<class Robot>" (인스턴스가 아닌 클래스 값 자체)
+    stmts = [
+        make_class("Robot"),
+        PrintStmt(expression=VariableExpr(name_tok("Robot"))),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "<class Robot>\n"
+
+
 def test_class_field_set_and_get(capsys):
     # Class Robot {} var r = Robot(); r.speed = 10; print r.speed;
     stmts = [
@@ -1101,6 +1201,37 @@ def test_class_init_sets_this_field(capsys):
                     value=VariableExpr(name_tok("speed")),
                 )
             )
+        ],
+    )
+    stmts = [
+        make_class("Robot", methods=[init_method]),
+        VarDeclStmt(
+            name=name_tok("r"),
+            initializer=make_call_expr("Robot", [LiteralExpr(10.0)]),
+        ),
+        PrintStmt(expression=get_expr(VariableExpr(name_tok("r")), "speed")),
+    ]
+    run(stmts)
+    assert capsys.readouterr().out == "10\n"
+
+
+def test_init_with_explicit_return_still_returns_this_instance(capsys):
+    # Class Robot { init(speed) { This.speed = speed; return; } }
+    # var r = Robot(10); print r.speed;
+    # init 안에서 값 없는 return을 만나 _ReturnSignal이 발생해도(Checker 없이 직접
+    # 실행하는 단위 테스트이므로 가능), 항상 This 인스턴스를 반환해야 한다.
+    init_method = FuncDeclStmt(
+        name=name_tok("init"),
+        params=[name_tok("speed")],
+        body=[
+            ExpressionStmt(
+                expression=SetExpr(
+                    object=ThisExpr(keyword=kw_this()),
+                    name=name_tok("speed"),
+                    value=VariableExpr(name_tok("speed")),
+                )
+            ),
+            ReturnStmt(keyword=tok(TokenType.RETURN), value=None),
         ],
     )
     stmts = [

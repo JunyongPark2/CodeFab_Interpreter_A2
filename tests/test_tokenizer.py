@@ -118,6 +118,29 @@ def test_greater_than():
     ]
 
 
+def test_bang_alone_is_bang_token():
+    # print !true;
+    assert as_token_tuples(tokenize("print !true;")) == [
+        (TokenType.PRINT, "print", None),
+        (TokenType.BANG, "!", None),
+        (TokenType.TRUE, "true", None),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
+def test_bang_equal_is_not_equal_token():
+    # print 1 != 2;
+    assert as_token_tuples(tokenize("print 1 != 2;")) == [
+        (TokenType.PRINT, "print", None),
+        (TokenType.NUMBER, "1", 1.0),
+        (TokenType.BANG_EQUAL, "!=", None),
+        (TokenType.NUMBER, "2", 2.0),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+
+
 # ── 문자열 연결 ────────────────────────────────────────────────────────
 
 
@@ -161,6 +184,25 @@ def test_unclosed_single_quoted_string_raises():
         tokenize("'unterminated")
 
 
+def test_string_literal_spanning_multiple_lines_tracks_line_number():
+    # print "line1
+    # line2"; print x;  — 문자열 내부의 개행도 줄 번호에 반영되어야 한다.
+    source = 'print "line1\nline2";\nprint x;'
+    tokens = tokenize(source)
+    assert as_token_tuples(tokens) == [
+        (TokenType.PRINT, "print", None),
+        (TokenType.STRING, '"line1\nline2"', "line1\nline2"),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.PRINT, "print", None),
+        (TokenType.IDENTIFIER, "x", None),
+        (TokenType.SEMICOLON, ";", None),
+        (TokenType.EOF, "", None),
+    ]
+    # 문자열 안의 개행(1줄) + 닫는 줄 뒤 개행(1줄)까지 반영되어 3번째 줄이어야 한다.
+    print_x_token = tokens[3]
+    assert print_x_token.line == 3
+
+
 # ── 숫자 리터럴 포맷 ──────────────────────────────────────────────────
 
 
@@ -190,6 +232,16 @@ def test_float():
     num = next(t for t in tokens if t.type == TokenType.NUMBER)
     assert num.origin == "3.14"
     assert num.value == pytest.approx(3.14)
+
+
+def test_number_dot_at_end_of_source_is_not_consumed():
+    # "5."  — 소스가 '.' 바로 뒤에서 끝나 다음 숫자를 미리 볼 수 없는 경우.
+    # 이때 '.'은 숫자의 일부로 소비되지 않고 별도의 DOT 토큰이 되어야 한다.
+    assert as_token_tuples(tokenize("5.")) == [
+        (TokenType.NUMBER, "5", 5.0),
+        (TokenType.DOT, ".", None),
+        (TokenType.EOF, "", None),
+    ]
 
 
 def test_integer_and_float_origin_differ():

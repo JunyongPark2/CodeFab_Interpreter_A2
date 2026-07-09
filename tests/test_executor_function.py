@@ -97,6 +97,13 @@ def test_call_returns_computed_value(capsys):
     assert capsys.readouterr().out == "3\n"
 
 
+def test_printing_function_shows_function_name(capsys):
+    # Func add(a, b) { return a + b; } print add;  → "<function add>"
+    add = make_func("add", ["a", "b"], [make_return(bin_(var("a"), TokenType.PLUS, var("b")))])
+    run([add, PrintStmt(expression=var("add"))])
+    assert capsys.readouterr().out == "<function add>\n"
+
+
 def test_function_declaration_itself_prints_nothing(capsys):
     run([make_func("noop", [], [])])
     assert capsys.readouterr().out == ""
