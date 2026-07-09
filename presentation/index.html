@@ -28,13 +28,13 @@
 
 <section id="hero" class="slide hero">
   <h1 class="hero__title">CodeFab Interpreter</h1>
-  <p class="hero__team">A2 · Approve All · 5조</p>
+  <p class="hero__team">A2 · Approve All · 5팀</p>
 </section>
 
 <section id="crew" class="slide">
   <p class="slide__eyebrow">01 · 팀원 소개</p>
   <h2 class="slide__title">팀원 및 역할</h2>
-  <p class="slide__lede">A2(Approve All, 5조) 팀 구성입니다.</p>
+  <p class="slide__lede">A2(Approve All, 5팀) 팀 구성입니다.</p>
 
   <div class="crew">
     <div class="card">
@@ -564,27 +564,180 @@ sequenceDiagram
   </div>
 </section>
 
-<section id="demo" class="slide">
-  <p class="slide__eyebrow">10 · 시연</p>
-  <h2 class="slide__title">프로젝트 시연</h2>
-  <p class="slide__lede">발표에서는 아래 흐름을 실제 터미널로 시연합니다. (라이브 데모 예정)</p>
+<section id="demo" class="slide slide--demo">
+  <p class="slide__eyebrow">10 · 시연 로드맵</p>
+  <h2 class="slide__title">기본 기능과 엣지 케이스 시연 목록</h2>
+  <div class="demo-overview">
+    <article class="demo-lane">
+      <span class="demo-lane__tag">Basic Flow</span>
+      <h3>언어 기능이 한 파이프라인에서 끝까지 실행되는지 확인</h3>
+      <ol class="demo-list">
+        <li><strong>REPL / 멀티라인 입력</strong><span>변수, print, if 블록이 같은 전역 환경을 공유</span></li>
+        <li><strong>Function</strong><span>인자, return, 재귀, null 반환</span></li>
+        <li><strong>Class</strong><span>This, Super, init, 상속, instanceof</span></li>
+        <li><strong>Array / Modulo</strong><span>고정 크기 배열, 인덱스 읽기/쓰기, % 연산</span></li>
+        <li><strong>Import</strong><span>모듈 네임스페이스와 alias 멤버 접근</span></li>
+        <li><strong>Debug Shell</strong><span>step, next, watch, inspect가 Executor hook으로 동작</span></li>
+      </ol>
+    </article>
 
-  <div class="terminal">
-    <div class="terminal__head">factory — REPL mode</div>
-    <div class="terminal__body"><span class="terminal__prompt">&gt;&gt;</span> var a = 1;
-<span class="terminal__prompt">&gt;&gt;</span> print a + 1;
-<span class="terminal__out">2</span>
-<span class="terminal__prompt">&gt;&gt;</span> if (true) {
-<span class="terminal__prompt">...</span>   print "ok";
-<span class="terminal__prompt">...</span> }
-<span class="terminal__out">ok</span></div>
+    <article class="demo-lane">
+      <span class="demo-lane__tag">Edge Cases</span>
+      <h3>리뷰와 회귀 테스트에서 잡은 실패 경로를 짧게 재현</h3>
+      <ol class="demo-list">
+        <li><strong>정적 검사</strong><span>클래스명/alias 중복, 함수 밖 return, init return 금지</span></li>
+        <li><strong>배열 런타임 오류</strong><span>음수·소수 크기, 범위 밖·비정수 인덱스</span></li>
+        <li><strong>Import 오류 UX</strong><span>누락 파일, 순환 import, 재import, for 내부 import 금지</span></li>
+        <li><strong>상수 폴딩 안전장치</strong><span>% 0과 타입 오류는 실행 전 접지 않음</span></li>
+        <li><strong>Debug next</strong><span>복합문 내부에서 다시 멈추지 않는지 확인</span></li>
+        <li><strong>스코프 경계</strong><span>섀도잉 허용, for 변수 누수 방지, REPL import 기록 유지</span></li>
+      </ol>
+    </article>
   </div>
 
-  <p class="demo-note">시연 예정 항목: 클래스 상속 &amp; instanceof · 정적 배열 · import 모듈 · factory debug 모드의 step/next/watch.</p>
+</section>
+
+<section id="demo-basic" class="slide slide--demo">
+  <p class="slide__eyebrow">11 · 기본 기능 시연</p>
+  <h2 class="slide__title">정상 동작 데모 순서</h2>
+  <div class="demo-cases">
+    <article class="demo-case">
+      <div class="demo-case__meta">01 · REPL</div>
+      <div>
+        <h3>변수, print, 멀티라인 if 입력</h3>
+        <pre class="demo-command"><code>python factory_shell.py
+&gt;&gt; var a = 1;
+&gt;&gt; print a + 1;
+2
+&gt;&gt; if (true) {
+...   print "ok";
+... }
+ok</code></pre>
+        <p class="demo-case__result">확인 포인트: REPL 버퍼가 닫는 중괄호까지 기다리고, 전역 환경이 유지됩니다.</p>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">02 · Function</div>
+      <div>
+        <h3>함수 호출, 재귀, 문자열 출력</h3>
+        <pre class="demo-command"><code>python factory_shell.py run scripts/function_demo.txt
+10
+120
+Hello, CodeFab!</code></pre>
+        <p class="demo-case__result">확인 포인트: <code>Func add</code>, <code>factorial</code>, <code>return;</code> 경로가 모두 실행됩니다.</p>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">03 · Class</div>
+      <div>
+        <h3>This 기반 메서드 호출과 필드 갱신</h3>
+        <pre class="demo-command"><code>python factory_shell.py run scripts/class_test.txt
+5</code></pre>
+        <p class="demo-case__result">확장 시연: README의 <code>SpeedRobot : Robot</code> 예제로 <code>Super.move()</code>와 <code>instanceof</code>까지 보여줍니다.</p>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">04 · Import</div>
+      <div>
+        <h3>모듈 alias와 멤버 접근</h3>
+        <pre class="demo-command"><code>python factory_shell.py run scripts/import_demo.txt
+3</code></pre>
+        <p class="demo-case__result">확인 포인트: <code>scripts/sum.txt</code>가 독립 환경에서 실행되고 <code>sum.add(1, 2)</code>로 노출됩니다.</p>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">05 · Debug</div>
+      <div>
+        <h3><code>next</code>가 for 본문 내부를 건너뛰는지 확인</h3>
+        <pre class="demo-command"><code>python factory_shell.py debug scripts/debug_next_for_repro.txt
+&gt; next
+0
+1
+[DEBUG] scripts/debug_next_for_repro.txt:4번째 줄에서 정지
+&gt; continue
+done</code></pre>
+        <p class="demo-case__result">확장 시연: <code>scripts/debug_import_demo_main.txt</code>로 import된 모듈 내부 stepping도 확인합니다.</p>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section id="demo-edge" class="slide slide--demo">
+  <p class="slide__eyebrow">12 · 엣지 케이스 시연</p>
+  <h2 class="slide__title">실패 경로와 회귀 방지 데모</h2>
+  <div class="demo-cases demo-cases--compact">
+    <article class="demo-case">
+      <div class="demo-case__meta">Checker</div>
+      <div>
+        <h3>클래스명이 기존 변수명을 덮어쓰지 못함</h3>
+        <pre class="demo-command"><code>python factory_shell.py run scripts/class_name_collision_repro.txt
+[7번째줄] 변수 'Robot'이(가) 이미 이 스코프에 선언되어 있습니다.</code></pre>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">Runtime</div>
+      <div>
+        <h3>배열 크기와 인덱스 검증</h3>
+        <pre class="demo-command"><code>var arr = Array(2);
+arr[2] = 9;
+// [2번째줄] 배열 인덱스가 범위를 벗어났습니다.</code></pre>
+        <p class="demo-case__result">추가 후보: <code>Array(2.5)</code>, <code>arr[1.5]</code>, <code>"x"[0]</code></p>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">Import UX</div>
+      <div>
+        <h3>누락 파일은 traceback 없이 한 줄 오류</h3>
+        <pre class="demo-command"><code>python factory_shell.py run scripts/missing_import_error_demo.txt
+[1번째줄] import 대상 파일이 없습니다: 'missing_file_for_manual_check.txt'</code></pre>
+        <p class="demo-case__result">추가 후보: 같은 파일 재import, 순환 import, <code>for</code> 본문 내부 import 금지</p>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">Optimizer</div>
+      <div>
+        <h3>상수 폴딩은 런타임 오류를 숨기지 않음</h3>
+        <pre class="demo-command"><code>print 10 % 3;
+print 10 % 0;
+// 1
+// [2번째줄] 0으로 나눈 오류</code></pre>
+        <p class="demo-case__result"><code>runtime.eval_binary_op()</code> 공유 이후에도 <code>% 0</code>은 접지 않고 Executor에서 오류가 납니다.</p>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">Static Scope</div>
+      <div>
+        <h3>문맥이 맞지 않는 키워드는 실행 전 차단</h3>
+        <pre class="demo-command"><code>return 1;                 // 함수 밖 return
+Class A { init() { return; } }
+print This;               // 클래스 밖 This
+Class A { m() { Super.m(); } } // 부모 없는 Super</code></pre>
+      </div>
+    </article>
+
+    <article class="demo-case">
+      <div class="demo-case__meta">Debug UX</div>
+      <div>
+        <h3><code>step</code>과 <code>next</code>의 의미 차이를 직접 비교</h3>
+        <pre class="demo-command"><code>scripts/debug_next_for_repro.txt
+step  → for 내부 문장까지 진입
+next  → 같은 깊이의 다음 문장까지 진행</code></pre>
+        <p class="demo-case__result">발표 시간이 부족하면 기본 기능 시연의 Debug 항목 하나로 합쳐도 됩니다.</p>
+      </div>
+    </article>
+  </div>
 </section>
 
 <section id="notes" class="slide">
-  <p class="slide__eyebrow">11 · 소감</p>
+  <p class="slide__eyebrow">13 · 소감</p>
   <h2 class="slide__title">소감</h2>
 
   <div class="notes-grid">
@@ -616,11 +769,17 @@ sequenceDiagram
 </section>
 
 <section id="closing" class="slide closing">
-  <p class="slide__eyebrow">12 · 마무리</p>
-  <h2 class="slide__title">감사합니다</h2>
-  <div class="closing__list">
-    A2 · Approve All · 5조<br>
-    Assembler → Checker → Executor → Factory Shell
+  <p class="slide__eyebrow">14 · Closing</p>
+  <h2 class="slide__title">CodeFab Interpreter</h2>
+  <p class="closing__message">기능 구현부터 품질 검증까지, 팀의 개발 과정을 하나의 인터프리터로 완성했습니다.</p>
+  <div class="closing__pipeline" aria-label="CodeFab Interpreter 실행 흐름">
+    <span>Assembler</span>
+    <span class="closing__arrow" aria-hidden="true">→</span>
+    <span>Checker</span>
+    <span class="closing__arrow" aria-hidden="true">→</span>
+    <span>Executor</span>
+    <span class="closing__arrow" aria-hidden="true">→</span>
+    <span>Factory Shell</span>
   </div>
   <div class="closing-metrics" aria-label="프로젝트 마무리 지표">
     <div class="closing-metric">
@@ -635,8 +794,8 @@ sequenceDiagram
     </div>
     <div class="closing-metric">
       <span class="closing-metric__label">PR</span>
-      <strong class="closing-metric__value">64개</strong>
-      <span class="closing-metric__note">merged 60 · closed 4</span>
+      <strong class="closing-metric__value">65개</strong>
+      <span class="closing-metric__note">merged 60 · closed 4 · open 1</span>
     </div>
     <div class="closing-metric">
       <span class="closing-metric__label">Commit</span>
@@ -644,14 +803,15 @@ sequenceDiagram
       <span class="closing-metric__note">origin/main 기준</span>
     </div>
   </div>
-  <footer class="slide__foot">CodeFab Interpreter — Team A2 Presentation Draft</footer>
+  <p class="closing__thanks">감사합니다</p>
+  <footer class="slide__foot">A2 · Approve All · 5팀</footer>
 </section>
 
 </div>
 </main>
 
 <div class="progress" aria-hidden="true">
-  <span class="progress__current">1</span> / <span class="progress__total">13</span>
+  <span class="progress__current">1</span> / <span class="progress__total">15</span>
 </div>
 
 <script src="script.js"></script>
