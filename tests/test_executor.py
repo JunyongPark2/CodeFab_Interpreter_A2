@@ -680,6 +680,22 @@ def test_division_by_zero_raises():
         )
 
 
+def test_modulo_by_zero_raises():
+    line = 1
+    with pytest.raises(CodeFabRuntimeError, match=rf"\[{line}번째줄\] 0으로 나눈 오류"):
+        run(
+            [
+                ExpressionStmt(
+                    expression=BinaryExpr(
+                        left=LiteralExpr(value=5.0),
+                        operator=tok(TokenType.MODULO, line=line),
+                        right=LiteralExpr(value=0.0),
+                    )
+                )
+            ]
+        )
+
+
 # ── 실행 전 최적화: 정적 바인딩(locals) 적용 ────────────────────────
 def test_resolved_variable_read_uses_get_at(capsys):
     # { var a = 1; print a; } -> a의 VariableExpr을 Checker가 계산해준 것처럼
@@ -883,6 +899,66 @@ def test_non_number_array_size_raises():
                     initializer=ArrayExpr(
                         size=LiteralExpr("hi"), keyword=array_tok(line)
                     ),
+                ),
+            ]
+        )
+
+
+def test_negative_array_size_raises():
+    line = 1
+    with pytest.raises(
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열의 크기는 0 이상의 정수여야 합니다\.",
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("brr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(-1.0), keyword=array_tok(line)
+                    ),
+                ),
+            ]
+        )
+
+
+def test_non_integer_array_size_raises():
+    line = 1
+    with pytest.raises(
+        CodeFabRuntimeError,
+        match=rf"\[{line}번째줄\] 배열의 크기는 0 이상의 정수여야 합니다\.",
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("brr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(2.5), keyword=array_tok(line)
+                    ),
+                ),
+            ]
+        )
+
+
+def test_non_integer_index_raises():
+    line = 1
+    with pytest.raises(
+        CodeFabRuntimeError, match=rf"\[{line}번째줄\] 배열 인덱스는 정수여야 합니다\."
+    ):
+        run(
+            [
+                VarDeclStmt(
+                    name=name_tok("arr"),
+                    initializer=ArrayExpr(
+                        size=LiteralExpr(3.0), keyword=array_tok(line)
+                    ),
+                ),
+                ExpressionStmt(
+                    expression=IndexGetExpr(
+                        array=VariableExpr(name=name_tok("arr")),
+                        bracket=bracket_tok(line),
+                        index=LiteralExpr(1.5),
+                    )
                 ),
             ]
         )
