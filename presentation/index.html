@@ -187,102 +187,49 @@ flowchart LR
 <section id="class-diagram-pipeline" class="slide">
   <p class="slide__eyebrow">04 · 클래스 다이어그램 1/2</p>
   <h2 class="slide__title">핵심 파이프라인 클래스 다이어그램</h2>
-  <p class="slide__lede">Interpreter 퍼사드가 Assembler · Checker · Executor를 어떻게 소유하고 호출하는지 보여줍니다.</p>
+  <p class="slide__lede">발표에서는 입력을 실행 결과로 연결하는 핵심 클래스와 책임 흐름만 보여줍니다.</p>
 
-  <div class="diagram-block">
+  <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
 classDiagram
     direction LR
 
     class CodeFabInterpreter {
-        -Assembler _assembler
-        -Environment _global_env
-        -Loader _loader
-        -set _imported_paths
-        +run(source) None
+        +run(source)
     }
 
     class Assembler {
-        -type _tokenizer
-        -type _parser
-        +assemble(source) list~Stmt~
-    }
-
-    class Tokenizer {
-        -str _source
-        -list~Token~ _tokens
-        +tokenize() list~Token~
-    }
-
-    class Parser {
-        -list~Token~ _tokens
-        -dict _stmt_dispatch
-        +parse() list~Stmt~
+        +assemble(source)
     }
 
     class Checker {
-        -list~Stmt~ _stmts
-        -list~dict~ _scopes
-        -dict _locals
-        -list~set~ _imported_paths
-        +check() dict
+        +check(stmts)
     }
 
     class Executor {
-        -list~Stmt~ _stmts
-        -Environment _global
-        -Environment _current
-        -dict _locals
-        -Loader _loader
-        -Callable _on_stmt
-        +execute() None
-        +current_env Environment
+        +execute(stmts)
+    }
+
+    class AST {
+        +nodes()
     }
 
     class Environment {
-        -dict _values
-        +Environment parent
-        +define(name, value) None
-        +get(name, line) Any
-        +assign(name, value, line) None
-        +get_at(distance, name) Any
-        +assign_at(distance, name, value) None
-        +snapshot() dict
+        +get(name)
     }
 
     class Loader {
-        -Assembler _assembler
-        -set _loading
-        +loading(path, line)
-        +load(path, line) list~Stmt~
+        +load(path)
     }
 
-    class DebugController {
-        -set _breakpoints
-        -list _watches
-        -str _mode
-        +on_stmt(stmt, depth, executor) None
-    }
-
-    CodeFabInterpreter *-- Assembler
-    CodeFabInterpreter *-- Environment
-    CodeFabInterpreter *-- Loader
-    CodeFabInterpreter --> Checker
-    CodeFabInterpreter --> Executor
-
-    Assembler --> Tokenizer
-    Assembler --> Parser
-    Parser --> Stmt
-    Parser --> Expr
-    Checker --> Stmt
-    Checker --> Expr
-    Checker ..> Environment : global scope names
-    Executor --> Stmt
-    Executor --> Expr
-    Executor *-- Environment
-    Executor --> Loader
-    Loader --> Assembler
-    DebugController ..> Executor : on_stmt hook
+    CodeFabInterpreter --> Assembler : assemble
+    CodeFabInterpreter --> Checker : validate
+    CodeFabInterpreter --> Executor : execute
+    Assembler --> AST : build
+    Checker --> AST : inspect
+    Executor --> AST : visit
+    Executor --> Environment : resolve
+    Executor --> Loader : import
     </div>
   </div>
 </section>
@@ -290,75 +237,42 @@ classDiagram
 <section id="class-diagram-runtime" class="slide">
   <p class="slide__eyebrow">05 · 클래스 다이어그램 2/2</p>
   <h2 class="slide__title">런타임 객체 모델 클래스 다이어그램</h2>
-  <p class="slide__lede">함수 · 클래스 · 인스턴스 · 모듈이 실행 중 어떤 참조 관계로 살아 움직이는지 보여줍니다.</p>
+  <p class="slide__lede">호출 가능한 값, 인스턴스, 모듈이 실행 중 만나는 핵심 관계만 표시합니다.</p>
 
-  <div class="diagram-block">
+  <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
 classDiagram
     direction LR
 
     class CodeFabCallable {
         &lt;&lt;interface&gt;&gt;
-        +arity() int
-        +call(executor, arguments)
+        +call()
     }
 
     class CodeFabFunction {
-        -FuncDeclStmt _declaration
-        -Environment _closure
-        -bool _is_initializer
-        +arity() int
-        +bind(instance) CodeFabFunction
-        +call(executor, arguments)
+        +bind(instance)
     }
 
     class CodeFabClass {
-        +str name
-        +CodeFabClass superclass
-        -dict _methods
-        +find_method(name) CodeFabFunction
-        +arity() int
-        +call(executor, arguments) CodeFabInstance
+        +find_method(name)
     }
 
     class CodeFabInstance {
-        +CodeFabClass klass
-        -dict _fields
         +get(name)
-        +set(name, value) None
+        +set(name, value)
     }
 
     class CodeFabModule {
-        +str name
-        +dict fields
-        +get(name, line)
-    }
-
-    class Environment {
-        +define(name, value) None
-        +get(name, line) Any
-        +snapshot() dict
-    }
-
-    class Executor {
-        +visit_CallExpr(expr)
-        +visit_GetExpr(expr)
-        +visit_SetExpr(expr)
-        +visit_ClassDeclStmt(stmt)
-        +visit_ImportStmt(stmt)
+        +get(name)
     }
 
     CodeFabCallable <|-- CodeFabFunction
     CodeFabCallable <|-- CodeFabClass
-    CodeFabFunction --> Environment : closure
-    CodeFabFunction --> CodeFabInstance : bind(This)
     CodeFabClass --> CodeFabFunction : methods
-    CodeFabClass --> CodeFabClass : superclass
     CodeFabClass --> CodeFabInstance : creates
     CodeFabInstance --> CodeFabClass : klass
-    Executor --> Environment : snapshot()
-    Executor --> CodeFabModule : import alias / fields update
-    Executor --> CodeFabCallable : call()
+    CodeFabFunction --> CodeFabInstance : bind This
+    CodeFabModule --> CodeFabCallable : exports
     </div>
   </div>
 </section>
@@ -366,39 +280,27 @@ classDiagram
 <section id="seq-diagram-normal" class="slide">
   <p class="slide__eyebrow">06 · 시퀀스 다이어그램 1/3</p>
   <h2 class="slide__title">일반 실행 시퀀스</h2>
-  <p class="slide__lede">소스 입력부터 실행 결과 출력까지, Assembler → Checker → Executor 흐름입니다.</p>
+  <p class="slide__lede">소스 입력이 조립, 검사, 실행을 거쳐 결과로 돌아오는 핵심 흐름입니다.</p>
 
-  <div class="diagram-block">
+  <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
 sequenceDiagram
     actor User
     participant CLI as Shell
     participant CF as CodeFabInterpreter
     participant ASM as Assembler
-    participant TOK as Tokenizer
-    participant PRS as Parser
     participant CHK as Checker
     participant EXE as Executor
-    participant ENV as Environment
 
-    User->>CLI: source 입력 또는 파일 실행
+    User->>CLI: source 입력
     CLI->>CF: run(source)
     CF->>ASM: assemble(source)
-    ASM->>TOK: tokenize()
-    TOK-->>ASM: Token 목록 반환
-    ASM->>PRS: parse()
-    PRS-->>ASM: Stmt 목록 반환
     ASM-->>CF: AST
-    CF->>ENV: global_env.names 조회
-    CF->>CHK: check(stmts, global_scope, imported_paths)
-    CHK->>CHK: accept(visitor)로 AST 순회
-    CHK->>CHK: 중복 선언 검사, 정적 바인딩, 상수 폴딩
-    CHK-->>CF: locals map 반환
-    CF->>EXE: execute(stmts, global_env, locals_map, loader)
-    EXE->>EXE: 각 문장 실행
-    EXE->>ENV: 스코프 조회와 대입
-    EXE-->>CLI: print 출력 또는 런타임 에러
-    CLI-->>User: 실행 결과 표시
+    CF->>CHK: check(AST)
+    CHK-->>CF: locals map
+    CF->>EXE: execute(AST)
+    EXE-->>CLI: output / error
+    CLI-->>User: 결과 표시
     </div>
   </div>
 </section>
@@ -406,34 +308,25 @@ sequenceDiagram
 <section id="seq-diagram-import" class="slide">
   <p class="slide__eyebrow">07 · 시퀀스 다이어그램 2/3</p>
   <h2 class="slide__title">import 실행 시퀀스</h2>
-  <p class="slide__lede">Loader가 모듈을 다시 Assembler로 조립하고, 실행 결과를 CodeFabModule로 감싸는 흐름입니다.</p>
+  <p class="slide__lede">모듈도 조립과 검사를 거쳐 독립 실행된 뒤 alias로 노출됩니다.</p>
 
-  <div class="diagram-block">
+  <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
 sequenceDiagram
     participant EXE as Executor
     participant LOA as Loader
     participant ASM as Assembler
     participant CHK as Checker
-    participant MOD as Module Executor
-    participant ENV as Module Environment
-    participant NS as CodeFabModule
+    participant MOD as Module
 
-    EXE->>LOA: loading(path, line) 진입
-    EXE->>LOA: load(path, line)
+    EXE->>LOA: load(path)
     LOA->>ASM: assemble(module_source)
-    ASM-->>LOA: module_stmts
-    LOA->>LOA: 최상위 선언만 허용하는지 검사
-    LOA-->>EXE: module_stmts
-    EXE->>CHK: Checker(module_stmts).check()
-    CHK-->>EXE: module_locals
-    EXE->>MOD: nested Executor(module_env).execute()
-    MOD->>ENV: 모듈 최상위 선언 실행
-    ENV-->>EXE: snapshot()
-    EXE->>NS: CodeFabModule(alias)
-    EXE->>NS: fields.update(snapshot)
-    EXE->>EXE: current_env.define(alias, module)
-    EXE->>LOA: loading(path) 종료
+    ASM-->>EXE: module AST
+    EXE->>CHK: check(module AST)
+    CHK-->>EXE: locals map
+    EXE->>MOD: execute in module scope
+    MOD-->>EXE: exports
+    EXE->>EXE: bind alias
     </div>
   </div>
 </section>
@@ -441,9 +334,9 @@ sequenceDiagram
 <section id="seq-diagram-debug" class="slide">
   <p class="slide__eyebrow">08 · 시퀀스 다이어그램 3/3</p>
   <h2 class="slide__title">디버그 모드 시퀀스</h2>
-  <p class="slide__lede">Executor.on_stmt 훅으로 매 문장 실행 전 DebugController가 개입하는 흐름입니다.</p>
+  <p class="slide__lede">Assembler와 Checker를 거친 뒤, 문장 실행 전 훅으로 디버거가 정지 여부를 결정합니다.</p>
 
-  <div class="diagram-block">
+  <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
 sequenceDiagram
     actor User
@@ -455,22 +348,17 @@ sequenceDiagram
 
     User->>FS: factory debug program.txt
     FS->>ASM: assemble(source)
-    ASM-->>FS: stmts
-    FS->>CHK: check(stmts)
-    CHK-->>FS: locals_map
-    FS->>DBG: DebugController(source)
-    FS->>EXE: Executor(..., on_stmt=DBG.on_stmt)
-    FS->>EXE: execute()
-    loop before each Stmt
+    ASM-->>FS: AST
+    FS->>CHK: check(AST)
+    CHK-->>FS: locals map
+    FS->>EXE: execute(AST, on_stmt hook)
+    loop before each statement
         EXE->>DBG: on_stmt(stmt, depth, executor)
-        DBG->>DBG: breakpoint / step / next 판단
-        alt 정지 필요
-            DBG-->>User: 현재 파일:줄, 소스, watch 출력
-            User->>DBG: step / next / break / watch / inspect
-        else 계속 실행
-            DBG-->>EXE: return
+        alt stop needed
+            DBG-->>User: source and watch
+            User->>DBG: step / next
         end
-        EXE->>EXE: stmt.accept(self)
+        EXE->>EXE: execute statement
     end
     </div>
   </div>

@@ -455,6 +455,16 @@ main {
 .diagram-block .mermaid svg { max-width: none; }
 .diagram-block--wide .mermaid { max-height: 620px; }
 .diagram-block--compact { margin-bottom: 18px; }
+.diagram-block--presentation .mermaid {
+  overflow: hidden;
+}
+.diagram-block--presentation .mermaid svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
 
 /* ===== BP cases ===== */
 .bp-grid {
