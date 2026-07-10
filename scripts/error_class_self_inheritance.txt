@@ -1,0 +1,8 @@
+// Self-inheritance repro.
+// A class cannot inherit from itself. This should be caught before
+// execution as a CheckError instead of causing infinite superclass lookup.
+
+Class Robot : Robot {
+}
+
+print Robot;

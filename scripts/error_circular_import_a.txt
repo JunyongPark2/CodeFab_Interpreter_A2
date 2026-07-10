@@ -1,0 +1,1 @@
+import "scripts/error_circular_import_b.txt" alias b;

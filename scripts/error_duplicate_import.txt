@@ -1,0 +1,9 @@
+// Duplicate import repro.
+// Importing the same file twice in the same (or an outer-enclosing) scope
+// is blocked before execution, even with a different alias, and should
+// raise a CheckError instead of silently re-running the module.
+
+import "scripts/sum.txt" alias sum;
+import "scripts/sum.txt" alias sum2;
+
+print sum.add(1, 2);
