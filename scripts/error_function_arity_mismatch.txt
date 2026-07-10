@@ -1,0 +1,9 @@
+// Function arity mismatch repro.
+// add() declares 2 parameters but is called with 3 arguments.
+// This should be caught before execution as a CheckError.
+
+Func add(a, b) {
+    return a + b;
+}
+
+print add(1, 2, 3);

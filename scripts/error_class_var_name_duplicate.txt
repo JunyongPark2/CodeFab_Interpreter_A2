@@ -1,0 +1,3 @@
+var Robot = 1;
+Class Robot { }
+print Robot;

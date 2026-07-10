@@ -644,55 +644,14 @@ CodeFab Interpreter는 작은 모듈들이 `source → AST → 검사 결과 →
 
 ## 4. 프로젝트 시연
 
-전체 코드와 테스트 699개 기준으로 정상 흐름을 먼저 보여주고,
-최근 보완 사항이 만든 경계 조건을 이어서 검증한다.
+시연은 구현의 정상 흐름과 검증 흐름을 네 가지 카테고리로 나눠 진행한다.
 
-### 4-1. 시연 로드맵
-
-#### 기본 기능 시연
-
-| 순서 | 시연 항목 | 실행/입력 | 기대 결과 | 확인 포인트 |
-|---:|---|---|---|---|
-| 1 | REPL / 멀티라인 입력 | `python factory_shell.py` | `2`, `ok` 출력 | REPL 버퍼가 블록 종료까지 기다리고 전역 환경을 유지 |
-| 2 | Function | `python factory_shell.py run scripts/function_demo.txt` | `10`, `120`, `Hello, CodeFab!` | 인자, `return`, 재귀, 문자열 연결 |
-| 3 | Class | `python factory_shell.py run scripts/class_test.txt` | `5` 출력 | `This` 기반 필드 갱신과 메서드 호출 |
-| 4 | Class 확장 예시 | README의 `SpeedRobot : Robot` 예제 | `Speeeed!`, `15`, `true` | `Super`, `init`, `instanceof` |
-| 5 | Import | `python factory_shell.py run scripts/import_demo.txt` | `3` 출력 | 독립 모듈 환경, alias, `sum.add(1, 2)` 멤버 접근 |
-| 6 | Debug Shell | `python factory_shell.py debug scripts/debug_next_for_repro.txt` | `next` 후 for 본문 내부 정지 없이 4번째 줄에서 정지 | `step`/`next` depth 차이 |
-
-#### 엣지 케이스 시연
-
-| 순서 | 시연 항목 | 실행/입력 | 기대 결과 | 확인 기준 |
-|---:|---|---|---|---|
-| 1 | 클래스명 중복 선언 | `python factory_shell.py run scripts/class_name_collision_repro.txt` | `[7번째줄] 변수 'Robot'... 이미 이 스코프에 선언` | `test_class_name_colliding_with_existing_variable_raises` |
-| 2 | 배열 범위 밖 접근 | `var arr = Array(2); arr[2] = 9;` | `[2번째줄] 배열 인덱스가 범위를 벗어났습니다.` | 배열 경계 테스트 |
-| 3 | 배열 크기/인덱스 타입 | `Array(2.5)`, `arr[1.5]`, `"x"[0]` | 크기/인덱스 타입 오류 | `tests/test_executor.py` 배열 오류 케이스 |
-| 4 | 누락 import 오류 UX | `python factory_shell.py run scripts/missing_import_error_demo.txt` | traceback 없이 한 줄 오류 | import 오류 UX 테스트 |
-| 5 | 재import / 순환 import | 같은 파일을 다른 alias로 재import, A→B→A import | `CheckError` 또는 `ModuleImportError` | `tests/test_executor_import.py` |
-| 6 | `for` 내부 import 금지 | `for (...) { import "..."; }` | `ParseError` | parser import depth 테스트 |
-| 7 | 상수 폴딩 안전장치 | `print 10 % 3; print 10 % 0;` | `1` 출력 후 `[2번째줄] 0으로 나눈 오류` | 상수 폴딩 회귀 테스트 |
-| 8 | 정적 스코프 키워드 오류 | `return 1;`, 클래스 밖 `This`, 부모 없는 `Super` | 실행 전 `CheckError` | `tests/test_checker.py` |
-| 9 | Debug `next` 회귀 | `debug_next_for_repro.txt`에서 `step`/`next` 비교 | `next`는 복합문 내부에서 다시 멈추지 않음 | debug `next` 회귀 테스트 |
-
-### 4-2. REPL 기본 예시
-
-준비된 REPL 예시:
-
-```text
->> var a = 1;
->> print a + 1;
-2
->> if (true) {
-...   print "ok";
-... }
-ok
-```
-
-### 4-3. 발표 시간별 추천 선택
-
-- **3분 데모**: REPL → Function → Class → Import → Debug `next`
-- **5분 데모**: 3분 데모 + 클래스명 중복 선언 + 누락 import 오류 UX
-- **8분 데모**: 5분 데모 + 배열 범위 오류 + `% 0` 상수 폴딩 안전장치 + REPL 재import
+| 카테고리 | 확인 범위 |
+|---|---|
+| REPL 시연 | 대화형 입력, 변수 상태 유지, 멀티라인 블록 입력 |
+| 정상동작 시연 | 함수, 클래스, 배열, 제어문, import의 통합 실행 |
+| 오류동작 시연 | 정적 검사, 배열 경계, import 오류의 차단 |
+| 디버깅모드 시연 | break, step, next, watch, inspect를 통한 실행 상태 관찰 |
 
 ---
 

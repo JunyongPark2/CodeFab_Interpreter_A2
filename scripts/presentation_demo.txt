@@ -1,0 +1,75 @@
+// 1. Function: 매개변수, return, 재귀
+print "@@ [Function 시연] @@";
+Func factorial(n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+print "[Function] factorial(5)";
+print factorial(5);
+print "";
+
+// 2. Class: init, This, Super, 메서드 오버라이드, instanceof
+print "@@ [Class 시연] @@";
+Class Robot {
+    init(name, speed) {
+        This.name = name;
+        This.speed = speed;
+    }
+
+    move(dist) {
+        This.speed = This.speed + dist;
+    }
+}
+
+Class SpeedRobot : Robot {
+    move(dist) {
+        Super.move(dist);
+        print "Speeeed!";
+    }
+}
+
+var robot = SpeedRobot("Arm", 10);
+robot.move(5);
+print "[Class] speed";
+print robot.speed;
+print "[Class] instanceof Robot";
+print robot instanceof Robot;
+print "";
+
+// 3. Array / Modulo: 고정 크기 배열의 읽기/쓰기와 % 연산
+print "@@ [Array 시연] @@";
+var values = Array(3);
+values[0] = 17;
+values[1] = 5;
+values[2] = values[0] % values[1];
+
+print "[Array] values";
+print values;
+print "[Modulo] 17 % 5";
+print values[2];
+print "";
+
+// 4. Control flow: for, if/else, 블록 스코프
+print "@@ [조건, 반복문 시연] @@";
+var total = 0;
+for (var i = 0; i < 3; i = i + 1) {
+    total = total + values[i];
+}
+
+if (total == 24 and robot.speed == 15) {
+    print "[Control] ok";
+} else {
+    print "[Control] failed";
+}
+print "[Control] total";
+print total;
+print "";
+
+// 5. Import: 독립 모듈 네임스페이스와 alias 멤버 접근
+print "@@ [Import 시연] @@";
+import "scripts/sum.txt" alias sum;
+print "[Import] sum.add(1, 2)";
+print sum.add(1, 2);

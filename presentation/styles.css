@@ -724,11 +724,63 @@ main {
   max-width: 60ch;
 }
 
+.demo-run-guide {
+  max-width: 900px;
+  margin: 0 0 28px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--blue);
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+
+.demo-run-guide__label {
+  margin: 0 0 10px;
+  color: var(--blue);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.demo-run-guide__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demo-run-guide__list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.demo-run-guide__list li:first-child {
+  padding-left: 0;
+}
+
+.demo-run-guide__list li + li {
+  border-left: 1px solid var(--line);
+}
+
+.demo-run-guide__list code {
+  padding: 3px 7px;
+  color: var(--ink);
+  font-size: 0.95em;
+  white-space: nowrap;
+}
+
 .demo-overview {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 18px;
-  max-width: 1040px;
+  max-width: 900px;
 }
 
 .demo-lane {
@@ -751,6 +803,13 @@ main {
   font-size: 18px;
   line-height: 1.35;
   margin: 0 0 16px;
+}
+
+.demo-lane p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .demo-list {
@@ -1102,6 +1161,17 @@ body {
 }
 .terminal__body { padding: 18px 20px; }
 .demo-note { font-size: 18px; }
+.demo-run-guide {
+  padding: 20px 24px;
+}
+.demo-run-guide__label {
+  font-size: 15px;
+}
+.demo-run-guide__list li {
+  gap: 12px;
+  padding: 0 22px;
+  font-size: 16px;
+}
 .demo-overview {
   gap: 22px;
 }
@@ -1114,6 +1184,9 @@ body {
 }
 .demo-lane h3 {
   font-size: 22px;
+}
+.demo-lane p {
+  font-size: 16px;
 }
 .demo-list strong {
   font-size: 18px;
@@ -1165,6 +1238,17 @@ footer.slide__foot { font-size: 15px; }
   .demo-overview,
   .demo-case {
     grid-template-columns: 1fr;
+  }
+  .demo-run-guide__list {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .demo-run-guide__list li,
+  .demo-run-guide__list li:first-child {
+    padding: 0;
+  }
+  .demo-run-guide__list li + li {
+    border-left: 0;
   }
   .demo-case {
     gap: 8px;

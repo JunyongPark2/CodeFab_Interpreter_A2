@@ -1,0 +1,6 @@
+import "scripts/debug_import_demo_module.txt" alias mod;
+
+print mod.moduleVar2;
+
+var add_result = mod.moduleAdd(5, 6);
+print add_result;

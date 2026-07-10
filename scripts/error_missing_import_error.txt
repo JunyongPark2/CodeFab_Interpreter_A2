@@ -1,0 +1,6 @@
+import "missing_file_for_manual_check.txt" alias m;
+
+if (true) {
+    var a = 3;
+    print a;
+}
