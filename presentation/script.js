@@ -40,6 +40,12 @@ let index = 0;
 
 progressTotal.textContent = slides.length;
 
+function clearNavFocus() {
+  if (links.includes(document.activeElement)) {
+    document.activeElement.blur();
+  }
+}
+
 function goTo(i) {
   index = Math.max(0, Math.min(slides.length - 1, i));
   track.style.transform = `translateX(-${index * 100}vw)`;
@@ -56,7 +62,10 @@ function goTo(i) {
 }
 
 links.forEach((link, li) => {
-  link.addEventListener("click", () => goTo(linkTargets[li]));
+  link.addEventListener("click", () => {
+    goTo(linkTargets[li]);
+    clearNavFocus();
+  });
 });
 
 window.addEventListener("keydown", (e) => {
@@ -65,9 +74,11 @@ window.addEventListener("keydown", (e) => {
 
   if (forwardKeys.includes(e.code)) {
     e.preventDefault();
+    clearNavFocus();
     goTo(index + 1);
   } else if (backKeys.includes(e.code)) {
     e.preventDefault();
+    clearNavFocus();
     goTo(index - 1);
   }
 });

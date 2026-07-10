@@ -12,9 +12,10 @@
   <div class="nav__links">
     <button class="nav__link" data-target="#hero">시작</button>
     <button class="nav__link" data-target="#crew">팀원</button>
+    <button class="nav__link" data-target="#features">구현 기능</button>
     <button class="nav__link" data-target="#arch">구조 설계</button>
-    <button class="nav__link" data-target="#solid-patterns">SOLID/패턴</button>
     <button class="nav__link" data-target="#class-diagram-pipeline">클래스 다이어그램</button>
+    <button class="nav__link" data-target="#solid-patterns">SOLID/패턴</button>
     <button class="nav__link" data-target="#seq-diagram-normal">시퀀스 다이어그램</button>
     <button class="nav__link" data-target="#bp">BP 사례</button>
     <button class="nav__link" data-target="#demo">시연</button>
@@ -31,10 +32,9 @@
   <p class="hero__team">A2 · Approve All · 5팀</p>
 </section>
 
-<section id="crew" class="slide">
+<section id="crew" class="slide slide--content">
   <p class="slide__eyebrow">01 · 팀원 소개</p>
   <h2 class="slide__title">팀원 및 역할</h2>
-  <p class="slide__lede">A2(Approve All, 5팀) 팀 구성입니다.</p>
 
   <div class="crew">
     <div class="card">
@@ -70,124 +70,113 @@
   </div>
 </section>
 
-<section id="arch" class="slide">
-  <p class="slide__eyebrow">02 · 기능 구현</p>
-  <h2 class="slide__title">기능 구현 소개 (구조 설계)</h2>
-  <p class="slide__lede">
-    사용자 입력은 <code>CodeFabInterpreter</code> 퍼사드를 거쳐
-    <code>Assembler → Checker → Executor</code> 순서로 처리됩니다.
-    AST는 한 번 만들고, 정적 검사와 실행 단계에서 Visitor 방식으로 재사용합니다.
-  </p>
+<section id="features" class="slide slide--features">
+  <p class="slide__eyebrow">02 · 구현 기능</p>
+  <h2 class="slide__title">구현 기능 한눈에 보기</h2>
 
-  <div class="diagram-block diagram-block--compact">
+  <div class="feature-table-wrap">
+    <table class="feature-table">
+      <colgroup>
+        <col class="feature-table__area">
+        <col class="feature-table__scope">
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">기능 영역</th>
+          <th scope="col">구현 범위</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">기본 문법 · 제어</th>
+          <td>
+            <ul class="feature-checklist">
+              <li>변수 선언/대입: <code>var x = 1;</code>, <code>x = x + 1;</code></li>
+              <li>기본 타입: Number, String, Boolean, null</li>
+              <li>산술/비교/동등 연산: <code>+ - * / %</code>, <code>&lt; &gt; &lt;= &gt;=</code>, <code>== !=</code></li>
+              <li>논리 연산: <code>and</code>, <code>or</code>, <code>!</code> 및 단락 평가</li>
+              <li>제어문: <code>if</code>/<code>else</code>, C 스타일 <code>for</code></li>
+              <li>블록 스코프와 변수 섀도잉</li>
+              <li><code>print</code> 문과 <code>//</code> 한 줄 주석</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">함수 · 객체 모델</th>
+          <td>
+            <ul class="feature-checklist">
+              <li>함수: <code>Func</code>, 매개변수, 재귀, 클로저, <code>return</code></li>
+              <li>클래스: <code>Class</code>, 동적 필드, 메서드, <code>This</code>, 생성자 <code>init</code></li>
+              <li>단일 상속: <code>Class Child : Parent</code>, <code>Super</code>, <code>instanceof</code></li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">데이터 · 모듈</th>
+          <td>
+            <ul class="feature-checklist">
+              <li>정적 배열: <code>Array(n)</code>, <code>arr[i]</code> 읽기/쓰기</li>
+              <li>import: <code>import "path" alias name;</code> 및 <code>name.member</code> 접근</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">검증 · 개발자 도구</th>
+          <td>
+            <ul class="feature-checklist">
+              <li>실행 전 검사/최적화: 중복 선언, 자기 참조, 정적 바인딩, 상수 폴딩</li>
+              <li>Factory Shell 디버그: <code>step</code>, <code>next</code>, <code>break</code>, <code>watch</code>, <code>inspect</code></li>
+            </ul>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="arch" class="slide slide--content">
+  <p class="slide__eyebrow">03 · 기능 구현</p>
+  <h2 class="slide__title">구조 설계</h2>
+
+  <div class="diagram-block diagram-block--compact diagram-block--presentation">
     <div class="mermaid">
-flowchart LR
-    Root["CodeFab Interpreter"]
-    Entry["Entry Shells<br/>factory_shell.py<br/>prompt_shell.py"]
-    Facade["Facade<br/>CodeFabInterpreter"]
-    Assembler["Assembler<br/>Tokenizer + Parser"]
-    Checker["Checker<br/>정적 검사 + 최적화"]
-    Executor["Executor<br/>AST 실행"]
-    Runtime["Runtime Services<br/>Environment / Loader / Debugger"]
+flowchart TB
+    subgraph Entry["Entry Components"]
+        direction LR
+        FactoryShell["Factory Shell<br/>REPL / file / debug"]
+        PromptShell["Prompt Shell<br/>interactive input"]
+    end
 
-    Root --> Entry
-    Entry --> Facade
-    Facade --> Assembler
-    Assembler --> Checker
-    Checker --> Executor
-    Executor <--> Runtime
+    subgraph Core["Core Pipeline"]
+        direction LR
+        Facade["CodeFabInterpreter<br/>Facade"]
+        Assembler["Assembler<br/>Tokenizer + Parser"]
+        Checker["Checker<br/>정적 검사 + 최적화"]
+        Executor["Executor<br/>AST 실행"]
+        Facade --> Assembler --> Checker --> Executor
+    end
+
+    subgraph Runtime["Runtime Services"]
+        direction LR
+        Environment["Environment<br/>scope / binding"]
+        Loader["Loader<br/>module assembly"]
+        DebugController["DebugController<br/>on_stmt hook"]
+    end
+
+    FactoryShell --> Facade
+    PromptShell --> Facade
+    Executor --> Environment
+    Executor --> Loader
+    DebugController -. callback .-> Executor
+    Loader --> Assembler
     </div>
   </div>
 
-  <div class="arch-summary">
-    <article class="arch-card">
-      <span>01</span>
-      <h3>Assembler</h3>
-      <p>소스를 토큰화하고 AST 문장 목록으로 조립합니다.</p>
-    </article>
-    <article class="arch-card">
-      <span>02</span>
-      <h3>Checker</h3>
-      <p>중복 선언, 자기 참조, 정적 바인딩, 상수 폴딩을 처리합니다.</p>
-    </article>
-    <article class="arch-card">
-      <span>03</span>
-      <h3>Executor</h3>
-      <p>AST를 실행하고 함수, 클래스, 배열, import를 런타임 값으로 평가합니다.</p>
-    </article>
-    <article class="arch-card">
-      <span>Hook</span>
-      <h3>Debug / Import</h3>
-      <p><code>Loader</code>와 <code>on_stmt</code> 훅으로 import와 디버그 모드를 확장합니다.</p>
-    </article>
-  </div>
 </section>
 
-<section id="solid-patterns" class="slide">
-  <p class="slide__eyebrow">03 · SOLID & 디자인 패턴</p>
-  <h2 class="slide__title">SOLID 원칙과 적용 패턴</h2>
-  <p class="slide__lede">
-    CodeFab Interpreter의 설계는 요구사항이 늘어날 때 변경 범위를 줄이는 방향으로 정리되어 있습니다.
-    발표에서는 실제 코드 지점과 함께 세 가지 패턴만 집중해서 설명합니다.
-  </p>
-
-  <div class="principle-grid">
-    <article class="principle-card">
-      <span class="principle-card__abbr">SRP</span>
-      <h3>단일 책임 원칙</h3>
-      <p><code>Tokenizer</code>, <code>Parser</code>, <code>Checker</code>, <code>Executor</code>, <code>Loader</code>, <code>DebugController</code>가 단계별 책임을 나눕니다.</p>
-    </article>
-    <article class="principle-card">
-      <span class="principle-card__abbr">OCP</span>
-      <h3>개방-폐쇄 원칙</h3>
-      <p>AST 노드가 늘어나면 <code>visit_Xxx</code> 메서드를 추가하는 방식으로 확장하고, 누락 시 <code>accept()</code>가 즉시 실패합니다.</p>
-    </article>
-    <article class="principle-card">
-      <span class="principle-card__abbr">LSP</span>
-      <h3>리스코프 치환 원칙</h3>
-      <p><code>CodeFabFunction</code>과 <code>CodeFabClass</code>가 모두 <code>CodeFabCallable</code>로 호출되어 같은 실행 경로를 공유합니다.</p>
-    </article>
-    <article class="principle-card">
-      <span class="principle-card__abbr">ISP</span>
-      <h3>인터페이스 분리 원칙</h3>
-      <p>호출 가능한 값은 <code>arity()</code>/<code>call()</code>만 요구하고, 디버거는 <code>on_stmt</code> 훅만 제공합니다.</p>
-    </article>
-    <article class="principle-card">
-      <span class="principle-card__abbr">DIP</span>
-      <h3>의존성 역전 원칙</h3>
-      <p><code>Assembler</code>와 <code>Executor</code>는 tokenizer/parser/loader/hook을 주입받아 테스트 더블로 교체하기 쉽습니다.</p>
-    </article>
-  </div>
-
-  <div class="pattern-grid">
-    <article class="pattern-card">
-      <span>Facade</span>
-      <h3><code>CodeFabInterpreter.run()</code></h3>
-      <p>사용자는 <code>run()</code> 하나만 호출하고, 내부 파이프라인 조립은 퍼사드가 맡습니다.</p>
-    </article>
-    <article class="pattern-card">
-      <span>Visitor</span>
-      <h3><code>Expr/Stmt.accept()</code></h3>
-      <p>같은 AST를 <code>Checker</code>와 <code>Executor</code>가 각각 다른 목적으로 순회합니다.</p>
-    </article>
-    <article class="pattern-card">
-      <span>Strategy / Callback Hook</span>
-      <h3><code>Executor(on_stmt=...)</code></h3>
-      <p>일반 실행과 디버그 실행의 차이를 문장 실행 전 콜백 주입으로 분리합니다.</p>
-    </article>
-  </div>
-
-  <ul class="impact-list">
-    <li><code>import</code>는 Loader와 Executor의 책임을 나누어 기존 함수/클래스 실행 로직과 충돌을 줄였습니다.</li>
-    <li><code>debug next</code>는 Executor가 depth와 hook만 제공하고, 정지 판단은 DebugController가 맡도록 개선했습니다.</li>
-    <li>상수 폴딩과 정적 바인딩은 Checker에서 계산하고 Executor가 결과를 사용해 실행 단계의 부담을 줄였습니다.</li>
-  </ul>
-</section>
-
-<section id="class-diagram-pipeline" class="slide">
+<section id="class-diagram-pipeline" class="slide slide--content">
   <p class="slide__eyebrow">04 · 클래스 다이어그램 1/2</p>
   <h2 class="slide__title">핵심 파이프라인 클래스 다이어그램</h2>
-  <p class="slide__lede">발표에서는 입력을 실행 결과로 연결하는 핵심 클래스와 책임 흐름만 보여줍니다.</p>
 
   <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
@@ -234,10 +223,9 @@ classDiagram
   </div>
 </section>
 
-<section id="class-diagram-runtime" class="slide">
+<section id="class-diagram-runtime" class="slide slide--content">
   <p class="slide__eyebrow">05 · 클래스 다이어그램 2/2</p>
   <h2 class="slide__title">런타임 객체 모델 클래스 다이어그램</h2>
-  <p class="slide__lede">호출 가능한 값, 인스턴스, 모듈이 실행 중 만나는 핵심 관계만 표시합니다.</p>
 
   <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
@@ -277,10 +265,75 @@ classDiagram
   </div>
 </section>
 
-<section id="seq-diagram-normal" class="slide">
-  <p class="slide__eyebrow">06 · 시퀀스 다이어그램 1/3</p>
+<section id="solid-patterns" class="slide slide--content">
+  <p class="slide__eyebrow">06 · SOLID 원칙</p>
+  <h2 class="slide__title">SOLID 원칙 적용</h2>
+
+  <div class="principle-grid">
+    <article class="principle-card">
+      <span class="principle-card__abbr">SRP</span>
+      <h3>단일 책임 원칙</h3>
+      <p class="principle-card__source">코드 위치: <code>tokenizer.py</code> · <code>parser.py</code> · <code>checker.py</code> · <code>executor.py</code> · <code>loader.py</code> · <code>debugger.py</code></p>
+      <p>토큰화, AST 조립, 정적 검증·최적화, 실행, 모듈 로드, 디버깅을 분리합니다. 기능 하나를 바꿔도 영향과 테스트 범위를 해당 모듈로 좁힐 수 있습니다.</p>
+    </article>
+    <article class="principle-card">
+      <span class="principle-card__abbr">OCP</span>
+      <h3>개방-폐쇄 원칙</h3>
+      <p class="principle-card__source">코드 위치: <code>ast_nodes.py</code>의 <code>Expr/Stmt.accept()</code> · <code>checker.py</code>/<code>executor.py</code>의 <code>visit_Xxx</code></p>
+      <p>AST는 방문자에게 디스패치하고, 분석·실행 행위는 visitor로 더합니다. 새 노드 처리 누락은 즉시 오류로 드러나 확장 과정의 조용한 누락을 막습니다.</p>
+    </article>
+    <article class="principle-card">
+      <span class="principle-card__abbr">LSP</span>
+      <h3>리스코프 치환 원칙</h3>
+      <p class="principle-card__source">코드 위치: <code>runtime.py</code>의 <code>CodeFabFunction</code>/<code>CodeFabClass</code> · <code>executor.py</code>의 <code>visit_CallExpr()</code></p>
+      <p>두 타입은 <code>CodeFabCallable</code>의 <code>arity()</code>/<code>call()</code> 규약을 지켜 같은 호출 경로를 통과합니다. 함수 호출과 클래스 인스턴스화가 동일한 문법과 인자 검사를 공유합니다.</p>
+    </article>
+    <article class="principle-card">
+      <span class="principle-card__abbr">ISP</span>
+      <h3>인터페이스 분리 원칙</h3>
+      <p class="principle-card__source">코드 위치: <code>runtime.py</code>의 <code>CodeFabCallable</code> · <code>executor.py</code>의 <code>visit_CallExpr()</code></p>
+      <p>호출부는 <code>arity()</code>와 <code>call()</code>만 의존합니다. <code>bind()</code>나 <code>find_method()</code> 같은 구현별 기능이 바뀌어도 일반 호출 로직은 영향을 받지 않습니다.</p>
+    </article>
+    <article class="principle-card">
+      <span class="principle-card__abbr">DIP</span>
+      <h3>의존성 역전 원칙</h3>
+      <p class="principle-card__source">코드 위치: <code>executor.py</code>의 <code>Executor(..., loader, on_stmt)</code> · <code>factory_shell.py</code>의 <code>run_debug_mode()</code></p>
+      <p>Shell이 <code>Loader</code>와 <code>DebugController.on_stmt</code>를 조립해 실행기에 전달합니다. 디버그 정책을 바꿔도 실행 루프는 유지되며, 콜백 spy로 문장 단위 동작을 검증할 수 있습니다.</p>
+    </article>
+  </div>
+
+</section>
+
+<section id="design-patterns" class="slide slide--content">
+  <p class="slide__eyebrow">07 · 디자인 패턴</p>
+  <h2 class="slide__title">디자인 패턴 적용</h2>
+
+  <div class="pattern-grid">
+    <article class="pattern-card">
+      <span>Facade</span>
+      <h3><code>CodeFabInterpreter.run()</code></h3>
+      <p>Shell은 <code>run()</code> 하나만 호출하고, 내부의 Assembler → Checker → Executor 조립은 퍼사드가 맡습니다. REPL과 파일 실행도 같은 진입점을 공유해 호출 방식이 달라져도 파이프라인은 일관되게 유지됩니다.</p>
+      <div class="mermaid pattern-diagram">
+flowchart LR
+    Shell["Shells"] --> Facade["CodeFabInterpreter.run()"] --> Pipeline["Assembler → Checker → Executor"]
+      </div>
+    </article>
+    <article class="pattern-card">
+      <span>Visitor</span>
+      <h3><code>Expr/Stmt.accept()</code></h3>
+      <p>같은 AST를 <code>Checker</code>는 검사·최적화에, <code>Executor</code>는 실행에 사용합니다. 새 노드의 <code>visit_Xxx</code> 구현이 빠지면 즉시 드러나므로 확장 중 누락을 초기에 잡을 수 있습니다.</p>
+      <div class="mermaid pattern-diagram">
+flowchart LR
+    AST["Expr / Stmt"] -->|"accept(Checker)"| Checker["Checker<br/>검사 · 최적화"]
+    AST -->|"accept(Executor)"| Executor["Executor<br/>실행"]
+      </div>
+    </article>
+  </div>
+</section>
+
+<section id="seq-diagram-normal" class="slide slide--content">
+  <p class="slide__eyebrow">08 · 시퀀스 다이어그램 1/3</p>
   <h2 class="slide__title">일반 실행 시퀀스</h2>
-  <p class="slide__lede">소스 입력이 조립, 검사, 실행을 거쳐 결과로 돌아오는 핵심 흐름입니다.</p>
 
   <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
@@ -305,10 +358,9 @@ sequenceDiagram
   </div>
 </section>
 
-<section id="seq-diagram-import" class="slide">
-  <p class="slide__eyebrow">07 · 시퀀스 다이어그램 2/3</p>
+<section id="seq-diagram-import" class="slide slide--content">
+  <p class="slide__eyebrow">09 · 시퀀스 다이어그램 2/3</p>
   <h2 class="slide__title">import 실행 시퀀스</h2>
-  <p class="slide__lede">모듈도 조립과 검사를 거쳐 독립 실행된 뒤 alias로 노출됩니다.</p>
 
   <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
@@ -331,10 +383,9 @@ sequenceDiagram
   </div>
 </section>
 
-<section id="seq-diagram-debug" class="slide">
-  <p class="slide__eyebrow">08 · 시퀀스 다이어그램 3/3</p>
+<section id="seq-diagram-debug" class="slide slide--content">
+  <p class="slide__eyebrow">10 · 시퀀스 다이어그램 3/3</p>
   <h2 class="slide__title">디버그 모드 시퀀스</h2>
-  <p class="slide__lede">Assembler와 Checker를 거친 뒤, 문장 실행 전 훅으로 디버거가 정지 여부를 결정합니다.</p>
 
   <div class="diagram-block diagram-block--presentation">
     <div class="mermaid">
@@ -364,96 +415,132 @@ sequenceDiagram
   </div>
 </section>
 
-<section id="bp" class="slide">
-  <p class="slide__eyebrow">09 · Best Practice</p>
-  <h2 class="slide__title">BP 사례</h2>
-  <p class="slide__lede">실제 PR/커밋에서 확인한 Code Review, TDD, Refactoring, 사용성 개선 열 가지 사례입니다.</p>
+<section id="bp" class="slide slide--content">
+  <p class="slide__eyebrow">11 · Best Practice · 1/3</p>
+  <h2 class="slide__title">Checker Unit의 TDD 사이클</h2>
 
   <div class="bp-grid">
-    <article class="bp-card">
-      <span class="bp-card__kicker">Code Review</span>
-      <h3 class="bp-card__title">클래스명 중복 선언 검출 누락</h3>
-      <p>리뷰 과정에서 <code>Class Robot</code>이 기존 변수 <code>Robot</code>을 조용히 덮어쓰는 문제를 재현 코드로 확인. Checker가 클래스명을 스코프에 등록하지 않은 원인을 추적했습니다.</p>
-      <div class="bp-card__diff"><span class="diff-minus">- Class 선언 시 스코프 등록 없음</span><span class="diff-plus">+ visit_ClassDeclStmt()에서 이름 선언 등록</span></div>
-      <p class="bp-card__result">CheckError로 중복 선언 즉시 차단 · 회귀 테스트로 보장</p>
-    </article>
+    <article class="bp-card bp-card--tdd">
+      <div class="bp-tdd__header">
+        <span class="bp-card__kicker">TDD · Checker Unit</span>
+        <p class="bp-tdd__commits"><code>0ef8398</code> RED → <code>340ec2e</code> GREEN → <code>93480e9</code> REFACTOR</p>
+      </div>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">TDD</span>
-      <h3 class="bp-card__title">modulo 상수 폴딩 누락</h3>
-      <p>PDF 예시의 <code>%</code> 리터럴 연산이 매 반복마다 재계산되는 문제를, 실패하는 회귀 테스트를 먼저 작성해 고정한 뒤 <code>Checker._try_fold_binary()</code>를 수정했습니다.</p>
-      <div class="bp-card__diff"><span class="diff-ctx">test_modulo_constant_folding()</span><span class="diff-minus">- 런타임마다 MODULO 재계산</span><span class="diff-plus">+ 리터럴은 실행 전에 폴딩, `% 0`은 보존</span></div>
-      <p class="bp-card__result">루프 3회 누적 출력 15 · 런타임 MODULO 호출 0회</p>
-    </article>
+      <div class="bp-tdd__stages">
+        <section class="bp-tdd__stage bp-tdd__stage--red">
+          <span class="bp-tdd__label">RED</span>
+          <h3>실패하는 테스트부터 작성</h3>
+          <p>Checker 구현 전 <code>test_checker.py</code>에 자기참조, 같은 스코프 중복 선언, 재할당·섀도잉 등 9개 케이스를 작성해 모두 실패시켰습니다.</p>
+          <pre class="bp-tdd__code"><code>with pytest.raises(CheckError):
+    Checker(stmts).check()</code></pre>
+        </section>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">Refactoring</span>
-      <h3 class="bp-card__title">eval_binary_op 추출</h3>
-      <p>Checker의 상수 폴딩과 Executor의 실행 로직에 중복된 11개 이항 연산자 처리를, <code>runtime.eval_binary_op</code> 한 곳으로 통합했습니다. 이후 연산 의미가 바뀌어도 한 곳만 수정하면 됩니다.</p>
-      <div class="bp-card__diff"><span class="diff-minus">- checker.py, executor.py 각각 구현</span><span class="diff-plus">+ runtime.eval_binary_op() 단일 소스</span></div>
-      <p class="bp-card__result">기존 테스트 전량 통과로 동작 동일성 검증</p>
-    </article>
+        <section class="bp-tdd__stage bp-tdd__stage--green">
+          <span class="bp-tdd__label">GREEN</span>
+          <h3>테스트를 통과시키는 최소 구현</h3>
+          <p><code>if/elif isinstance(...)</code> 체인으로 9개 테스트를 통과시켰지만, 새 Stmt 타입을 빼먹으면 조용히 무시되는 확장성 문제가 남았습니다.</p>
+          <pre class="bp-tdd__code"><code>if isinstance(stmt, VarDeclStmt):
+    self._check_var_decl(stmt)</code></pre>
+        </section>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">Error UX</span>
-      <h3 class="bp-card__title">import 오류 traceback 노출 방지</h3>
-      <p>파일 실행 · 디버그 · REPL 세 경로 모두에서 <code>ModuleImportError</code>가 사용자에게 traceback으로 새던 문제를 찾아, 세 진입점 모두를 메시지 출력 + 종료 코드 1로 통일했습니다.</p>
-      <div class="bp-card__diff"><span class="diff-ctx">factory_shell.py · prompt_shell.py</span><span class="diff-plus">+ 3개 실행 경로 회귀 테스트 추가</span></div>
-      <p class="bp-card__result">누락 import 시 traceback 없이 오류 메시지만 출력</p>
-    </article>
+        <section class="bp-tdd__stage bp-tdd__stage--refactor">
+          <span class="bp-tdd__label">REFACTOR</span>
+          <h3>그린을 유지하며 구조 개선</h3>
+          <p>타입 → 핸들러 dict로 바꾸고 9개 테스트의 그린을 유지했습니다. 이 방식은 팀 컨벤션이 됐고, 이후 Visitor가 조용한 무시 문제를 보완했습니다.</p>
+          <pre class="bp-tdd__code"><code>handler = self._stmt_handlers.get(type(stmt))
+if handler:
+    handler(stmt)</code></pre>
+        </section>
+      </div>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">Debug UX</span>
-      <h3 class="bp-card__title"><code>next</code>가 복합문 내부에서 다시 멈추는 문제</h3>
-      <p>디버그 모드에서 <code>for</code>/<code>if</code> 같은 복합문에 <code>next</code>를 실행하면 내부 Stmt에서 다시 멈춰 <code>step</code>과 <code>next</code>의 의미가 섞이는 문제를 PR #54에서 확인했습니다.</p>
-      <div class="bp-card__diff"><span class="diff-ctx">PR #54 · 3a3240b</span><span class="diff-plus">+ 중첩 Stmt 실행 helper로 debug depth 분리</span><span class="diff-plus">+ import 모듈 실행도 호출 지점보다 깊은 depth로 처리</span></div>
-      <p class="bp-card__result">루프 본문 내부에서 next가 재정지하지 않는 회귀 테스트로 검증</p>
+      <p class="bp-tdd__outcome">테스트가 동작 보존을 보증한 상태에서 구현을 단순화하고, 다음 확장 단계에서 Visitor 패턴으로 발전시킨 TDD 사이클입니다.</p>
     </article>
+  </div>
+</section>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">Code Review</span>
-      <h3 class="bp-card__title">REPL 재import 우회 버그와 문서 정확성</h3>
-      <p><code>CodeFabInterpreter.run()</code>마다 새 Checker가 만들어져 import 경로 기록이 초기화되고, 같은 파일을 다른 alias로 다시 import할 수 있었던 문제를 PR #53에서 발견했습니다.</p>
-      <div class="bp-card__diff"><span class="diff-ctx">PR #53 · d4e51de</span><span class="diff-plus">+ Interpreter가 _imported_paths를 보존해 Checker에 전달</span><span class="diff-minus">- README/주석의 O(1) 표현을 O(depth)+해시 조회로 정정</span></div>
-      <p class="bp-card__result">재import 버그 재현 → 수정 → 스코프 규칙 유지 회귀 테스트로 확인</p>
+<section id="bp-review" class="slide slide--content">
+  <p class="slide__eyebrow">12 · Best Practice · 2/3</p>
+  <h2 class="slide__title">리뷰가 발견한 for 변수 스코프 누수</h2>
+
+  <div class="bp-grid">
+    <article class="bp-card bp-card--review">
+      <div class="bp-tdd__header">
+        <span class="bp-card__kicker">Code Review · Scope</span>
+        <p class="bp-tdd__commits"><code>dd2177e</code> → <code>f282c92</code> → <code>3807c7b</code> · PR #20</p>
+      </div>
+
+      <div class="bp-tdd__stages">
+        <section class="bp-tdd__stage bp-tdd__stage--initial">
+          <span class="bp-tdd__label">INITIAL</span>
+          <h3>현재 환경에서 그대로 실행</h3>
+          <p><code>ForStmt</code>의 초기화식·조건식·증감식을 <code>self._current</code>에서 처리해 <code>var i = 0;</code>이 전역 환경에 남았습니다.</p>
+          <pre class="bp-tdd__code"><code>self._exec_stmt(stmt.initializer)
+while self._is_truthy(...):
+    self._exec_stmt(stmt.body)</code></pre>
+        </section>
+
+        <section class="bp-tdd__stage bp-tdd__stage--review">
+          <span class="bp-tdd__label">REVIEW</span>
+          <h3>회귀 테스트 확장 중 발견</h3>
+          <p>REPL 전역 스코프 인지 버그를 리뷰하며 테스트를 넓히다, 루프 뒤 <code>var i = 5;</code>가 중복 선언 오류가 되는 문제를 발견했습니다. PR의 의도는 맞았지만 별개의 누수 버그가 드러난 경우입니다.</p>
+          <pre class="bp-tdd__code"><code>for (var i = 0; i &lt; 3; i = i + 1) { }
+var i = 5;  // should be allowed</code></pre>
+        </section>
+
+        <section class="bp-tdd__stage bp-tdd__stage--fix">
+          <span class="bp-tdd__label">FIX</span>
+          <h3>loop_env를 만들고 반드시 복원</h3>
+          <p>루프 전용 환경으로 전환하고 <code>finally</code>에서 복원했습니다. 본문 오류가 나도 외부 스코프는 항상 정상 상태로 돌아옵니다.</p>
+          <pre class="bp-tdd__code"><code>loop_env = Environment(parent=self._current)
+self._current = loop_env
+try: ...
+finally: self._current = prev</code></pre>
+        </section>
+      </div>
+
+      <p class="bp-tdd__outcome">for 변수의 전역 누수를 막고, 단일·중첩 루프 누수와 같은 이름 섀도잉을 검증하는 회귀 테스트 3종을 추가했습니다.</p>
     </article>
+  </div>
+</section>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">Refactoring</span>
-      <h3 class="bp-card__title">AST Visitor 패턴 전환</h3>
-      <p>Checker/Executor의 dict 기반 AST handler는 새 노드 handler 등록 누락이 늦게 드러날 수 있는 문제가 있어, PR #47에서 <code>accept(visitor)</code> 더블 디스패치로 전환했습니다.</p>
-      <div class="bp-card__diff"><span class="diff-ctx">PR #47 · b1d2afa / 4b51cb4 / 1171de6</span><span class="diff-plus">+ visit_Xxx 누락 시 즉시 실패</span></div>
-      <p class="bp-card__result">리팩터링 중 merge conflict로 깨진 Executor Stmt 디스패치를 회귀 테스트로 복구</p>
-    </article>
+<section id="bp-refactoring" class="slide slide--content">
+  <p class="slide__eyebrow">13 · Best Practice · 3/3</p>
+  <h2 class="slide__title">디자인 패턴으로 구조를 리팩토링</h2>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">Refactoring</span>
-      <h3 class="bp-card__title">테스트 공통 헬퍼와 fixture 추출</h3>
-      <p>여러 테스트 파일에 반복되던 <code>tok</code>, <code>name_tok</code>, <code>path_tok</code>, 임시 파일 생성 helper와 중복 함수 인자 개수 케이스를 PR #41에서 공통화했습니다.</p>
-      <div class="bp-card__diff"><span class="diff-ctx">PR #41 · f8d40c6</span><span class="diff-plus">+ tests/helpers.py, tests/conftest.py의 tmp_write fixture</span><span class="diff-plus">+ pytest.mark.parametrize로 유사 케이스 통합</span></div>
-      <p class="bp-card__result">테스트 의미 유지 + 이후 기능 추가 시 테스트 작성 비용 감소</p>
-    </article>
+  <div class="bp-grid">
+    <article class="bp-card bp-card--refactoring">
+      <div class="bp-tdd__header">
+        <span class="bp-card__kicker">Refactoring · Facade / Visitor</span>
+        <p class="bp-tdd__commits">Facade PR #7 / #14 · Visitor PR #47</p>
+      </div>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">TDD + Optimization</span>
-      <h3 class="bp-card__title"><code>This</code> 정적 바인딩 누락 보완</h3>
-      <p><code>Super</code>는 정적 바인딩이 적용됐지만 <code>This</code>는 매번 동적 <code>Environment.get</code> 조회를 타고 있어 클래스 메서드의 빈번한 접근 경로에 최적화 공백이 있었습니다 (PR #40).</p>
-      <div class="bp-card__diff"><span class="diff-ctx">PR #40 · 32e6d55</span><span class="diff-plus">+ Checker._resolve_local()로 This distance 계산</span><span class="diff-plus">+ Executor는 distance 있으면 get_at()으로 접근</span></div>
-      <p class="bp-card__result">상속 여부 무관 distance 유지 확인 + spy로 동적 조회 제거 검증</p>
-    </article>
+      <div class="bp-refactor__items">
+        <section class="bp-refactor__item">
+          <span class="bp-refactor__tag">Facade</span>
+          <h3><code>CodeFabInterpreter</code>와 <code>Assembler</code>로 조립 순서 은닉</h3>
+          <p>클라이언트는 <code>run()</code> 또는 <code>assemble()</code>만 호출하고, 하위 컴포넌트의 생성·연결 순서는 Facade가 맡습니다. Shell이 파이프라인 세부 순서를 알 필요가 없어 변경 범위가 줄었습니다.</p>
+          <div class="bp-refactor__flow" aria-label="Facade 흐름">
+            <span>Client</span><b>→</b><span>Facade</span><b>→</b><span>Assembler</span><b>→</b><span>Checker / Executor</span>
+          </div>
+        </section>
 
-    <article class="bp-card">
-      <span class="bp-card__kicker">TDD + Coverage</span>
-      <h3 class="bp-card__title">미커버 라인 보강 중 숨은 회귀 발견</h3>
-      <p>tokenizer/parser/checker/executor/runtime의 미커버 라인을 보강하는 과정에서 main 병합 conflict와 <code>_try_fold_binary</code>의 회귀 가능성을 PR #59, #62에서 발견했습니다.</p>
-      <div class="bp-card__diff"><span class="diff-ctx">PR #59 / #62 · 403ae6e, 37bc9ed, 69fe567, 41052ea, db8082b</span><span class="diff-plus">+ 음수/비정수 배열 크기·인덱스, var 없는 for 초기화식 경계 테스트</span><span class="diff-minus">- 미지원 연산자를 LiteralExpr(None)으로 잘못 접던 폴딩 방지</span></div>
-      <p class="bp-card__result">커버리지 보강이 단순 수치 개선을 넘어 숨은 회귀를 드러내는 안전망 역할</p>
+        <section class="bp-refactor__item">
+          <span class="bp-refactor__tag">Visitor</span>
+          <h3>AST 변경 없이 새 순회 기능을 추가</h3>
+          <p><code>Checker</code>와 <code>Executor</code>가 <code>accept(visitor)</code>로 같은 AST를 다른 목적으로 순회합니다. 새 문법은 필요한 <code>visit_Xxx</code>를 구현하게 해 누락을 드러내고, 새 분석기는 AST 노드를 고치지 않고 추가할 수 있습니다.</p>
+          <div class="bp-refactor__flow" aria-label="Visitor 흐름">
+            <span>Expr / Stmt</span><b>→</b><span>accept(visitor)</span><b>→</b><span>Checker / Executor</span>
+          </div>
+        </section>
+      </div>
+
+      <p class="bp-tdd__outcome">단순 구현을 넘어 변경을 한 곳으로 모으고 확장 시 누락을 빠르게 발견하는 구조로 발전시킨 리팩토링 사례입니다.</p>
     </article>
   </div>
 </section>
 
 <section id="demo" class="slide slide--demo">
-  <p class="slide__eyebrow">10 · 시연 로드맵</p>
+  <p class="slide__eyebrow">14 · 시연 로드맵</p>
   <h2 class="slide__title">기본 기능과 엣지 케이스 시연 목록</h2>
   <div class="demo-overview">
     <article class="demo-lane">
@@ -486,7 +573,7 @@ sequenceDiagram
 </section>
 
 <section id="demo-basic" class="slide slide--demo">
-  <p class="slide__eyebrow">11 · 기본 기능 시연</p>
+  <p class="slide__eyebrow">15 · 기본 기능 시연</p>
   <h2 class="slide__title">정상 동작 데모 순서</h2>
   <div class="demo-cases">
     <article class="demo-case">
@@ -555,7 +642,7 @@ done</code></pre>
 </section>
 
 <section id="demo-edge" class="slide slide--demo">
-  <p class="slide__eyebrow">12 · 엣지 케이스 시연</p>
+  <p class="slide__eyebrow">16 · 엣지 케이스 시연</p>
   <h2 class="slide__title">실패 경로와 회귀 방지 데모</h2>
   <div class="demo-cases demo-cases--compact">
     <article class="demo-case">
@@ -625,50 +712,48 @@ next  → 같은 깊이의 다음 문장까지 진행</code></pre>
 </section>
 
 <section id="notes" class="slide">
-  <p class="slide__eyebrow">13 · 소감</p>
+  <p class="slide__eyebrow">17 · 소감 1/2</p>
   <h2 class="slide__title">소감</h2>
 
   <div class="notes-grid">
-    <div class="note-card note-card--pending">
+    <div class="note-card">
       <div class="note-card__head"><span class="note-card__name">박준용</span></div>
-      <p>추후 작성 예정</p>
+      <p>AI도구 사용으로 코드 생산성이 크게 향상된 만큼, 이를 효과적으로 통제하기 위한 클린 코드, 리팩토링, TDD의 중요성도 함께 커지고 있다는 것을 느꼈습니다. 그동안은 현업이 바쁘다는 이유로 테스트 코드 작성을 소홀히 하는 경우가 있었지만, 이제는 AI 도구를 활용해 테스트를 잘 작성해야겠다고 생각했습니다.</p>
+      <p>AI는 많은 양의 코드를 빠르게 생성해 주지만, 그만큼 요구사항을 정확히 검증할 수 있는 테스트 코드의 역할이 더욱 중요하다는 점을 다시 한번 깨달았습니다. 이번 프로젝트를 진행하면서도 초기에는 AI가 높은 수준의 코드를 생성해 주었지만, 프로젝트 규모가 커질수록 일부 요구사항을 놓치거나 의도와 다른 구현을 하는 경우가 있었습니다. 결국 AI가 생성한 코드도 코드리뷰 과정을 통해 꼼꼼하게 리뷰하고 검증하는 과정이 반드시 필요하며, 이를 뒷받침하는 테스트 코드와 코드 리뷰 문화가 앞으로 더욱 중요해질 것이라고 생각합니다.</p>
     </div>
     <div class="note-card">
       <div class="note-card__head"><span class="note-card__name">권은재</span></div>
-      <p>TDD로 Checker를 만들다 보니 테스트를 먼저 정해두는 게 이후 기능이 추가될 때도 회귀를 잡아주는 안전장치가 된다는 걸 실감했습니다. 리뷰는 통과 여부만 보는 게 아니라 왜 그렇게 동작하는지까지 확인하는 작업이라는 걸 다시 배웠습니다.</p>
+      <p>TDD로 Checker를 만들다 보니 테스트를 먼저 정해두는 게 이후 기능이 추가될 때도 회귀를 잡아주는 안전장치가 된다는 걸 실감했습니다. 다른 기능이 merge될 때마다 제가 만든 로직과 충돌하는 부분이 없는지 직접 코드를 추적해서 확인해야 했고, 그 과정에서 리뷰는 통과 여부만 보는 게 아니라 왜 그렇게 동작하는지까지 확인하는 작업이라는 걸 다시 배웠습니다. 리팩토링도 몇 차례 겪었는데, 구조가 바뀌어도 테스트가 그대로 통과하는지로 검증할 수 있어서 수업 목표였던 TDD·리팩토링을 실제로 써볼 수 있었던 프로젝트였습니다.</p>
     </div>
     <div class="note-card">
       <div class="note-card__head"><span class="note-card__name">김종화</span></div>
-      <p>처음부터 끝까지 TDD를 적용해보며 모든 변경점이 UT로 검증되는 안심감을 느꼈습니다. 앞으로 현업에서도 UT 작성을 꾸준히 해야겠다고 생각했습니다.</p>
+      <p>이번 프로젝트를 통해서 처음부터 끝까지 TDD를 적용하여 개발하는 경험을 처음 해보았는데, 모든 변경점이 UT를 통해 정확히 동작하는것이 검증되고 있어 안심하고 개발할 수 있었습니다. 기존에 제품 개발할 때에는 이런 안전장치가 없어서 늘 불안한 마음을 가지고 있는데, 앞으로 현업에 돌아가서 UT 작성을 꾸준히 해야겠다고 생각했습니다.</p>
     </div>
+  </div>
+</section>
+
+<section id="notes-team2" class="slide">
+  <p class="slide__eyebrow">18 · 소감 2/2</p>
+  <h2 class="slide__title">소감</h2>
+
+  <div class="notes-grid">
     <div class="note-card">
       <div class="note-card__head"><span class="note-card__name">송지영</span></div>
-      <p>혼자 개발할 땐 크게 느끼지 못했던 클린코드·TDD의 필요성을, 팀원의 코드를 이해하고 수정하면서 체감했습니다. 언젠가 다른 사람이 볼 코드를 고려해 테스트와 리팩토링을 잘 해둬야겠습니다.</p>
+      <p>현업에서는 주로 혼자 개발하다보니 클린코드나 TDD의 필요성을 크게 느끼지 못했는데, 팀 프로젝트를 해보니 팀원의 코드를 이해하거나 수정할 때 도움이 되었습니다. 혼자 개발하더라도 언젠간 다른 사람이 내 코드를 보거나 수정해야하는 상황이 올 수 있다는 것을 고려하여 test 코드를 추가하고 리팩토링 잘 해둬야겠다는 생각이 들었습니다.</p>
     </div>
     <div class="note-card">
       <div class="note-card__head"><span class="note-card__name">이채연</span></div>
-      <p>같은 설계 문서를 공유하면 CLAUDE 사용이 협업에 유리하다고 느꼈습니다. 모듈을 나눠 독립적으로 개발해도 꼼꼼한 테스트 케이스 덕분에 서로의 변경이 깨지지 않는지 쉽게 검증할 수 있었습니다.</p>
+      <p>CLAUDE를 사용하여 처음부터 끝까지 개발해본 프로젝트인데, 팀원이 모두 다 같은 설계 문서만 공유한다면 CLAUDE를 사용하는 것이 코드 스타일이나 설계 관점에서 협업에 더 유리하다고 느꼈습니다. 모듈을 나눠서 각자 독립적으로 개발해도, 팀원 모두가 테스트 케이스를 꼼꼼하게 정의해둔 덕분에 다른 모듈들이 제 모듈 변경사항으로 인해 깨지진 않는지 쉽게 검증할 수 있어서 개발이 더 수월했다는 걸 깨달아서, 현업에 가서도 TC를 보강해야겠다고 느꼈습니다.</p>
     </div>
     <div class="note-card">
       <div class="note-card__head"><span class="note-card__name">조재현</span></div>
-      <p>현업에서 어려웠던 코드 충돌·역할 분담이 이번엔 체계적으로 진행됐습니다. 브랜치별 PR로 개발 흐름이 잡혔고, 시간이 걸리더라도 코드 리뷰 문화를 도입하고 싶다는 생각이 들었습니다.</p>
+      <p>현업에서 프로젝트 진행할 때 어려웠던 점 중 하나가 다른 개발 인원과의 코드 충돌, 개발 역할 분담 등이었습니다. 이 부분들이 앞선 수업때 배운 것들을 기반으로 체계적으로 진행된 것 같아 좋았던 것 같습니다. 팀원분들도 개발 시작 전 역할을 분담하는데 의견을 주시고, 팀장님은 코드의 취약점 등을 언급해주신 부분이 좋았습니다. Branch를 다수 사용하여 각자 개발에 대한 PR을 올려 코드 관리를 진행하면서 개발이 되었기 때문에, 전체적인 개발 흐름이 잡힌 상태로 진행된 것 같아 장점이 있었던 것 같습니다. 현업에서는 양산 일정에 밀려 급한 개발을 진행하느라 이런 체계적인 개발을 진행할 기회가 없었는데, 조금 시간이 걸리더라도 코드 리뷰 문화를 도입할 수 있었으면 좋겠습니다. 무엇보다 크게 느꼈던 것은 claude를 이용하여 더 빠르고 정확하게 코드 개발을 진행할 수 있었다는 점입니다. 코드 파악에 소요되는 시간을 매우 단축시키고, 문제점을 빠르게 수정할 수 있어 편리하였습니다. 또한, git에서 conflict가 발생해도 직접 하나하나 수정할 것 없이 claude가 정리해서 push까지 해주는게 정말 대단한 것 같습니다. 현업에도 현재 claude 도입을 검토중인 단계인데, 복귀했을 때 잘 사용해볼 수 있을 것 같아 기대가 됩니다.</p>
     </div>
   </div>
 </section>
 
 <section id="closing" class="slide closing">
-  <p class="slide__eyebrow">14 · Closing</p>
-  <h2 class="slide__title">CodeFab Interpreter</h2>
-  <p class="closing__message">기능 구현부터 품질 검증까지, 팀의 개발 과정을 하나의 인터프리터로 완성했습니다.</p>
-  <div class="closing__pipeline" aria-label="CodeFab Interpreter 실행 흐름">
-    <span>Assembler</span>
-    <span class="closing__arrow" aria-hidden="true">→</span>
-    <span>Checker</span>
-    <span class="closing__arrow" aria-hidden="true">→</span>
-    <span>Executor</span>
-    <span class="closing__arrow" aria-hidden="true">→</span>
-    <span>Factory Shell</span>
-  </div>
+  <p class="slide__eyebrow">19 · Closing</p>
   <div class="closing-metrics" aria-label="프로젝트 마무리 지표">
     <div class="closing-metric">
       <span class="closing-metric__label">Test</span>
@@ -699,7 +784,7 @@ next  → 같은 깊이의 다음 문장까지 진행</code></pre>
 </main>
 
 <div class="progress" aria-hidden="true">
-  <span class="progress__current">1</span> / <span class="progress__total">15</span>
+  <span class="progress__current">1</span> / <span class="progress__total">20</span>
 </div>
 
 <script src="script.js"></script>

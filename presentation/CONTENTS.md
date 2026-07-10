@@ -39,6 +39,15 @@
 순서대로 실행하는 구조다. AST는 `Parser`가 만들고, 이후 단계는 Visitor 패턴(`accept(visitor)`)으로
 같은 AST를 정적 검사와 실행에 재사용한다.
 
+### 구현 기능 요약
+
+| 기능 영역 | 구현 범위 |
+|---|---|
+| 기본 문법 · 제어 | ✓ 변수 선언/대입: `var x = 1;`, `x = x + 1;`<br>✓ 기본 타입: Number, String, Boolean, null<br>✓ 산술/비교/동등 연산: `+ - * / %`, `< > <= >=`, `== !=`<br>✓ 논리 연산: `and`, `or`, `!` 및 단락 평가<br>✓ 제어문: `if`/`else`, C 스타일 `for`<br>✓ 블록 스코프와 변수 섀도잉<br>✓ `print` 문과 `//` 한 줄 주석 |
+| 함수 · 객체 모델 | ✓ 함수: `Func`, 매개변수, 재귀, 클로저, `return`<br>✓ 클래스: `Class`, 동적 필드, 메서드, `This`, 생성자 `init`<br>✓ 단일 상속: `Class Child : Parent`, `Super`, `instanceof` |
+| 데이터 · 모듈 | ✓ 정적 배열: `Array(n)`, `arr[i]` 읽기/쓰기<br>✓ import: `import "path" alias name;` 및 `name.member` 접근 |
+| 검증 · 개발자 도구 | ✓ 실행 전 검사/최적화: 중복 선언, 자기 참조, 정적 바인딩, 상수 폴딩<br>✓ Factory Shell 디버그: `step`, `next`, `break`, `watch`, `inspect` |
+
 ### 소스코드 구조 한눈에 보기
 
 ```text
